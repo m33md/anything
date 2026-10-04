@@ -36,7 +36,7 @@ class Downloads(private val source: KolSource) {
             update(novelUrl, Progress(title, 0, todo.size, 0))
             for (ref in todo) {
                 if (!isActive) break
-                val ok = runCatching { ChapterStore.save(source.chapter(ref.url)) }.isSuccess
+                val ok = runCatching { ChapterStore.save(source.chapter(ref.url)) }.getOrDefault(false)
                 if (ok) done++ else failed++
                 update(novelUrl, Progress(title, done, todo.size, failed))
                 delay(350)

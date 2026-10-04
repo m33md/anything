@@ -187,9 +187,12 @@ object ChapterStore {
         AppJson.decodeFromString(ChapterContent.serializer(), fileFor(url).readText())
     }.getOrNull()
 
-    fun save(chapter: ChapterContent) {
-        if (chapter.paragraphs.isEmpty()) return
-        runCatching { fileFor(chapter.url).writeAtomically(AppJson.encodeToString(ChapterContent.serializer(), chapter)) }
+    /** True only when the chapter is on disk afterwards, so callers can count failed saves. */
+    fun save(chapter: ChapterContent): Boolean {
+        if (chapter.paragraphs.isEmpty()) return false
+        return runCatching {
+            fileFor(chapter.url).writeAtomically(AppJson.encodeToString(ChapterContent.serializer(), chapter))
+        }.isSuccess && has(chapter.url)
     }
 
     fun has(url: String) = fileFor(url).exists()
