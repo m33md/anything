@@ -1,0 +1,11 @@
+name: probe
+on: { push: { branches: [claude/kolnovel-android] } }
+permissions: { contents: write }
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "sdk=$ANDROID_HOME" > probe.txt; ls $ANDROID_HOME/platforms >> probe.txt; java -version 2>> probe.txt
+          git init -q out && cd out && cp ../probe.txt . && git add . && git -c user.name=ci -c user.email=ci@x commit -qm probe
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" HEAD:refs/heads/ci-out/probe
