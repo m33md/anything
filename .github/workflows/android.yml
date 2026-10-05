@@ -1,0 +1,70 @@
+# Builds the phone APK and tries it on an Android emulator against the live site.
+# Results (APK, build log, screenshots, logcat) are pushed to the ci-out/android* branches.
+name: android
+on:
+  push:
+    branches: [claude/kolnovel-android]
+    paths: ["android/**", ".github/workflows/android.yml"]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "17" }
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build APK
+        working-directory: android
+        run: |
+          set +e
+          ./gradlew --no-daemon :app:assembleRelease > ../build.log 2>&1
+          echo $? > ../status.txt
+      - name: Publish result
+        run: |
+          mkdir out
+          cp build.log status.txt out/
+          echo "${{ github.sha }}" > out/commit.txt
+          cp android/app/build/outputs/apk/release/app-release.apk out/KolNovelReader.apk 2>/dev/null || true
+          cd out && git init -q && git add . && git -c user.name=ci -c user.email=ci@localhost commit -qm "build ${{ github.sha }}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" HEAD:refs/heads/ci-out/android
+          exit $(cat status.txt)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: out/KolNovelReader.apk
+
+  emulator:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: apk, path: apk }
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          disable-animations: true
+          script: bash android/ci/emulator-test.sh apk/KolNovelReader.apk shots
+      - name: Publish screenshots
+        if: always()
+        run: |
+          mkdir -p shots
+          echo "${{ github.sha }}" > shots/commit.txt
+          cd shots && git init -q && git add . && git -c user.name=ci -c user.email=ci@localhost commit -qm "test ${{ github.sha }}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" HEAD:refs/heads/ci-out/android-test
