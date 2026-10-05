@@ -28,4 +28,4 @@ gradle test                 # parser tests; they use pages saved into samples/ a
 packaging/assemble.sh       # dist/KolNovelReader + dist/KolNovelReader.zip
 ```
 
-`dist/KolNovelReader` includes a Temurin 21 JRE in `runtime/`, so it runs on its own.
+`dist/KolNovelReader` includes a Temurin 21 JRE in `runtime/`, so it runs on its own, and `Kol Novel Reader.exe` (built with Go from `packaging/launcher`) to start it.

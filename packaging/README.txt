@@ -4,12 +4,13 @@ A reader for the novels on kolnovel.com (ملوك الروايات), built the s
 
 HOW TO OPEN IT
 1. Right-click the zip > "Extract All...", open the extracted "KolNovelReader" folder and
-   double-click "Kol Novel Reader.bat". Java is already inside the "runtime" folder;
-   nothing gets installed. Keep the "app" and "runtime" folders next to the .bat files.
+   double-click "Kol Novel Reader.exe". Java is already inside the "runtime" folder;
+   nothing gets installed. Keep the "app" and "runtime" folders next to the .exe.
 2. If the window never opens: double-click "Kol Novel Reader (if it does not open).bat"
    and send a screenshot of the black window.
 3. If the text looks blurry: use "Kol Novel Reader (other graphics mode).bat".
-Tip: right-click "Kol Novel Reader.bat" > Send to > Desktop (create shortcut).
+Tip: right-click "Kol Novel Reader.exe" > Send to > Desktop (create shortcut).
+"Kol Novel Reader.bat" does the same as the .exe, in case Windows blocks the .exe.
 
 WHAT IT DOES
 - Home: featured novels, popular today, latest updates (click a chapter to read it), continue reading.
@@ -40,7 +41,7 @@ It is for your own reading. Don't share the site's text elsewhere.
 قارئ ملوك الروايات للكمبيوتر (نسخة غير رسمية)
 
 طريقة التشغيل:
-1. فك ضغط الملف (Extract All) ثم اضغط مرتين على "Kol Novel Reader.bat".
+1. فك ضغط الملف (Extract All) ثم اضغط مرتين على "Kol Novel Reader.exe".
    الجافا موجودة داخل مجلد runtime، ولا يحتاج تثبيت.
 2. إذا لم تفتح النافذة شغّل "Kol Novel Reader (if it does not open).bat" وأرسل صورة للنافذة السوداء.
 
