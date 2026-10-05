@@ -145,6 +145,14 @@ object LibraryStore {
             val e = if (raw.url == k) raw else raw.copy(url = k)
             out[k] = out[k]?.let { LibraryMerge.merge(it, e) } ?: e
         }
+        // Older versions could file progress under a chapter link when a chapter page lacked the novel
+        // crumb. Fold those into the real /series/ entry with the same title.
+        val byTitle = out.values.filter { "/series/" in it.url }.groupBy { it.title.trim() }
+        for (stray in out.values.filter { "/series/" !in it.url }.toList()) {
+            val home = byTitle[stray.title.trim()]?.singleOrNull() ?: continue
+            out.remove(stray.url)
+            out[home.url] = LibraryMerge.merge(out[home.url] ?: home, stray.copy(url = home.url))
+        }
         return out
     }
 

@@ -285,7 +285,8 @@ class KolSource(private val client: OkHttpClient = defaultClient()) {
             }
 
             val crumbs = doc.select(".ts-breadcrumb [itemprop=itemListElement] a")
-            val novelLink = crumbs.getOrNull(1)
+            // Some chapter pages have no novel crumb, so item [1] is the chapter itself: only trust a /series/ link.
+            val novelLink = crumbs.firstOrNull { it.attr("href").contains("/series/") }
             val headline = doc.selectFirst(".epheader h1.entry-title, h1.entry-title")?.text()?.trim().orEmpty()
             val chapterTitle = doc.selectFirst(".epheader .cat-series, .cat-series")?.text()?.trim().orEmpty()
             val number = Regex("(\\d+(?:\\.\\d+)?)\\s*$").find(headline)?.groupValues?.get(1)

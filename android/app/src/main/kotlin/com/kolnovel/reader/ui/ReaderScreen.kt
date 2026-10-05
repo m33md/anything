@@ -96,7 +96,7 @@ private object ChapterLists {
  * prev/next links follow its publish order and can jump over dozens of chapters.
  */
 private suspend fun withListNeighbours(source: KolSource, c: ChapterContent, fallbackNovelUrl: String): ChapterContent {
-    val novelUrl = c.novelUrl ?: fallbackNovelUrl
+    val novelUrl = fallbackNovelUrl.takeIf { "/series/" in it } ?: c.novelUrl ?: fallbackNovelUrl
     val list = withContext(Dispatchers.IO) {
         if (ChapterLists.novelUrl == novelUrl && ChapterLists.chapters.any { it.url == c.url }) return@withContext ChapterLists.chapters
         var chapters = NovelStore.load(novelUrl)?.chapters?.takeIf { l -> l.any { it.url == c.url } }
@@ -154,7 +154,7 @@ fun ReaderScreen(screen: Screen.Reader) {
     // Remember where the reader is; reaching the end marks the chapter read.
     LaunchedEffect(chapter) {
         val c = chapter ?: return@LaunchedEffect
-        val novelUrl = c.novelUrl ?: screen.novel.url
+        val novelUrl = screen.novel.url.takeIf { "/series/" in it } ?: c.novelUrl ?: screen.novel.url
         snapshotFlow {
             val info = listState.layoutInfo
             val last = info.visibleItemsInfo.lastOrNull()?.index ?: 0
