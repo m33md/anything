@@ -1,0 +1,8 @@
+.gradle/
+build/
+libs/
+dist/
+samples/
+*.iml
+.idea/
+packaging/launcher/*.syso

@@ -1,0 +1,397 @@
+package com.kolnovel.reader.ui
+
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.hoverable
+import androidx.compose.ui.AbsoluteAlignment
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.foundation.rememberScrollbarAdapter
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.kolnovel.reader.data.ChapterContent
+import com.kolnovel.reader.data.ChapterLists
+import com.kolnovel.reader.data.ChapterStore
+import com.kolnovel.reader.data.LibraryStore
+import com.kolnovel.reader.data.SettingsStore
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.launch
+
+@OptIn(FlowPreview::class)
+@Composable
+fun ReaderScreen(screen: Screen.Reader) {
+    val services = LocalServices.current
+    val settings = SettingsStore.settings
+    // The reader can have its own theme; empty means "same as the app".
+    val colors = colorsFor(settings, settings.readerTheme)
+    var chapter by remember(screen.chapterUrl) { mutableStateOf<ChapterContent?>(null) }
+    var error by remember(screen.chapterUrl) { mutableStateOf<String?>(null) }
+    var reload by remember { mutableIntStateOf(0) }
+    var showBars by remember { mutableStateOf(true) }
+    var showSettings by remember { mutableStateOf(false) }
+    val locked = services.readerLocked
+    val listState = remember(screen.chapterUrl) { LazyListState(firstVisibleItemIndex = if (screen.startParagraph > 0) screen.startParagraph + 1 else 0) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(screen.chapterUrl, reload) {
+        error = null
+        val saved = ChapterStore.load(screen.chapterUrl)
+        if (saved != null) {
+            chapter = saved
+        } else {
+            try {
+                chapter = services.source.chapter(screen.chapterUrl).also { ChapterStore.save(it) }
+            } catch (e: Exception) {
+                error = e.message ?: e.toString()
+            }
+        }
+    }
+
+    // Previous/next come from the novel's chapter list in number order; the page's own links follow
+    // posting order and can jump over dozens of chapters. They are only used when the list can't be had.
+    var order by remember(screen.chapterUrl) { mutableStateOf<Pair<String?, String?>?>(null) }
+    LaunchedEffect(chapter?.url) {
+        val c = chapter ?: return@LaunchedEffect
+        val list = ChapterLists.get(services.source, novelUrlFor(c, screen))
+        order = list?.let { ChapterLists.neighbours(it, c.url) }
+        // Fetch the next chapter quietly so turning the page is instant.
+        val next = order?.let { it.second } ?: c.nextUrl.takeIf { order == null }
+        if (next != null && !ChapterStore.has(next)) runCatching { ChapterStore.save(services.source.chapter(next)) }
+    }
+    val shown = remember(chapter, order) {
+        chapter?.let { c -> order?.let { (prev, next) -> c.copy(prevUrl = prev, nextUrl = next) } ?: c }
+    }
+
+    // Remember where the reader is; reaching the end marks the chapter read.
+    LaunchedEffect(chapter) {
+        val c = chapter ?: return@LaunchedEffect
+        val novelUrl = novelUrlFor(c, screen)
+        snapshotFlow {
+            val info = listState.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull()?.index ?: 0
+            Triple((listState.firstVisibleItemIndex - 1).coerceAtLeast(0), last >= info.totalItemsCount - 1, info.totalItemsCount)
+        }.debounce(600).collect { (paragraph, finished, total) ->
+            if (total > 0) {
+                LibraryStore.saveProgress(novelUrl, screen.novel.title.ifBlank { c.novelTitle.orEmpty() }, screen.novel.cover, c, paragraph, finished)
+            }
+        }
+    }
+
+    fun open(url: String?) {
+        if (url != null) services.nav.go(Screen.Reader(screen.novel, url))
+    }
+
+    DisposableEffect(shown) {
+        val keys: (KeyEvent) -> Boolean = { e ->
+            when {
+                e.key == Key.L && !e.isCtrlPressed -> { services.readerLocked = !services.readerLocked; showSettings = false; true }
+                e.key == Key.Escape && services.readerLocked -> { services.readerLocked = false; true }
+                e.key == Key.DirectionLeft && !e.isCtrlPressed -> { open(shown?.nextUrl); true }
+                e.key == Key.DirectionRight && !e.isCtrlPressed -> { open(shown?.prevUrl); true }
+                e.key == Key.Spacebar || e.key == Key.PageDown -> { scope.launch { listState.animateScrollBy(600f) }; true }
+                e.key == Key.PageUp -> { scope.launch { listState.animateScrollBy(-600f) }; true }
+                e.key == Key.DirectionDown -> { scope.launch { listState.animateScrollBy(120f) }; true }
+                e.key == Key.DirectionUp -> { scope.launch { listState.animateScrollBy(-120f) }; true }
+                e.key == Key.MoveHome -> { scope.launch { listState.scrollToItem(0) }; true }
+                e.key == Key.MoveEnd -> { scope.launch { listState.scrollToItem((listState.layoutInfo.totalItemsCount - 1).coerceAtLeast(0)) }; true }
+                e.isCtrlPressed && (e.key == Key.Equals || e.key == Key.Plus || e.key == Key.NumPadAdd) -> {
+                    SettingsStore.update { it.copy(readerFontSize = (it.readerFontSize + 1).coerceAtMost(40)) }; true
+                }
+                e.isCtrlPressed && (e.key == Key.Minus || e.key == Key.NumPadSubtract) -> {
+                    SettingsStore.update { it.copy(readerFontSize = (it.readerFontSize - 1).coerceAtLeast(12)) }; true
+                }
+                else -> false
+            }
+        }
+        services.readerKeys = keys
+        // The old chapter fades out after the new one is shown; it must not unhook the new chapter's keys.
+        onDispose { if (services.readerKeys === keys) services.readerKeys = null }
+    }
+
+    KolTheme(colors) {
+        Box(Modifier.fillMaxSize().background(colors.background)) {
+            val c = shown
+            when {
+                c != null -> ChapterText(
+                    c, listState, settings.readerWidth, showScrollbar = !locked,
+                    onTap = { if (!locked) showBars = !showBars }, onOpen = ::open,
+                )
+                error != null -> ErrorBox(error!!, onRetry = { reload++ }, modifier = Modifier.align(Alignment.Center))
+                else -> Loading(Modifier.align(Alignment.Center))
+            }
+            AnimatedVisibility(showBars && !locked, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.TopCenter)) {
+                ReaderTopBar(c, screen, listState, onSettings = { showSettings = !showSettings }, onLock = {
+                    services.readerLocked = true
+                    showSettings = false
+                })
+            }
+            AnimatedVisibility(showSettings && !locked, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.CenterStart)) {
+                ReaderSettingsPanel(onClose = { showSettings = false })
+            }
+            // While locked, only a faint lock in the corner stays; it brightens under the mouse. Click it (or press L / Esc) to unlock.
+            if (locked) UnlockButton(Modifier.align(AbsoluteAlignment.BottomLeft).padding(14.dp)) { services.readerLocked = false }
+        }
+    }
+}
+
+@Composable
+private fun ChapterText(
+    c: ChapterContent,
+    listState: LazyListState,
+    width: Int,
+    showScrollbar: Boolean,
+    onTap: () -> Unit,
+    onOpen: (String?) -> Unit,
+) {
+    val colors = LocalAppColors.current
+    val s = SettingsStore.settings
+    val font = readerFontFamily(s.readerFont)
+    Box(
+        Modifier.fillMaxSize().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onTap),
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        Box(Modifier.fillMaxSize().dragScroll(listState), contentAlignment = Alignment.TopCenter) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxHeight().widthIn(max = width.dp).fillMaxWidth(),
+                contentPadding = PaddingValues(start = 28.dp, end = 28.dp, top = 110.dp, bottom = 40.dp),
+            ) {
+                item {
+                    Column(Modifier.fillMaxWidth().padding(bottom = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        c.novelTitle?.let { Text(it, color = colors.accent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
+                        val number = c.chapterNumber
+                        Text(
+                            c.name ?: number?.let { "الفصل $it" } ?: c.title,
+                            color = colors.text, fontSize = (s.readerFontSize + 6).sp, fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center, fontFamily = font,
+                        )
+                        if (c.name != null && number != null) Text("الفصل $number", color = colors.muted, fontSize = 14.sp)
+                    }
+                }
+                itemsIndexed(c.paragraphs) { _, p ->
+                    Text(
+                        p,
+                        color = colors.text,
+                        fontSize = s.readerFontSize.sp,
+                        lineHeight = (s.readerFontSize * s.readerLineHeight).sp,
+                        fontFamily = font,
+                        textAlign = if (s.readerJustify) TextAlign.Justify else TextAlign.Start,
+                        modifier = Modifier.fillMaxWidth().padding(bottom = s.readerParagraphGap.dp),
+                    )
+                }
+                item {
+                    Row(
+                        Modifier.fillMaxWidth().padding(top = 30.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                    ) {
+                        if (c.prevUrl != null) GlassButton("السابق", Icons.AutoMirrored.Filled.KeyboardArrowLeft, onClick = { onOpen(c.prevUrl) })
+                        if (c.nextUrl != null) AccentButton("الفصل التالي", Icons.AutoMirrored.Filled.KeyboardArrowRight, { onOpen(c.nextUrl) })
+                        else Text("هذا أخر فصل منشور.", color = colors.muted, fontSize = 15.sp)
+                    }
+                }
+            }
+            if (showScrollbar) EdgeScrollbar(rememberScrollbarAdapter(listState))
+        }
+    }
+}
+
+@Composable
+private fun ReaderTopBar(c: ChapterContent?, screen: Screen.Reader, listState: LazyListState, onSettings: () -> Unit, onLock: () -> Unit) {
+    val services = LocalServices.current
+    val colors = LocalAppColors.current
+    val total = listState.layoutInfo.totalItemsCount
+    val progress = if (total <= 1) 0f else (listState.firstVisibleItemIndex.toFloat() / (total - 1)).coerceIn(0f, 1f)
+    Column(Modifier.fillMaxWidth().padding(12.dp).glass(colors, RoundedCornerShape(18.dp), strong = true)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconBtn(Icons.AutoMirrored.Filled.ArrowBack, "رجوع") { services.nav.back() }
+            Spacer(Modifier.width(6.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    c?.novelTitle ?: screen.novel.title, color = colors.text, fontWeight = FontWeight.Bold, fontSize = 15.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                Text(c?.label.orEmpty(), color = colors.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            IconBtn(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "الفصل السابق", enabled = c?.prevUrl != null) {
+                c?.prevUrl?.let { services.nav.go(Screen.Reader(screen.novel, it)) }
+            }
+            IconBtn(Icons.AutoMirrored.Filled.List, "قائمة الفصول") {
+                val novel = c?.novelUrl?.let { screen.novel.copy(url = it) } ?: screen.novel
+                services.nav.go(Screen.Details(novel))
+            }
+            IconBtn(Icons.AutoMirrored.Filled.KeyboardArrowRight, "الفصل التالي", enabled = c?.nextUrl != null) {
+                c?.nextUrl?.let { services.nav.go(Screen.Reader(screen.novel, it)) }
+            }
+            Spacer(Modifier.width(6.dp))
+            IconBtn(Icons.Filled.Lock, "قفل: إخفاء كل شيء ما عدا النص (L)", onClick = onLock)
+            IconBtn(Icons.Filled.Settings, "إعدادات القراءة", onClick = onSettings)
+        }
+        LinearProgressIndicator(
+            progress = { progress }, color = colors.accent, trackColor = colors.glassFill,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(bottom = 6.dp),
+        )
+    }
+}
+
+@Composable
+fun IconBtn(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    val colors = LocalAppColors.current
+    Icon(
+        icon, label,
+        tint = if (enabled) colors.text else colors.muted.copy(alpha = 0.4f),
+        modifier = Modifier.clip(RoundedCornerShape(10.dp))
+            .then(if (enabled) Modifier.pointerHoverIcon(PointerIcon.Hand).clickable(onClick = onClick) else Modifier)
+            .padding(7.dp).size(22.dp),
+    )
+}
+
+@Composable
+private fun ReaderSettingsPanel(onClose: () -> Unit) {
+    val colors = LocalAppColors.current
+    val s = SettingsStore.settings
+    GlassPanel(Modifier.padding(16.dp).width(330.dp), strong = true) {
+        val panelScroll = rememberScrollState()
+        Column(Modifier.verticalScroll(panelScroll).dragScroll(panelScroll)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("إعدادات القراءة", color = colors.text, fontWeight = FontWeight.Bold, fontSize = 17.sp, modifier = Modifier.weight(1f))
+                IconBtn(Icons.Filled.Close, "إغلاق", onClick = onClose)
+            }
+            LabeledSlider("حجم الخط", s.readerFontSize.toFloat(), 12f..40f, "${s.readerFontSize}") { v ->
+                SettingsStore.update { it.copy(readerFontSize = v.toInt()) }
+            }
+            LabeledSlider("تباعد الأسطر", s.readerLineHeight, 1.2f..2.8f, "%.1f".format(s.readerLineHeight)) { v ->
+                SettingsStore.update { it.copy(readerLineHeight = v) }
+            }
+            LabeledSlider("المسافة بين الفقرات", s.readerParagraphGap.toFloat(), 0f..40f, "${s.readerParagraphGap}") { v ->
+                SettingsStore.update { it.copy(readerParagraphGap = v.toInt()) }
+            }
+            LabeledSlider("عرض النص", s.readerWidth.toFloat(), 500f..1400f, "${s.readerWidth}") { v ->
+                SettingsStore.update { it.copy(readerWidth = v.toInt()) }
+            }
+            Gap(6)
+            Text("الخط", color = colors.muted, fontSize = 13.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf("cairo" to "Cairo", "system" to "خط النظام", "serif" to "خط كلاسيكي").forEach { (id, label) ->
+                    GlassChip(label, s.readerFont == id) { SettingsStore.update { it.copy(readerFont = id) } }
+                }
+            }
+            Gap(10)
+            SettingSwitch("محاذاة النص من الجهتين", s.readerJustify) { v -> SettingsStore.update { it.copy(readerJustify = v) } }
+            Gap(6)
+            Text("ألوان القارئ", color = colors.muted, fontSize = 13.sp)
+            ThemeSwatches(selected = s.readerTheme, includeFollow = true) { id -> SettingsStore.update { it.copy(readerTheme = id) } }
+        }
+    }
+}
+
+@Composable
+fun LabeledSlider(label: String, value: Float, range: ClosedFloatingPointRange<Float>, display: String, onChange: (Float) -> Unit) {
+    val colors = LocalAppColors.current
+    Column(Modifier.padding(vertical = 2.dp)) {
+        Row {
+            Text(label, color = colors.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
+            Text(display, color = colors.muted, fontSize = 13.sp)
+        }
+        Slider(
+            value, onChange, valueRange = range,
+            colors = SliderDefaults.colors(thumbColor = colors.accent, activeTrackColor = colors.accent, inactiveTrackColor = colors.glassFillStrong),
+        )
+    }
+}
+
+@Composable
+fun SettingSwitch(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    val colors = LocalAppColors.current
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Text(label, color = colors.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
+        Switch(
+            checked, onChange,
+            colors = SwitchDefaults.colors(checkedTrackColor = colors.accent, checkedThumbColor = colors.onAccent),
+        )
+    }
+}
+
+@Composable
+private fun UnlockButton(modifier: Modifier, onClick: () -> Unit) {
+    val colors = LocalAppColors.current
+    val hover = remember { MutableInteractionSource() }
+    val hovered by hover.collectIsHoveredAsState()
+    Icon(
+        Icons.Filled.Lock, "فتح القفل",
+        tint = colors.muted.copy(alpha = if (hovered) 0.9f else 0.18f),
+        modifier = modifier.clip(CircleShape).hoverable(hover).pointerHoverIcon(PointerIcon.Hand)
+            .clickable(onClick = onClick).padding(8.dp).size(22.dp),
+    )
+}
+
+/** The novel a chapter belongs to: the novel page it was opened from, else the chapter page's own link to it. */
+private fun novelUrlFor(c: ChapterContent, screen: Screen.Reader): String =
+    screen.novel.url.takeIf { "/series/" in it } ?: c.novelUrl?.takeIf { "/series/" in it } ?: screen.novel.url
