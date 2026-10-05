@@ -1,5 +1,6 @@
 package com.kolnovel.reader.ui
 
+import com.kolnovel.reader.data.SettingsStore
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollbarAdapter
@@ -61,6 +62,7 @@ fun DownloadsScreen() {
     val listState = rememberLazyListState()
     Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize().dragScroll(listState), state = listState, contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 30.dp)) {
+            item { DownloadSpeedPicker(Modifier.padding(top = 8.dp)) }
             if (running.isNotEmpty()) {
                 item {
                     SectionTitle("قيد التحميل") {
@@ -90,6 +92,39 @@ fun DownloadsScreen() {
             items(saved, key = { "s" + it.first.url }) { (novel, count) -> SavedRow(novel, count) }
         }
         EdgeScrollbar(rememberScrollbarAdapter(listState))
+    }
+}
+
+/** "How many chapters at once": 1, 2, 5 or 10, plus the note when the site made us slow down. */
+@Composable
+fun DownloadSpeedPicker(modifier: Modifier = Modifier) {
+    val services = LocalServices.current
+    val colors = LocalAppColors.current
+    val atOnce = SettingsStore.settings.downloadsAtOnce
+    GlassPanel(modifier.fillMaxWidth(), padding = 12.dp) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("عدد الفصول التي تُحمّل معًا:", color = colors.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.width(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf(1, 2, 5, 10).forEach { n ->
+                    GlassChip("$n", atOnce == n) {
+                        SettingsStore.update { it.copy(downloadsAtOnce = n) }
+                        services.downloads.startWorkers()
+                    }
+                }
+            }
+        }
+        Text(
+            "الأكبر أسرع، لكن إذا طلب الموقع التمهل يخفّض القارئ العدد تلقائيًا.",
+            color = colors.muted, fontSize = 12.sp,
+        )
+        services.downloads.notice?.let { note ->
+            Gap(4)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(note, color = colors.accent, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                GlassChip("حسنًا") { services.downloads.clearNotice() }
+            }
+        }
     }
 }
 

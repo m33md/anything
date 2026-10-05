@@ -114,7 +114,7 @@ fun DetailsScreen(novel: NovelSummary) {
             }
         }
     }
-    val entry = LibraryStore.entries[novel.url]
+    val entry = LibraryStore[novel.url]
     LaunchedEffect(novel.url) { LibraryStore.clearNew(novel.url) }
 
     val d = details
@@ -350,7 +350,7 @@ private fun DownloadMenu(novel: NovelSummary, d: NovelDetails, onRange: () -> Un
                 menu = false
                 downloads.enqueue(novel, d.chapters, list)
             }
-            val entry = LibraryStore.entries[novel.url]
+            val entry = LibraryStore[novel.url]
             val unread = d.chapters.filter { entry?.readChapters?.contains(it.url) != true }
             val from = d.chapters.indexOfFirst { it.url == entry?.lastChapterUrl }.coerceAtLeast(0)
             DropdownMenuItem({ Text("الرواية كاملة ($total فصل، الباقي ${total - savedCount})") }, onClick = { get(d.chapters) })
@@ -380,7 +380,7 @@ private fun resolveChapter(chapters: List<ChapterRef>, typed: String): Int? {
 private fun RangePanel(novel: NovelSummary, d: NovelDetails, onClose: () -> Unit) {
     val services = LocalServices.current
     val colors = LocalAppColors.current
-    val entry = LibraryStore.entries[novel.url]
+    val entry = LibraryStore[novel.url]
     val startAt = d.chapters.indexOfFirst { it.url == entry?.lastChapterUrl }.coerceAtLeast(0)
     var fromText by remember { mutableStateOf(d.chapters.getOrNull(startAt)?.let { Regex("""\d+""").find(it.number)?.value } ?: "1") }
     var toText by remember { mutableStateOf("") }
@@ -447,7 +447,7 @@ private fun ChapterMenu(novel: NovelSummary, d: NovelDetails) {
                 open = false
                 LibraryStore.markRead(novel.url, d.chapters.map { it.url }, false)
             })
-            val last = LibraryStore.entries[novel.url]?.lastChapterUrl
+            val last = LibraryStore[novel.url]?.lastChapterUrl
             val idx = d.chapters.indexOfFirst { it.url == last }
             if (idx > 0) {
                 DropdownMenuItem({ Text("تحديد ما قبل الفصل الحالي كمقروء") }, onClick = {

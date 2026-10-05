@@ -6,7 +6,6 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -90,7 +89,15 @@ class Downloads(private val source: KolSource) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val queue = ArrayDeque<Task>()
-    private var worker: Job? = null
+    private var workers = 0
+
+    /** Chapters fetched side by side; comes from the settings unless the site asked us to slow down. */
+    private val wanted: Int get() = SettingsStore.settings.downloadsAtOnce.coerceIn(1, 10)
+    private var slowedTo: Int? = null
+
+    /** Shown to the user when downloads were slowed down because the site pushed back. */
+    var notice by mutableStateOf<String?>(null)
+        private set
 
     /** Per novel, newest request first. Finished entries stay until cleared so the result can be seen. */
     var progress by mutableStateOf<Map<String, Progress>>(emptyMap())
@@ -118,8 +125,18 @@ class Downloads(private val source: KolSource) {
         queued = waiting + todo.map { it.url }
         val old = progress[novel.url]?.takeIf { !it.finished }
         progress = (progress - novel.url) + (novel.url to (old?.copy(total = old.total + todo.size) ?: Progress(novel, 0, todo.size)))
-        if (worker == null) worker = scope.launch { work() }
+        startWorkers()
         return todo.size
+    }
+
+    /** Called when the "at once" setting changes, so a running download speeds up straight away. */
+    @Synchronized
+    fun startWorkers() {
+        val limit = slowedTo ?: wanted
+        while (workers < limit && workers < queue.size) {
+            workers++
+            scope.launch { work() }
+        }
     }
 
     @Synchronized
@@ -153,9 +170,11 @@ class Downloads(private val source: KolSource) {
 
     @Synchronized
     private fun next(): Task? {
-        val task = queue.removeFirstOrNull()
+        // Extra workers stop when the limit dropped (the site pushed back or the setting was lowered).
+        val task = if (workers > (slowedTo ?: wanted)) null else queue.removeFirstOrNull()
         if (task == null) {
-            worker = null
+            workers--
+            if (queue.isEmpty() && workers == 0) slowedTo = null // the next batch tries the full speed again
             return null
         }
         progress[task.novelUrl]?.let { progress = progress + (task.novelUrl to it.copy(current = task.ref.label)) }
@@ -175,15 +194,34 @@ class Downloads(private val source: KolSource) {
 
     /** A few tries with a growing pause, since the site sometimes drops a request. */
     private suspend fun fetch(url: String): Boolean {
-        repeat(3) { attempt ->
+        repeat(4) { attempt ->
             try {
                 if (ChapterStore.save(source.chapter(url))) return true
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: SiteException) {
+                if (e.tooFast) {
+                    slowDown()
+                    delay(5_000L * (attempt + 1))
+                    return@repeat
+                }
             } catch (_: Exception) {
             }
             delay(1500L * (attempt + 1))
         }
         return false
+    }
+
+    /** The site answered "too many requests": drop to one chapter at a time for the rest of this batch. */
+    @Synchronized
+    private fun slowDown() {
+        if (wanted > 1 && slowedTo != 1) {
+            slowedTo = 1
+            notice = "الموقع طلب التمهل، فخفّضت التحميل إلى فصل واحد في كل مرة لبقية هذه الدفعة."
+        }
+    }
+
+    fun clearNotice() {
+        notice = null
     }
 }

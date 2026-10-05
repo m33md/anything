@@ -106,6 +106,16 @@ class ParsingTest {
     }
 
     @Test
+    fun normalizeUrl() {
+        val canonical = "https://kolnovel.com/series/after-the-end/"
+        listOf(
+            "https://kolnovel.com/series/after-the-end", "http://www.kolnovel.com/series/after-the-end/",
+            "https://kolnovel.com/series/after-the-end/#chapters",
+        ).forEach { assertEquals(canonical, KolSource.normalizeUrl(it)) }
+        assertEquals("https://kolnovel.com/series/البداية/", KolSource.normalizeUrl("https://kolnovel.com/series/%D8%A7%D9%84%D8%A8%D8%AF%D8%A7%D9%8A%D8%A9/"))
+    }
+
+    @Test
     fun browseUrl() {
         val url = KolSource.browseUrl(BrowseFilter(genres = setOf("action"), status = "completed", order = "update"), 2)
         assertEquals("https://kolnovel.com/series/?page=2&genre%5B%5D=action&status=completed&order=update", url)

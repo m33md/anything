@@ -115,4 +115,8 @@ data class BrowseFilter(
     val order: String = "update",
 )
 
-class SiteException(message: String) : Exception(message)
+/** [code] is the HTTP status when the site answered with an error. */
+class SiteException(message: String, val code: Int? = null) : Exception(message) {
+    /** The site is asking us to slow down (or a protection page stepped in). */
+    val tooFast get() = code == 429 || code == 503 || code == 403
+}

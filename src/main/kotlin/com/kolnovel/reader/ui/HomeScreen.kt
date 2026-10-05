@@ -225,7 +225,7 @@ private fun UpdateCard(entry: LatestEntry, modifier: Modifier) {
             )
             Gap(4)
             entry.chapters.take(3).forEach { ch ->
-                val read = LibraryStore.entries[entry.novel.url]?.readChapters?.contains(ch.url) == true
+                val read = LibraryStore[entry.novel.url]?.readChapters?.contains(ch.url) == true
                 Row(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
                         .pointerHoverIcon(PointerIcon.Hand)

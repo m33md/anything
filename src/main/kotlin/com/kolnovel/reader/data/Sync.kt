@@ -56,7 +56,11 @@ object LibraryMerge {
      * or into the most recent one when the novel's address was never seen.
      */
     fun repair(entries: Map<String, LibraryEntry>): Map<String, LibraryEntry> {
-        val out = entries.toMutableMap()
+        // Same novel under different spellings of its address.
+        val out = entries.values.groupBy { KolSource.normalizeUrl(it.url) }
+            .mapValues { (url, group) -> group.reduce { a, b -> merge(a, b) }.copy(url = url) }
+            .toMutableMap()
+        val entries = out.toMap()
         entries.values.groupBy { it.title.trim() }.forEach { (title, group) ->
             if (title.isEmpty() || group.size < 2 || group.all { "/series/" in it.url }) return@forEach
             val target = group.firstOrNull { "/series/" in it.url } ?: group.maxBy { it.lastReadAt }

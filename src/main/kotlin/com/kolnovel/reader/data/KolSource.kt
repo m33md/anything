@@ -63,8 +63,10 @@ class KolSource(private val client: OkHttpClient = defaultClient()) {
                             "الموقع طلب تحقق (Cloudflare). افتح الموقع في المتصفح مرة ثم حاول مجددًا."
                         else "الموقع رفض الطلب (${response.code})."
                         404 -> "الصفحة غير موجودة على الموقع (404)."
+                        429 -> "الموقع طلب التمهل (429)."
                         else -> "خطأ من الموقع (${response.code})."
-                    }
+                    },
+                    response.code,
                 )
             }
             Jsoup.parse(body, url)
@@ -325,6 +327,19 @@ class KolSource(private val client: OkHttpClient = defaultClient()) {
             var end = size
             while (end > 0 && SITE_NOTES.any { this[end - 1].contains(it, ignoreCase = true) }) end--
             return subList(0, end)
+        }
+
+        /**
+         * One spelling per page, so the same novel is never stored twice: https, no "www.", no "#part",
+         * percent-escapes decoded, and a trailing slash.
+         */
+        fun normalizeUrl(url: String): String {
+            var u = url.trim().substringBefore('#')
+            u = runCatching { java.net.URLDecoder.decode(u.replace("+", "%2B"), Charsets.UTF_8) }.getOrDefault(u)
+            u = u.replaceFirst(Regex("^http://", RegexOption.IGNORE_CASE), "https://")
+                .replaceFirst(Regex("^https://www\\.", RegexOption.IGNORE_CASE), "https://")
+            if ('?' !in u && !u.endsWith('/')) u += "/"
+            return u
         }
 
         fun cleanChapterNumber(raw: String): String =

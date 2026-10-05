@@ -1,4 +1,4 @@
-Kol Novel Reader for PC (unofficial) - version 0.4.1
+Kol Novel Reader for PC (unofficial) - version 0.4.2
 ======================================================
 A reader for the novels on kolnovel.com (ملوك الروايات), built the same way as Olympus Reader.
 
@@ -19,7 +19,9 @@ WHAT IT DOES
 - Download chapters to read without internet: on a novel's page press "تحميل الفصول"
   (the whole novel, unread chapters, the next 10 or 50, or from chapter X to chapter Y),
   or press the arrow next to any single chapter.
-- Downloads tab (التحميلات): what is downloading now, and every novel you saved. Press "اقرأ"
+- Downloads tab (التحميلات): what is downloading now, and every novel you saved.
+  Choose how many chapters download at once (1, 2, 5 or 10). If the site asks to slow down,
+  the reader drops to one at a time by itself and tells you. Press "اقرأ"
   there to read offline; the novel's chapter list also opens without internet.
 - Novel page: details, story, every chapter, read/unread marks, add to library, favourite.
 - Reader: font size, line spacing, paragraph spacing, text width, font, its own colours.

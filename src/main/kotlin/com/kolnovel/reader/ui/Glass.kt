@@ -159,7 +159,7 @@ fun NovelCard(
     val colors = LocalAppColors.current
     val hover = remember { MutableInteractionSource() }
     val hovered by hover.collectIsHoveredAsState()
-    val entry = LibraryStore.entries[novel.url]
+    val entry = LibraryStore[novel.url]
     Column(
         modifier
             .scale(if (hovered) 1.02f else 1f)
