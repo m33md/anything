@@ -1,11 +1,11 @@
-Kol Novel Reader for PC (unofficial) - version 0.1.0
+Kol Novel Reader for PC (unofficial) - version 0.1.1
 ======================================================
 A reader for the novels on kolnovel.com (ملوك الروايات), built the same way as Olympus Reader.
 
 HOW TO OPEN IT
-1. Double-click "Kol Novel Reader.bat".
-   The first time, it copies the Java it needs from the OlympusReader folder next to it
-   (one moment, a black window may flash). Nothing gets installed.
+1. Right-click the zip > "Extract All...", open the extracted "KolNovelReader" folder and
+   double-click "Kol Novel Reader.bat". Java is already inside the "runtime" folder;
+   nothing gets installed. Keep the "app" and "runtime" folders next to the .bat files.
 2. If the window never opens: double-click "Kol Novel Reader (if it does not open).bat"
    and send a screenshot of the black window.
 3. If the text looks blurry: use "Kol Novel Reader (other graphics mode).bat".
@@ -40,8 +40,8 @@ It is for your own reading. Don't share the site's text elsewhere.
 قارئ ملوك الروايات للكمبيوتر (نسخة غير رسمية)
 
 طريقة التشغيل:
-1. اضغط مرتين على "Kol Novel Reader.bat".
-   أول مرة فقط ينسخ الجافا من مجلد OlympusReader الموجود بجانبه. لا يحتاج تثبيت.
+1. فك ضغط الملف (Extract All) ثم اضغط مرتين على "Kol Novel Reader.bat".
+   الجافا موجودة داخل مجلد runtime، ولا يحتاج تثبيت.
 2. إذا لم تفتح النافذة شغّل "Kol Novel Reader (if it does not open).bat" وأرسل صورة للنافذة السوداء.
 
 الألوان والثيمات من: الإعدادات > المظهر (أسود، رمادي، أبيض وغيرها، واللون الأساسي وشفافية الزجاج).

@@ -28,4 +28,4 @@ gradle test                 # parser tests; they use pages saved into samples/ a
 packaging/assemble.sh       # dist/KolNovelReader + dist/KolNovelReader.zip
 ```
 
-Put `dist/KolNovelReader` next to the `OlympusReader` folder; the launcher copies Java from it on first start.
+`dist/KolNovelReader` includes a Temurin 21 JRE in `runtime/`, so it runs on its own.
