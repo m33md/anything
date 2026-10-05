@@ -49,6 +49,15 @@ class SyncTest {
     }
 
     @Test
+    fun repairNeverMergesTwoNovelsThatShareATitle() {
+        val a = LibraryEntry("https://kolnovel.com/series/same-a/", "نفس الاسم", inLibrary = true)
+        val b = LibraryEntry("https://kolnovel.com/series/same-b/", "نفس الاسم", inLibrary = true)
+        val stray = LibraryEntry("https://kolnovel.com/same-12/", "نفس الاسم", lastChapterUrl = "c12", lastReadAt = 12)
+        val fixed = LibraryMerge.repair(listOf(a, b, stray).associateBy { it.url })
+        assertEquals(setOf(a.url, b.url, stray.url), fixed.keys)
+    }
+
+    @Test
     fun folderSyncPicksUpOtherDevicesAndWritesOwnFile() {
         System.setProperty("user.home", File("build/home-sync").absolutePath)
         val shared = File("build/sync-folder").apply { deleteRecursively(); mkdirs() }

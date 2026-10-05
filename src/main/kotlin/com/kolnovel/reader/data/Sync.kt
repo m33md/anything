@@ -61,12 +61,14 @@ object LibraryMerge {
             .mapValues { (url, group) -> group.reduce { a, b -> merge(a, b) }.copy(url = url) }
             .toMutableMap()
         val entries = out.toMap()
+        // Entries saved under a chapter address fold into the novel's /series/ entry, but only when
+        // exactly one novel has that title, so two different novels with the same name never merge.
         entries.values.groupBy { it.title.trim() }.forEach { (title, group) ->
-            if (title.isEmpty() || group.size < 2 || group.all { "/series/" in it.url }) return@forEach
-            val target = group.firstOrNull { "/series/" in it.url } ?: group.maxBy { it.lastReadAt }
-            val merged = group.reduce { a, b -> merge(a, b) }.copy(url = target.url)
-            group.forEach { out.remove(it.url) }
-            out[target.url] = merged
+            val (series, stray) = group.partition { "/series/" in it.url }
+            if (title.isEmpty() || series.size != 1 || stray.isEmpty()) return@forEach
+            val target = series.single()
+            stray.forEach { out.remove(it.url) }
+            out[target.url] = (stray + target).reduce { a, b -> merge(a, b) }.copy(url = target.url)
         }
         return out
     }
