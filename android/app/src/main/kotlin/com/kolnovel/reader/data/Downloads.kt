@@ -246,7 +246,7 @@ object Downloads {
             val (novelUrl, ref) = next
             current = ref
             val outcome = try {
-                if (ChapterStore.has(ref.url)) Outcome.Saved else fetch(ref)
+                if (ChapterStore.has(ref.url)) Outcome.Saved else fetch(novelUrl, ref)
             } finally {
                 synchronized(lock) { inFlight -= ref.url }
             }
@@ -296,12 +296,18 @@ object Downloads {
         }
     }
 
-    private suspend fun fetch(ref: ChapterRef): Outcome {
+    private suspend fun fetch(novelUrl: String, ref: ChapterRef): Outcome {
         var last: Exception? = null
         repeat(3) { attempt ->
             try {
                 val chapter = source.chapter(ref.url)
-                return if (ChapterStore.save(chapter)) Outcome.Saved else Outcome.Failed("الفصل فارغ أو مقفل على الموقع.")
+                // Save under the lock and only while the novel is still queued: "delete from device"
+                // cancels the job first, so a chapter finishing mid-delete must not be written back.
+                val saved = synchronized(lock) {
+                    if (jobs.none { it.novelUrl == novelUrl && it.pending.any { p -> p.url == ref.url } }) return Outcome.Failed("أُلغي")
+                    ChapterStore.save(chapter)
+                }
+                return if (saved) Outcome.Saved else Outcome.Failed("الفصل فارغ أو مقفل على الموقع.")
             } catch (e: CancellationException) {
                 throw e
             } catch (e: SiteException) {
