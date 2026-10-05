@@ -243,6 +243,9 @@ class KolSource(private val client: OkHttpClient = defaultClient()) {
          * Sort by chapter number; entries without a number stay right after the chapter before them.
          */
         fun sortByNumber(oldestFirst: List<ChapterRef>): List<ChapterRef> {
+            // Novels numbered per volume restart at 1, so many numbers repeat: keep the site's order for those.
+            val numbers = oldestFirst.mapNotNull { chapterNumber(it.number) }
+            if (numbers.isEmpty() || numbers.size - numbers.toSet().size > numbers.size / 20) return oldestFirst
             var last = 0.0
             val keyed = oldestFirst.mapIndexed { i, ch ->
                 val n = chapterNumber(ch.number)
