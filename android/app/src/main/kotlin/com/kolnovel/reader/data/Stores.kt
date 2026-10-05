@@ -66,6 +66,8 @@ data class Settings(
     val gridColumnsMin: Int = 108,
     /** Download chapters only on Wi-Fi. */
     val wifiOnly: Boolean = false,
+    /** How many chapters download at the same time (1, 2, 5 or 10). */
+    val downloadLanes: Int = 2,
     /** Folder (picked through Android's file picker) the library is synced through; empty = off. */
     val syncTreeUri: String = "",
     /** Random id naming this device's file in the sync folder (same scheme as the PC app). */

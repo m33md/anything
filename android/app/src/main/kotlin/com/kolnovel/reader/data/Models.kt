@@ -99,4 +99,5 @@ data class BrowseFilter(
     val order: String = "update",
 )
 
-class SiteException(message: String) : Exception(message)
+/** [code] is the HTTP status when the site answered with an error page (0 otherwise). */
+class SiteException(message: String, val code: Int = 0) : Exception(message)

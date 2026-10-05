@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kolnovel.reader.data.AppDirs
 import com.kolnovel.reader.data.ChapterStore
+import com.kolnovel.reader.data.Downloads
 import com.kolnovel.reader.data.SettingsStore
 import com.kolnovel.reader.data.Settings
 
@@ -122,6 +123,25 @@ fun SettingsScreen() {
                 Text("التنزيل", color = colors.text, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 Gap(4)
                 SettingSwitch("التنزيل عبر Wi-Fi فقط", s.wifiOnly) { v -> SettingsStore.update { it.copy(wifiOnly = v) } }
+                Gap(4)
+                Text("عدد الفصول التي تُنزَّل في نفس الوقت", color = colors.text, fontSize = 14.sp)
+                Gap(6)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    listOf(1, 2, 5, 10).forEach { n ->
+                        GlassChip("$n", s.downloadLanes == n) { SettingsStore.update { it.copy(downloadLanes = n) } }
+                        Spacer(Modifier.width(8.dp))
+                    }
+                }
+                Gap(4)
+                Text(
+                    "العدد الأكبر أسرع. إذا بدأ الموقع برفض الطلبات يخفّض التطبيق العدد تلقائيًا ثم يرفعه عندما يهدأ. " +
+                        "يُطبَّق العدد الجديد عند بدء التنزيل التالي.",
+                    color = colors.muted, fontSize = 12.sp, lineHeight = 19.sp,
+                )
+                if (Downloads.running && Downloads.lanesNow in 1 until s.downloadLanes) {
+                    Text("الآن: ${Downloads.lanesNow} في نفس الوقت (الموقع بطّأ الطلبات).", color = colors.accent, fontSize = 12.sp)
+                }
+                Gap(4)
                 Text(
                     "الفصول المنزّلة تُفتح بدون إنترنت من صفحة الرواية أو من قائمة التنزيلات.",
                     color = colors.muted, fontSize = 12.sp,

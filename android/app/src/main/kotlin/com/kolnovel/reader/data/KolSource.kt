@@ -73,7 +73,8 @@ class KolSource(private val client: OkHttpClient = defaultClient()) {
                         else "الموقع رفض الطلب (${response.code})."
                         404 -> "الصفحة غير موجودة على الموقع (404)."
                         else -> "خطأ من الموقع (${response.code})."
-                    }
+                    },
+                    response.code,
                 )
             }
             Jsoup.parse(body, url)

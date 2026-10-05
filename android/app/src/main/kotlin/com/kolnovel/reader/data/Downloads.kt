@@ -13,6 +13,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -39,8 +40,8 @@ data class DownloadJob(
 private data class QueueFile(val jobs: List<DownloadJob> = emptyList(), val paused: Boolean = false)
 
 /**
- * Saves chapters for reading without internet, one after another and gently so the site isn't
- * hammered. The queue is kept on disk, so closing the app and opening it again carries on.
+ * Saves chapters for reading without internet, a few at a time (Settings > downloads) and backing
+ * off by itself when the site starts refusing requests. The queue is kept on disk, so closing the app and opening it again carries on.
  * While it runs, [DownloadService] keeps the app alive with a notification.
  */
 object Downloads {
@@ -177,49 +178,121 @@ object Downloads {
     private sealed interface Outcome {
         data object Saved : Outcome
         data class Failed(val why: String) : Outcome
+        /** The site is answering "too many requests": try the chapter again later, with fewer at once. */
+        data object Throttled : Outcome
         /** Something that would fail every chapter (no internet, Cloudflare): stop the queue. */
         data class Stop(val why: String) : Outcome
     }
 
+    /** Chapters being fetched right now, so parallel lanes never take the same one. */
+    private val inFlight = HashSet<String>()
+
+    /**
+     * How many chapters actually download at once. Starts at the setting, halves when the site
+     * starts refusing requests, and climbs back by one after a run of clean downloads.
+     */
+    var lanesNow by mutableStateOf(0)
+        private set
+    private var cleanStreak = 0
+    private var throttleStreak = 0
+
     private suspend fun runQueue() {
+        val wanted = SettingsStore.settings.downloadLanes.coerceIn(1, 10)
+        synchronized(lock) {
+            lanesNow = wanted
+            cleanStreak = 0
+            throttleStreak = 0
+            inFlight.clear()
+        }
         try {
-            while (currentCoroutineContext().isActive && !paused) {
-                if (SettingsStore.settings.wifiOnly && !onWifi()) {
-                    stopWith("التنزيل متوقف حتى تتصل بشبكة Wi-Fi (يمكنك تغيير ذلك من الإعدادات).")
-                    break
-                }
-                val next = synchronized(lock) {
-                    jobs.firstOrNull { !it.finished }?.let { it.novelUrl to it.pending.first() }
-                } ?: break
-                val (novelUrl, ref) = next
-                current = ref
-                val outcome = if (ChapterStore.has(ref.url)) Outcome.Saved else fetch(ref)
-                if (outcome is Outcome.Stop) {
-                    stopWith(outcome.why)
-                    break
-                }
-                synchronized(lock) {
-                    val j = jobs.find { it.novelUrl == novelUrl }
-                    if (j != null && j.pending.any { it.url == ref.url }) {
-                        val ok = outcome is Outcome.Saved
-                        replace(
-                            j.copy(
-                                pending = j.pending.filterNot { it.url == ref.url },
-                                done = if (ok) j.done + 1 else j.done,
-                                failed = if (ok) j.failed else j.failed + ref,
-                            )
-                        )
-                        persist(force = !hasPending)
-                    }
-                }
-                if (outcome is Outcome.Saved) delay(350)
+            coroutineScope {
+                repeat(wanted) { lane -> launch { runLane(lane) } }
             }
         } finally {
             synchronized(lock) {
+                inFlight.clear()
                 current = null
                 running = false
                 persist(force = true)
             }
+        }
+    }
+
+    private suspend fun runLane(lane: Int) {
+        // Stagger the start so ten lanes don't hit the site in the same instant.
+        delay(lane * 250L)
+        while (currentCoroutineContext().isActive && !paused) {
+            if (lane >= lanesNow) {
+                // This lane is switched off for now; wait in case the count climbs back up.
+                if (!hasPending) break
+                delay(2000)
+                continue
+            }
+            if (SettingsStore.settings.wifiOnly && !onWifi()) {
+                stopWith("التنزيل متوقف حتى تتصل بشبكة Wi-Fi (يمكنك تغيير ذلك من الإعدادات).")
+                break
+            }
+            val next = synchronized(lock) {
+                jobs.firstNotNullOfOrNull { j ->
+                    if (j.finished) null else j.pending.firstOrNull { it.url !in inFlight }?.let { j.novelUrl to it }
+                }?.also { inFlight += it.second.url }
+            }
+            if (next == null) {
+                // Nothing left that another lane isn't already fetching.
+                if (synchronized(lock) { inFlight.isEmpty() }) break
+                delay(500)
+                continue
+            }
+            val (novelUrl, ref) = next
+            current = ref
+            val outcome = try {
+                if (ChapterStore.has(ref.url)) Outcome.Saved else fetch(ref)
+            } finally {
+                synchronized(lock) { inFlight -= ref.url }
+            }
+            when (outcome) {
+                is Outcome.Stop -> {
+                    stopWith(outcome.why)
+                    break
+                }
+                Outcome.Throttled -> {
+                    val streak = synchronized(lock) {
+                        cleanStreak = 0
+                        throttleStreak++
+                        lanesNow = maxOf(1, lanesNow / 2)
+                        throttleStreak
+                    }
+                    if (streak >= 8) {
+                        stopWith("الموقع يرفض الطلبات الكثيرة الآن. انتظر قليلًا ثم اضغط \"استئناف\"، أو قلّل عدد الفصول في نفس الوقت من الإعدادات.")
+                        break
+                    }
+                    delay(3000L * streak)
+                    continue
+                }
+                else -> Unit
+            }
+            synchronized(lock) {
+                val j = jobs.find { it.novelUrl == novelUrl }
+                if (j != null && j.pending.any { it.url == ref.url }) {
+                    val ok = outcome is Outcome.Saved
+                    replace(
+                        j.copy(
+                            pending = j.pending.filterNot { it.url == ref.url },
+                            done = if (ok) j.done + 1 else j.done,
+                            failed = if (ok) j.failed else j.failed + ref,
+                        )
+                    )
+                    persist(force = !hasPending)
+                }
+                if (outcome is Outcome.Saved) {
+                    throttleStreak = 0
+                    if (++cleanStreak >= 25 && lanesNow < SettingsStore.settings.downloadLanes.coerceIn(1, 10)) {
+                        lanesNow++
+                        cleanStreak = 0
+                    }
+                }
+            }
+            if (outcome is Outcome.Saved) delay(350)
         }
     }
 
@@ -233,6 +306,8 @@ object Downloads {
                 throw e
             } catch (e: SiteException) {
                 if (e.message == KolSource.CLOUDFLARE_MESSAGE) return Outcome.Stop(e.message!!)
+                // 429 = too many requests; 503/508 without a Cloudflare page = the server is shedding load.
+                if (e.code == 429 || e.code == 503 || e.code == 508) return Outcome.Throttled
                 last = e
             } catch (e: Exception) {
                 last = e
