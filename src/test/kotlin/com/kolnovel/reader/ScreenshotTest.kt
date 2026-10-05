@@ -61,11 +61,12 @@ class ScreenshotTest {
             "home" to Screen.Main(Tab.Home),
             "browse" to Screen.Main(Tab.Browse),
             "details" to Screen.Details(novel),
-            "reader" to Screen.Reader(novel, "https://kolnovel.com/x-2/"),
-            "reader-locked" to Screen.Reader(novel, "https://kolnovel.com/x-2/"),
             "settings" to Screen.Main(Tab.Settings),
             "library" to Screen.Main(Tab.Library),
             "downloads" to Screen.Main(Tab.Downloads),
+            // Last: reading the made-up chapter moves the "last read" place.
+            "reader" to Screen.Reader(novel, "https://kolnovel.com/x-2/"),
+            "reader-locked" to Screen.Reader(novel, "https://kolnovel.com/x-2/"),
         )
         // Some chapters saved and more on the way, so the download parts of the screens have something to show.
         val details = kotlinx.coroutines.runBlocking { services.source.details(novel.url) }
@@ -73,6 +74,12 @@ class ScreenshotTest {
         services.downloads.enqueue(summary, details.chapters, details.chapters.take(3))
         while (services.downloads.isRunning(novel.url)) Thread.sleep(100)
         services.downloads.enqueue(summary, details.chapters, details.chapters.take(400))
+        com.kolnovel.reader.data.LibraryStore.edit(novel.url, details.title, details.cover) {
+            it.copy(
+                inLibrary = true, lastChapterUrl = details.chapters[2399].url, lastChapterTitle = details.chapters[2399].label,
+                lastChapterIndex = 2400, knownChapters = details.chapters.size, lastReadAt = System.currentTimeMillis(),
+            )
+        }
         for (theme in listOf("black", "white", "grey")) {
             SettingsStore.update { it.copy(theme = theme, liveBackground = false) }
             val scene = ImageComposeScene(1400, 900, Density(1f)) { App(services) }

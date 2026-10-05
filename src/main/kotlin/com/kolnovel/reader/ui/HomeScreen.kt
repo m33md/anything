@@ -199,6 +199,7 @@ private fun ContinueCard(novel: NovelSummary, chapter: String, onClick: () -> Un
         Column(Modifier.weight(1f)) {
             Text(novel.title, color = colors.text, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 14.sp)
             Text(chapter, color = colors.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            ReadingProgress(LibraryStore[novel.url], Modifier.padding(top = 6.dp))
         }
         Icon(Icons.Filled.PlayArrow, null, tint = colors.accent, modifier = Modifier.size(26.dp))
     }

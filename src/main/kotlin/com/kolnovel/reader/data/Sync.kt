@@ -41,6 +41,7 @@ object LibraryMerge {
             lastChapterUrl = progress.lastChapterUrl,
             lastChapterTitle = progress.lastChapterTitle,
             lastParagraph = progress.lastParagraph,
+            lastChapterIndex = progress.lastChapterIndex,
             lastReadAt = progress.lastReadAt,
             readChapters = a.readChapters + b.readChapters,
             knownChapters = maxOf(a.knownChapters, b.knownChapters),

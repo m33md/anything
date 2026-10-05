@@ -99,6 +99,8 @@ data class LibraryEntry(
     val lastChapterTitle: String? = null,
     /** Index of the first paragraph on screen when the user left the chapter. */
     val lastParagraph: Int = 0,
+    /** Where the last chapter read sits in the novel, 1-based (10 in "10/556"); 0 when unknown. */
+    val lastChapterIndex: Int = 0,
     val lastReadAt: Long = 0,
     val addedAt: Long = 0,
     val readChapters: Set<String> = emptySet(),
@@ -170,27 +172,46 @@ object LibraryStore {
 
     fun saveProgress(novelUrl: String, title: String, cover: String?, chapter: ChapterContent, paragraph: Int, finished: Boolean) =
         edit(novelUrl, title, cover) {
+            val list = ChapterLists.cached(novelUrl)
+            val index = list?.indexOfFirst { c -> c.url == chapter.url }?.plus(1) ?: 0
             it.copy(
                 lastChapterUrl = chapter.url,
                 lastChapterTitle = chapter.label,
                 lastParagraph = paragraph,
+                lastChapterIndex = if (index > 0) index else if (it.lastChapterUrl == chapter.url) it.lastChapterIndex else 0,
+                knownChapters = list?.size ?: it.knownChapters,
                 lastReadAt = System.currentTimeMillis(),
                 readChapters = if (finished) it.readChapters + chapter.url else it.readChapters,
             )
         }
 
-    fun noteChapterCount(novelUrl: String, count: Int) {
+    /** Called with a freshly loaded chapter list: counts new chapters and re-finds where the reader is. */
+    fun noteChapters(novelUrl: String, chapters: List<ChapterRef>) {
         val e = entries[novelUrl] ?: return
-        if (e.knownChapters == count) return
+        val count = chapters.size
+        val index = e.lastChapterUrl?.let { url -> chapters.indexOfFirst { it.url == url } + 1 } ?: 0
+        if (e.knownChapters == count && (index == 0 || index == e.lastChapterIndex)) return
         edit(novelUrl, e.title, e.cover) {
             val fresh = if (it.knownChapters in 1 until count) count - it.knownChapters else 0
-            it.copy(knownChapters = count, newChapters = if (it.inLibrary) it.newChapters + fresh else 0)
+            it.copy(
+                knownChapters = count,
+                newChapters = if (it.inLibrary) it.newChapters + fresh else 0,
+                lastChapterIndex = if (index > 0) index else it.lastChapterIndex,
+            )
         }
     }
 
     fun clearNew(novelUrl: String) {
         val e = entries[novelUrl] ?: return
         if (e.newChapters != 0) edit(novelUrl, e.title, e.cover) { it.copy(newChapters = 0) }
+    }
+
+    /** Takes the novel out of the library list: not saved, not a favourite, no reading history. */
+    fun remove(novelUrl: String) {
+        val e = entries[novelUrl] ?: return
+        edit(novelUrl, e.title, e.cover) {
+            it.copy(inLibrary = false, favorite = false, lastReadAt = 0, flagsChangedAt = System.currentTimeMillis())
+        }
     }
 
     fun removeHistory(novelUrl: String) {

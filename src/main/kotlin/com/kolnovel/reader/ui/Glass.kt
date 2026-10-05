@@ -1,5 +1,8 @@
 package com.kolnovel.reader.ui
 
+import kotlin.math.roundToInt
+import com.kolnovel.reader.data.LibraryEntry
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -151,6 +154,7 @@ fun NovelCard(
     modifier: Modifier = Modifier,
     subtitle: String? = null,
     badge: String? = null,
+    footer: (@Composable () -> Unit)? = null,
 ) {
     val colors = LocalAppColors.current
     val hover = remember { MutableInteractionSource() }
@@ -220,6 +224,32 @@ fun NovelCard(
                 modifier = Modifier.padding(horizontal = 4.dp),
             )
         }
+        if (footer != null) Box(Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) { footer() }
+    }
+}
+
+/** How far into the novel the reader is: "10/556", "2%" and a bar that fills up. Nothing until a chapter was read. */
+@Composable
+fun ReadingProgress(entry: LibraryEntry?, modifier: Modifier = Modifier, big: Boolean = false) {
+    val colors = LocalAppColors.current
+    val index = entry?.lastChapterIndex ?: 0
+    val total = maxOf(entry?.knownChapters ?: 0, index)
+    if (index <= 0 || total <= 0) return
+    val fraction = index.toFloat() / total
+    val percent = if (index >= total) 100 else (fraction * 100).roundToInt().coerceIn(1, 99)
+    val size = if (big) 14.sp else 12.sp
+    Column(modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("$index/$total", color = colors.text, fontSize = size, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.weight(1f))
+            Text("$percent%", color = colors.accent, fontSize = size, fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.height(3.dp))
+        LinearProgressIndicator(
+            progress = { fraction }, color = colors.accent, trackColor = colors.glassFillStrong,
+            gapSize = 0.dp, drawStopIndicator = {},
+            modifier = Modifier.fillMaxWidth().height(if (big) 8.dp else 5.dp).clip(CircleShape),
+        )
     }
 }
 

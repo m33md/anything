@@ -101,7 +101,7 @@ fun DetailsScreen(novel: NovelSummary) {
             ChapterLists.remember(novel.url, d.chapters)
             details = d
             offline = false
-            LibraryStore.noteChapterCount(novel.url, d.chapters.size)
+            LibraryStore.noteChapters(novel.url, d.chapters)
             // Keep the offline copy's chapter list current.
             if (SavedNovels[novel.url] != null) SavedNovels.remember(novel.copy(title = d.title.ifBlank { novel.title }, cover = d.cover ?: novel.cover), d.chapters)
         } catch (e: Exception) {
@@ -173,10 +173,9 @@ fun DetailsScreen(novel: NovelSummary) {
                             if (d != null && d.chapters.isNotEmpty()) {
                                 val resume = entry?.lastChapterUrl
                                 if (resume != null) {
-                                    AccentButton("تابع: ${entry.lastChapterTitle.orEmpty()}".take(40), Icons.Filled.PlayArrow, {
+                                    AccentButton("تابع القراءة", Icons.Filled.PlayArrow, {
                                         services.nav.go(Screen.Reader(summary, resume, entry.lastParagraph))
                                     })
-                                    GlassButton("من البداية", onClick = { services.nav.go(Screen.Reader(summary, d.chapters.first().url)) })
                                 } else {
                                     AccentButton("ابدأ القراءة", Icons.Filled.PlayArrow, {
                                         services.nav.go(Screen.Reader(summary, d.chapters.first().url))
@@ -199,6 +198,13 @@ fun DetailsScreen(novel: NovelSummary) {
                             )
                             GlassButton("افتح في الموقع", Icons.Filled.Share, onClick = { openInBrowser(novel.url) })
                             GlassButton("تحديث", Icons.Filled.Refresh, onClick = { reload++ })
+                        }
+                        if (entry?.lastChapterUrl != null && entry.lastChapterIndex > 0) {
+                            GlassPanel(Modifier.fillMaxWidth().padding(top = 10.dp), padding = 12.dp) {
+                                Text("آخر فصل قرأته: ${entry.lastChapterTitle.orEmpty()}", color = colors.text, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Gap(6)
+                                ReadingProgress(entry, big = true)
+                            }
                         }
                         services.downloads.progress[novel.url]?.let { DownloadProgressRow(it, services.downloads) }
                         if (rangeOpen && d != null) RangePanel(summary, d, onClose = { rangeOpen = false })
