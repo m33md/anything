@@ -63,6 +63,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kolnovel.reader.data.ChapterLists
 import com.kolnovel.reader.data.ChapterRef
 import com.kolnovel.reader.data.ChapterStore
 import com.kolnovel.reader.data.LibraryStore
@@ -97,6 +98,7 @@ fun DetailsScreen(novel: NovelSummary) {
         try {
             val d = services.source.details(novel.url)
             DetailsCache.map[novel.url] = d
+            ChapterLists.remember(novel.url, d.chapters)
             details = d
             offline = false
             LibraryStore.noteChapterCount(novel.url, d.chapters.size)

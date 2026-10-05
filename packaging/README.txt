@@ -1,4 +1,4 @@
-Kol Novel Reader for PC (unofficial) - version 0.3.1
+Kol Novel Reader for PC (unofficial) - version 0.3.2
 ======================================================
 A reader for the novels on kolnovel.com (ملوك الروايات), built the same way as Olympus Reader.
 

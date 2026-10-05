@@ -72,6 +72,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kolnovel.reader.data.ChapterContent
+import com.kolnovel.reader.data.ChapterLists
 import com.kolnovel.reader.data.ChapterStore
 import com.kolnovel.reader.data.LibraryStore
 import com.kolnovel.reader.data.SettingsStore
@@ -107,10 +108,21 @@ fun ReaderScreen(screen: Screen.Reader) {
                 error = e.message ?: e.toString()
             }
         }
+    }
+
+    // Previous/next come from the novel's chapter list in number order; the page's own links follow
+    // posting order and can jump over dozens of chapters. They are only used when the list can't be had.
+    var order by remember(screen.chapterUrl) { mutableStateOf<Pair<String?, String?>?>(null) }
+    LaunchedEffect(chapter?.url) {
+        val c = chapter ?: return@LaunchedEffect
+        val list = ChapterLists.get(services.source, c.novelUrl ?: screen.novel.url)
+        order = list?.let { ChapterLists.neighbours(it, c.url) }
         // Fetch the next chapter quietly so turning the page is instant.
-        chapter?.nextUrl?.let { next ->
-            if (!ChapterStore.has(next)) runCatching { ChapterStore.save(services.source.chapter(next)) }
-        }
+        val next = order?.let { it.second } ?: c.nextUrl.takeIf { order == null }
+        if (next != null && !ChapterStore.has(next)) runCatching { ChapterStore.save(services.source.chapter(next)) }
+    }
+    val shown = remember(chapter, order) {
+        chapter?.let { c -> order?.let { (prev, next) -> c.copy(prevUrl = prev, nextUrl = next) } ?: c }
     }
 
     // Remember where the reader is; reaching the end marks the chapter read.
@@ -132,13 +144,13 @@ fun ReaderScreen(screen: Screen.Reader) {
         if (url != null) services.nav.go(Screen.Reader(screen.novel, url))
     }
 
-    DisposableEffect(chapter) {
+    DisposableEffect(shown) {
         val keys: (KeyEvent) -> Boolean = { e ->
             when {
                 e.key == Key.L && !e.isCtrlPressed -> { services.readerLocked = !services.readerLocked; showSettings = false; true }
                 e.key == Key.Escape && services.readerLocked -> { services.readerLocked = false; true }
-                e.key == Key.DirectionLeft && !e.isCtrlPressed -> { open(chapter?.nextUrl); true }
-                e.key == Key.DirectionRight && !e.isCtrlPressed -> { open(chapter?.prevUrl); true }
+                e.key == Key.DirectionLeft && !e.isCtrlPressed -> { open(shown?.nextUrl); true }
+                e.key == Key.DirectionRight && !e.isCtrlPressed -> { open(shown?.prevUrl); true }
                 e.key == Key.Spacebar || e.key == Key.PageDown -> { scope.launch { listState.animateScrollBy(600f) }; true }
                 e.key == Key.PageUp -> { scope.launch { listState.animateScrollBy(-600f) }; true }
                 e.key == Key.DirectionDown -> { scope.launch { listState.animateScrollBy(120f) }; true }
@@ -161,7 +173,7 @@ fun ReaderScreen(screen: Screen.Reader) {
 
     KolTheme(colors) {
         Box(Modifier.fillMaxSize().background(colors.background)) {
-            val c = chapter
+            val c = shown
             when {
                 c != null -> ChapterText(
                     c, listState, settings.readerWidth, showScrollbar = !locked,

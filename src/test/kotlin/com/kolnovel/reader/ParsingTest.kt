@@ -1,6 +1,7 @@
 package com.kolnovel.reader
 
 import com.kolnovel.reader.data.BrowseFilter
+import com.kolnovel.reader.data.ChapterRef
 import com.kolnovel.reader.data.KolSource
 import org.jsoup.Jsoup
 import java.io.File
@@ -67,6 +68,19 @@ class ParsingTest {
         // Oldest first, and the site's "INFO" junk is cleaned out of chapter numbers.
         assertEquals("الفصل 1", d.chapters.first().number)
         assertFalse(d.chapters.any { it.number.contains("INFO") })
+        // Re-posted chapters sit at the top of the site's list; reading order puts them back by number.
+        val i = d.chapters.indexOfFirst { it.url.endsWith("-257691/") }
+        assertEquals("الفصل 6578", d.chapters[i].number)
+        assertEquals(listOf("الفصل 6577", "الفصل 6579"), listOf(d.chapters[i - 1].number, d.chapters[i + 1].number))
+    }
+
+    @Test
+    fun readingOrderKeepsSiteOrderWhenNumbersRepeat() {
+        fun ref(n: String) = ChapterRef("https://kolnovel.com/$n/", n)
+        val volumes = listOf(ref("المجلد 1 الفصل 1"), ref("المجلد 1 الفصل 2"), ref("المجلد 2 الفصل 1"))
+        assertEquals(volumes, KolSource.readingOrder(volumes))
+        val shuffled = listOf(ref("الفصل 1"), ref("فصل خاص"), ref("الفصل 3"), ref("الفصل 2"))
+        assertEquals(listOf("الفصل 1", "فصل خاص", "الفصل 2", "الفصل 3"), KolSource.readingOrder(shuffled).map { it.number })
     }
 
     @Test
@@ -80,6 +94,8 @@ class ParsingTest {
         assertEquals("ساخن", c.name)
         assertEquals("6578", c.chapterNumber)
         assertEquals("الفصل 6578 - ساخن", c.label)
+        // The repeated heading lines at the top of the text are gone.
+        assertFalse(c.paragraphs.take(2).any { it == "ساخن" || it.endsWith("– ساخن") }, c.paragraphs.take(3).toString())
         assertEquals("https://kolnovel.com/series/emperors-domination/", c.novelUrl)
         assertTrue(c.paragraphs.size > 20, "paragraphs: ${c.paragraphs.size}")
         assertTrue(c.prevUrl!!.contains("257445"))
