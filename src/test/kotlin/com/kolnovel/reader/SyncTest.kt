@@ -34,6 +34,21 @@ class SyncTest {
     }
 
     @Test
+    fun repairFoldsChapterAddressedEntriesIntoTheNovel() {
+        val novel = LibraryEntry("https://kolnovel.com/series/after-end/", "البداية بعد النهاية", inLibrary = true, flagsChangedAt = 5)
+        val stray = (4..9 step 3).map {
+            LibraryEntry("https://kolnovel.com/after-end-$it/", "البداية بعد النهاية", lastChapterUrl = "c$it", lastReadAt = it.toLong(), readChapters = setOf("c$it"))
+        }
+        val other = LibraryEntry("https://kolnovel.com/series/other/", "رواية أخرى", inLibrary = true)
+        val fixed = LibraryMerge.repair((stray + novel + other).associateBy { it.url })
+        assertEquals(setOf(novel.url, other.url), fixed.keys)
+        val e = fixed.getValue(novel.url)
+        assertTrue(e.inLibrary)
+        assertEquals("c7", e.lastChapterUrl)
+        assertEquals(setOf("c4", "c7"), e.readChapters)
+    }
+
+    @Test
     fun folderSyncPicksUpOtherDevicesAndWritesOwnFile() {
         System.setProperty("user.home", File("build/home-sync").absolutePath)
         val shared = File("build/sync-folder").apply { deleteRecursively(); mkdirs() }

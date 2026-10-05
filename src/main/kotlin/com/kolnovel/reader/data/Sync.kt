@@ -50,6 +50,23 @@ object LibraryMerge {
         )
     }
 
+    /**
+     * Older versions could file a chapter's progress under the chapter's address instead of the novel's,
+     * so one novel showed up several times. Folds such entries into the real novel entry (same title),
+     * or into the most recent one when the novel's address was never seen.
+     */
+    fun repair(entries: Map<String, LibraryEntry>): Map<String, LibraryEntry> {
+        val out = entries.toMutableMap()
+        entries.values.groupBy { it.title.trim() }.forEach { (title, group) ->
+            if (title.isEmpty() || group.size < 2 || group.all { "/series/" in it.url }) return@forEach
+            val target = group.firstOrNull { "/series/" in it.url } ?: group.maxBy { it.lastReadAt }
+            val merged = group.reduce { a, b -> merge(a, b) }.copy(url = target.url)
+            group.forEach { out.remove(it.url) }
+            out[target.url] = merged
+        }
+        return out
+    }
+
     fun merge(local: Map<String, LibraryEntry>, others: List<List<LibraryEntry>>): Map<String, LibraryEntry> {
         val out = local.toMutableMap()
         for (list in others) for (e in list) {

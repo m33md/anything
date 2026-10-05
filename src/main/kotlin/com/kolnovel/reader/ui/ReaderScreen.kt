@@ -115,7 +115,7 @@ fun ReaderScreen(screen: Screen.Reader) {
     var order by remember(screen.chapterUrl) { mutableStateOf<Pair<String?, String?>?>(null) }
     LaunchedEffect(chapter?.url) {
         val c = chapter ?: return@LaunchedEffect
-        val list = ChapterLists.get(services.source, c.novelUrl ?: screen.novel.url)
+        val list = ChapterLists.get(services.source, novelUrlFor(c, screen))
         order = list?.let { ChapterLists.neighbours(it, c.url) }
         // Fetch the next chapter quietly so turning the page is instant.
         val next = order?.let { it.second } ?: c.nextUrl.takeIf { order == null }
@@ -128,7 +128,7 @@ fun ReaderScreen(screen: Screen.Reader) {
     // Remember where the reader is; reaching the end marks the chapter read.
     LaunchedEffect(chapter) {
         val c = chapter ?: return@LaunchedEffect
-        val novelUrl = c.novelUrl ?: screen.novel.url
+        val novelUrl = novelUrlFor(c, screen)
         snapshotFlow {
             val info = listState.layoutInfo
             val last = info.visibleItemsInfo.lastOrNull()?.index ?: 0
@@ -391,3 +391,7 @@ private fun UnlockButton(modifier: Modifier, onClick: () -> Unit) {
             .clickable(onClick = onClick).padding(8.dp).size(22.dp),
     )
 }
+
+/** The novel a chapter belongs to: the novel page it was opened from, else the chapter page's own link to it. */
+private fun novelUrlFor(c: ChapterContent, screen: Screen.Reader): String =
+    screen.novel.url.takeIf { "/series/" in it } ?: c.novelUrl?.takeIf { "/series/" in it } ?: screen.novel.url

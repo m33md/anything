@@ -270,8 +270,8 @@ class KolSource(private val client: OkHttpClient = defaultClient()) {
                     .forEach { paragraphs += it }
             }
 
-            val crumbs = doc.select(".ts-breadcrumb [itemprop=itemListElement] a")
-            val novelLink = crumbs.getOrNull(1)
+            // The novel's own crumb; some pages have no novel crumb, and the chapter's link must not be taken for it.
+            val novelLink = doc.select(".ts-breadcrumb [itemprop=itemListElement] a").firstOrNull { it.absUrl("href").contains("/series/") }
             val title = doc.selectFirst(".epheader h1.entry-title, h1.entry-title")?.text()?.trim().orEmpty()
             val name = doc.selectFirst(".epheader .cat-series")?.text()?.trim()?.ifEmpty { null }
             // The text often opens by repeating the heading ("ساخن", "6578 – ساخن"); the reader already shows it.

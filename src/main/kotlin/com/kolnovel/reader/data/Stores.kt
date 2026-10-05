@@ -120,7 +120,7 @@ object LibraryStore {
         private set
 
     private fun load(): Map<String, LibraryEntry> = runCatching {
-        AppJson.decodeFromString(LibraryFile.serializer(), file.readText()).entries.associateBy { it.url }
+        LibraryMerge.repair(AppJson.decodeFromString(LibraryFile.serializer(), file.readText()).entries.associateBy { it.url })
     }.getOrElse { emptyMap() }
 
     /** Called after every local change (sync uses it to push the change to other devices). */
@@ -135,8 +135,9 @@ object LibraryStore {
     /** Replaces the whole library with a merged copy from sync, without counting it as a local change. */
     @Synchronized
     fun replaceFromSync(merged: Map<String, LibraryEntry>) {
-        if (merged == entries) return
-        entries = merged
+        val repaired = LibraryMerge.repair(merged)
+        if (repaired == entries) return
+        entries = repaired
         save()
     }
 
