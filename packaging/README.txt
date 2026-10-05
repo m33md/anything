@@ -1,4 +1,4 @@
-Kol Novel Reader for PC (unofficial) - version 0.3.0
+Kol Novel Reader for PC (unofficial) - version 0.3.1
 ======================================================
 A reader for the novels on kolnovel.com (ملوك الروايات), built the same way as Olympus Reader.
 
@@ -37,6 +37,8 @@ KEYS
 - Esc or Alt+Left: back. Ctrl+F: search. Ctrl+1..5: the tabs at the top.
 - Reader: Left arrow = next chapter, Right arrow = previous, Space / Page Down scroll,
   Home / End = top / bottom, Ctrl + / Ctrl - = text size.
+  L = lock: hides everything except the text (the lock button in the reader bar does the same).
+  Press L or Esc, or click the faint lock in the bottom corner, to unlock.
 
 YOUR DATA
 Library, reading progress, settings and saved chapters are in %APPDATA%\KolNovelReader

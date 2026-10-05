@@ -1,5 +1,10 @@
 package com.kolnovel.reader.ui
 
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.hoverable
+import androidx.compose.ui.AbsoluteAlignment
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.animation.AnimatedVisibility
@@ -86,6 +91,7 @@ fun ReaderScreen(screen: Screen.Reader) {
     var reload by remember { mutableIntStateOf(0) }
     var showBars by remember { mutableStateOf(true) }
     var showSettings by remember { mutableStateOf(false) }
+    val locked = services.readerLocked
     val listState = remember(screen.chapterUrl) { LazyListState(firstVisibleItemIndex = if (screen.startParagraph > 0) screen.startParagraph + 1 else 0) }
     val scope = rememberCoroutineScope()
 
@@ -129,6 +135,8 @@ fun ReaderScreen(screen: Screen.Reader) {
     DisposableEffect(chapter) {
         val keys: (KeyEvent) -> Boolean = { e ->
             when {
+                e.key == Key.L && !e.isCtrlPressed -> { services.readerLocked = !services.readerLocked; showSettings = false; true }
+                e.key == Key.Escape && services.readerLocked -> { services.readerLocked = false; true }
                 e.key == Key.DirectionLeft && !e.isCtrlPressed -> { open(chapter?.nextUrl); true }
                 e.key == Key.DirectionRight && !e.isCtrlPressed -> { open(chapter?.prevUrl); true }
                 e.key == Key.Spacebar || e.key == Key.PageDown -> { scope.launch { listState.animateScrollBy(600f) }; true }
@@ -155,22 +163,37 @@ fun ReaderScreen(screen: Screen.Reader) {
         Box(Modifier.fillMaxSize().background(colors.background)) {
             val c = chapter
             when {
-                c != null -> ChapterText(c, listState, settings.readerWidth, onTap = { showBars = !showBars }, onOpen = ::open)
+                c != null -> ChapterText(
+                    c, listState, settings.readerWidth, showScrollbar = !locked,
+                    onTap = { if (!locked) showBars = !showBars }, onOpen = ::open,
+                )
                 error != null -> ErrorBox(error!!, onRetry = { reload++ }, modifier = Modifier.align(Alignment.Center))
                 else -> Loading(Modifier.align(Alignment.Center))
             }
-            AnimatedVisibility(showBars, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.TopCenter)) {
-                ReaderTopBar(c, screen, listState, onSettings = { showSettings = !showSettings })
+            AnimatedVisibility(showBars && !locked, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.TopCenter)) {
+                ReaderTopBar(c, screen, listState, onSettings = { showSettings = !showSettings }, onLock = {
+                    services.readerLocked = true
+                    showSettings = false
+                })
             }
-            AnimatedVisibility(showSettings, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.CenterStart)) {
+            AnimatedVisibility(showSettings && !locked, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.CenterStart)) {
                 ReaderSettingsPanel(onClose = { showSettings = false })
             }
+            // While locked, only a faint lock in the corner stays; it brightens under the mouse. Click it (or press L / Esc) to unlock.
+            if (locked) UnlockButton(Modifier.align(AbsoluteAlignment.BottomLeft).padding(14.dp)) { services.readerLocked = false }
         }
     }
 }
 
 @Composable
-private fun ChapterText(c: ChapterContent, listState: LazyListState, width: Int, onTap: () -> Unit, onOpen: (String?) -> Unit) {
+private fun ChapterText(
+    c: ChapterContent,
+    listState: LazyListState,
+    width: Int,
+    showScrollbar: Boolean,
+    onTap: () -> Unit,
+    onOpen: (String?) -> Unit,
+) {
     val colors = LocalAppColors.current
     val s = SettingsStore.settings
     val font = readerFontFamily(s.readerFont)
@@ -218,13 +241,13 @@ private fun ChapterText(c: ChapterContent, listState: LazyListState, width: Int,
                     }
                 }
             }
-            EdgeScrollbar(rememberScrollbarAdapter(listState))
+            if (showScrollbar) EdgeScrollbar(rememberScrollbarAdapter(listState))
         }
     }
 }
 
 @Composable
-private fun ReaderTopBar(c: ChapterContent?, screen: Screen.Reader, listState: LazyListState, onSettings: () -> Unit) {
+private fun ReaderTopBar(c: ChapterContent?, screen: Screen.Reader, listState: LazyListState, onSettings: () -> Unit, onLock: () -> Unit) {
     val services = LocalServices.current
     val colors = LocalAppColors.current
     val total = listState.layoutInfo.totalItemsCount
@@ -251,6 +274,7 @@ private fun ReaderTopBar(c: ChapterContent?, screen: Screen.Reader, listState: L
                 c?.nextUrl?.let { services.nav.go(Screen.Reader(screen.novel, it)) }
             }
             Spacer(Modifier.width(6.dp))
+            IconBtn(Icons.Filled.Lock, "قفل: إخفاء كل شيء ما عدا النص (L)", onClick = onLock)
             IconBtn(Icons.Filled.Settings, "إعدادات القراءة", onClick = onSettings)
         }
         LinearProgressIndicator(
@@ -341,4 +365,17 @@ fun SettingSwitch(label: String, checked: Boolean, onChange: (Boolean) -> Unit) 
             colors = SwitchDefaults.colors(checkedTrackColor = colors.accent, checkedThumbColor = colors.onAccent),
         )
     }
+}
+
+@Composable
+private fun UnlockButton(modifier: Modifier, onClick: () -> Unit) {
+    val colors = LocalAppColors.current
+    val hover = remember { MutableInteractionSource() }
+    val hovered by hover.collectIsHoveredAsState()
+    Icon(
+        Icons.Filled.Lock, "فتح القفل",
+        tint = colors.muted.copy(alpha = if (hovered) 0.9f else 0.18f),
+        modifier = modifier.clip(CircleShape).hoverable(hover).pointerHoverIcon(PointerIcon.Hand)
+            .clickable(onClick = onClick).padding(8.dp).size(22.dp),
+    )
 }

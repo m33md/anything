@@ -62,6 +62,7 @@ class ScreenshotTest {
             "browse" to Screen.Main(Tab.Browse),
             "details" to Screen.Details(novel),
             "reader" to Screen.Reader(novel, "https://kolnovel.com/x-2/"),
+            "reader-locked" to Screen.Reader(novel, "https://kolnovel.com/x-2/"),
             "settings" to Screen.Main(Tab.Settings),
             "library" to Screen.Main(Tab.Library),
             "downloads" to Screen.Main(Tab.Downloads),
@@ -78,6 +79,7 @@ class ScreenshotTest {
             for ((name, screen) in shots) {
                 services.nav.go(Screen.Main(Tab.Home))
                 services.nav.go(screen)
+                services.readerLocked = name == "reader-locked"
                 var t = 0L
                 repeat(12) {
                     scene.render(t); t += 100_000_000L

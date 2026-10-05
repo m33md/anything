@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -114,6 +115,8 @@ class AppServices(val source: KolSource = KolSource()) {
     val nav = Navigator()
     /** Set by the reader so arrow keys turn chapters. */
     var readerKeys: ((KeyEvent) -> Boolean)? = null
+    /** Reader lock: only the text shows. Kept here so it stays on while turning chapters. */
+    var readerLocked by mutableStateOf(false)
 }
 
 val LocalServices = staticCompositionLocalOf<AppServices> { error("no services") }
@@ -142,6 +145,7 @@ fun App(services: AppServices) {
         KolTheme(colors) {
             val screen = services.nav.current
             val reading = screen is Screen.Reader
+            LaunchedEffect(reading) { if (!reading) services.readerLocked = false }
             LiveBackground(enabled = settings.liveBackground && !reading, modifier = Modifier.fillMaxSize()) {
                 Column(Modifier.fillMaxSize()) {
                     if (!reading) TopBar(services)
