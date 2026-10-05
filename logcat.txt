@@ -1,0 +1,188 @@
+10-05 15:21:32.544   517  2773 V SplashScreenExceptionList: SplashScreen checking exception for package com.kolnovel.reader (target sdk:35) -> false
+10-05 15:21:32.580   828   859 V WindowManagerShell: Transition requested: android.os.BinderProxy@4c6b322 TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=8 displayId=0 isRunning=true baseIntent=Intent { flg=0x10000000 cmp=com.kolnovel.reader/.MainActivity } baseActivity=ComponentInfo{com.kolnovel.reader/com.kolnovel.reader.MainActivity} topActivity=ComponentInfo{com.kolnovel.reader/com.kolnovel.reader.MainActivity} origActivity=null realActivity=ComponentInfo{com.kolnovel.reader/com.kolnovel.reader.MainActivity} numActivities=1 lastActiveTime=38581 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{android.window.IWindowContainerToken$Stub$Proxy@17ad1b3} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=Rect(0, 128 - 0, 0) topActivityInfo=ActivityInfo{a20370 com.kolnovel.reader.MainActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=false isVisible=false isVisibleRequested=false isSleeping=false topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= false topActivityLetterboxed= false isFromDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 locusId=null displayAreaFeatureId=1 cameraCompatControlState=hidden}, remoteTransition = null, displayChange = null }
+10-05 15:21:32.582   517  2773 I ActivityTaskManager: START u0 {flg=0x10000000 cmp=com.kolnovel.reader/.MainActivity} with LAUNCH_SINGLE_TASK from uid 2000 (BAL_ALLOW_PERMISSION) result code=0
+10-05 15:21:32.603   517  1940 D CoreBackPreview: Window{6646e38 u0 Splash Screen com.kolnovel.reader}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@7db727b, mPriority=0, mIsAnimationCallback=false}
+10-05 15:21:32.621   517   547 I ActivityManager: Start proc 2984:com.kolnovel.reader/u0a192 for next-top-activity {com.kolnovel.reader/com.kolnovel.reader.MainActivity}
+10-05 15:21:32.707  2984  2984 I kolnovel.reader: Using CollectorTypeCC GC.
+10-05 15:21:32.707  2984  2984 W kolnovel.reader: Unexpected CPU variant for x86: x86_64.
+10-05 15:21:32.707  2984  2984 W kolnovel.reader: Known variants: atom, sandybridge, silvermont, goldmont, goldmont-plus, tremont, kabylake, default
+10-05 15:21:32.708  2984  2984 E kolnovel.reader: Not starting debugger since process cannot load the jdwp agent.
+10-05 15:21:32.752   517   796 I SdkSandboxManager: No SDKs used. Skipping SDK data reconcilation for CallingInfo{mUid=10192, mPackageName='com.kolnovel.reader, mAppProcessToken='null'}
+10-05 15:21:32.965   517   536 V WindowManager: Sent Transition #7 createdAt=10-05 15:21:32.537 via request=TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=8 displayId=0 isRunning=true baseIntent=Intent { flg=0x10000000 cmp=com.kolnovel.reader/.MainActivity } baseActivity=ComponentInfo{com.kolnovel.reader/com.kolnovel.reader.MainActivity} topActivity=ComponentInfo{com.kolnovel.reader/com.kolnovel.reader.MainActivity} origActivity=null realActivity=ComponentInfo{com.kolnovel.reader/com.kolnovel.reader.MainActivity} numActivities=1 lastActiveTime=38581 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{RemoteToken{76bc286 Task{8cc8978 #8 type=standard A=10192:com.kolnovel.reader}}} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=Rect(0, 128 - 0, 0) topActivityInfo=ActivityInfo{7cad747 com.kolnovel.reader.MainActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=false isVisible=false isVisibleRequested=false isSleeping=false topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= false topActivityLetterboxed= false isFromDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 locusId=null displayAreaFeatureId=1 cameraCompatControlState=hidden}, remoteTransition = null, displayChange = null }
+10-05 15:21:32.965   517   536 V WindowManager:     info={id=7 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{WCT{RemoteToken{76bc286 Task{8cc8978 #8 type=standard A=10192:com.kolnovel.reader}}} m=OPEN f=NONE leash=Surface(name=Task=8)/@0xb2dd402 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0},{WCT{RemoteToken{6df7b74 Task{1dc2241 #1 type=home}}} m=TO_BACK f=NONE leash=Surface(name=Task=1)/@0xbf448c6 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0}]}
+10-05 15:21:33.128   829   829 I SafetyLabelChangedBroadcastReceiver: received broadcast packageName: com.kolnovel.reader, current user: UserHandle{0}, packageChangeEvent: NEW_INSTALL, intent user: UserHandle{0}
+10-05 15:21:33.312  2984  2984 D nativeloader: Configuring clns-6 for other apk /data/app/~~7hgg0x7Hb3BYeGS_dfJFew==/com.kolnovel.reader-bPVkCsBRzeRQW3iMLX1yAA==/base.apk. target_sdk_version=35, uses_libraries=, library_path=/data/app/~~7hgg0x7Hb3BYeGS_dfJFew==/com.kolnovel.reader-bPVkCsBRzeRQW3iMLX1yAA==/lib/x86_64:/data/app/~~7hgg0x7Hb3BYeGS_dfJFew==/com.kolnovel.reader-bPVkCsBRzeRQW3iMLX1yAA==/base.apk!/lib/x86_64, permitted_path=/data:/mnt/expand:/data/user/0/com.kolnovel.reader
+10-05 15:21:33.344  1040  1040 D CarrierSvcBindHelper: onPackageAdded: com.kolnovel.reader
+10-05 15:21:33.356  2984  2984 V GraphicsEnvironment: ANGLE GameManagerService for com.kolnovel.reader: false
+10-05 15:21:33.356  2984  2984 V GraphicsEnvironment: com.kolnovel.reader is not listed in per-application setting
+10-05 15:21:33.373  1040  1320 D ImsResolver: maybeAddedImsService, packageName: com.kolnovel.reader
+10-05 15:21:33.486  2984  2984 W kolnovel.reader: Entry not found
+10-05 15:21:33.589  2984  3130 I cr_VariationsUtils: Failed reading seed file "/data/user/0/com.kolnovel.reader/app_webview/variations_seed_new"
+10-05 15:21:33.589  2984  3130 I cr_VariationsUtils: Failed reading seed file "/data/user/0/com.kolnovel.reader/app_webview/variations_seed"
+10-05 15:21:33.650  2984  2984 W kolnovel.reader: Method boolean androidx.compose.runtime.snapshots.SnapshotStateList.conditionalUpdate(boolean, kotlin.jvm.functions.Function1) failed lock verification and will run slower.
+10-05 15:21:33.650  2984  2984 W kolnovel.reader: Common causes for lock verification issues are non-optimized dex code
+10-05 15:21:33.650  2984  2984 W kolnovel.reader: and incorrect proguard optimizations.
+10-05 15:21:33.652  2984  2984 W kolnovel.reader: Method boolean androidx.compose.runtime.snapshots.SnapshotStateList.conditionalUpdate$default(androidx.compose.runtime.snapshots.SnapshotStateList, boolean, kotlin.jvm.functions.Function1, int, java.lang.Object) failed lock verification and will run slower.
+10-05 15:21:33.653  2984  2984 W kolnovel.reader: Method java.lang.Object androidx.compose.runtime.snapshots.SnapshotStateList.mutate(kotlin.jvm.functions.Function1) failed lock verification and will run slower.
+10-05 15:21:33.653  2984  2984 W kolnovel.reader: Method void androidx.compose.runtime.snapshots.SnapshotStateList.update(boolean, kotlin.jvm.functions.Function1) failed lock verification and will run slower.
+10-05 15:21:33.653  2984  2984 W kolnovel.reader: Method void androidx.compose.runtime.snapshots.SnapshotStateList.update$default(androidx.compose.runtime.snapshots.SnapshotStateList, boolean, kotlin.jvm.functions.Function1, int, java.lang.Object) failed lock verification and will run slower.
+10-05 15:21:34.111   517   591 D CoreBackPreview: Window{91f39f7 u0 com.kolnovel.reader/com.kolnovel.reader.MainActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@c164a48, mPriority=0, mIsAnimationCallback=false}
+10-05 15:21:35.581   517  1391 I ImeTracker: com.kolnovel.reader:1d8b15e3: onRequestHide at ORIGIN_SERVER_HIDE_INPUT reason HIDE_UNSPECIFIED_WINDOW
+10-05 15:21:35.581   517  1391 I ImeTracker: com.kolnovel.reader:1d8b15e3: onCancelled at PHASE_SERVER_SHOULD_HIDE
+10-05 15:21:35.587   517   536 I ActivityTaskManager: Displayed com.kolnovel.reader/.MainActivity for user 0: +2s970ms
+10-05 15:21:35.699  1542  1542 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1877 onStartInput(EditorInfo{inputType=0x0(NULL) imeOptions=0x0 privateImeOptions=null actionName=UNSPECIFIED actionLabel=null actionId=0 initialSelStart=-1 initialSelEnd=-1 initialCapsMode=0x0 hintText=null label=null packageName=com.kolnovel.reader fieldId=0 fieldName=null extras=null}, false)
+10-05 15:21:35.743   517  1943 D CoreBackPreview: Window{6646e38 u0 Splash Screen com.kolnovel.reader EXITING}: Setting back callback null
+10-05 15:21:35.744   517  1391 W InputManager-JNI: Input channel object '6646e38 Splash Screen com.kolnovel.reader (client)' was disposed without first being removed with the input manager!
+10-05 15:21:37.375  1663  1663 I AiAiEcho: AppFetcherImplV2 updateApps package:[com.kolnovel.reader], userId:[0], reason:[package is added.].
+10-05 15:21:37.488  1084  1126 I Launcher.IconCache: Database bulk icon loading failed, using fallback bulk icon loading for: ComponentInfo{com.kolnovel.reader/com.kolnovel.reader.MainActivity}
+10-05 15:21:40.493  2984  3763 D ProfileInstaller: Installing profile for com.kolnovel.reader
+10-05 15:21:42.598  2984  3004 I kolnovel.reader: Background concurrent copying GC freed 881946(22MB) AllocSpace objects, 30(3376KB) LOS objects, 41% free, 33MB/57MB, paused 20us,11us total 705.050ms
+10-05 15:21:44.288  2984  3004 I kolnovel.reader: Background young concurrent copying GC freed 7315(1921KB) AllocSpace objects, 0(0B) LOS objects, 0% free, 67MB/67MB, paused 741us,11us total 104.339ms
+10-05 15:21:44.746  2984  3004 I kolnovel.reader: Background concurrent copying GC freed 5368(11MB) AllocSpace objects, 0(0B) LOS objects, 21% free, 87MB/111MB, paused 54us,8us total 438.375ms
+10-05 15:21:45.322  2984  3004 I kolnovel.reader: Background young concurrent copying GC freed 4029(2451KB) AllocSpace objects, 3(40MB) LOS objects, 24% free, 72MB/96MB, paused 25us,9us total 309.783ms
+10-05 15:21:47.948  2984  3004 I kolnovel.reader: Background concurrent copying GC freed 16419(30MB) AllocSpace objects, 5(36MB) LOS objects, 30% free, 54MB/78MB, paused 23us,472us total 1.508s
+10-05 15:21:49.199  2984  3004 I kolnovel.reader: Background young concurrent copying GC freed 9848(9336KB) AllocSpace objects, 3(5688KB) LOS objects, 0% free, 79MB/79MB, paused 250us,18us total 177.802ms
+10-05 15:21:50.293  2984  3004 I kolnovel.reader: Background concurrent copying GC freed 15829(40MB) AllocSpace objects, 2(17MB) LOS objects, 35% free, 42MB/66MB, paused 22us,8us total 916.371ms
+10-05 15:21:52.571  2984  3004 I kolnovel.reader: Background young concurrent copying GC freed 16582(10MB) AllocSpace objects, 8(8756KB) LOS objects, 11% free, 58MB/66MB, paused 29us,13us total 549.694ms
+10-05 15:21:57.068  1454  4149 I BlockstoreStorage: Clearing Blockstore Data for package com.kolnovel.reader [CONTEXT service_id=258 ]
+10-05 15:21:57.145  1392  4269 I FontLog : Package com.kolnovel.reader has no metadata [CONTEXT service_id=132 ]
+10-05 15:22:02.810  4670  4670 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-05 15:22:02.851  4670  4670 I AndroidRuntime: Using default boot image
+10-05 15:22:02.851  4670  4670 I AndroidRuntime: Leaving lock profiling enabled
+10-05 15:22:03.115  4670  4670 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+10-05 15:22:04.471  4670  4670 D AndroidRuntime: Shutting down VM
+10-05 15:22:19.645  5117  5117 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-05 15:22:19.661  5117  5117 I AndroidRuntime: Using default boot image
+10-05 15:22:19.661  5117  5117 I AndroidRuntime: Leaving lock profiling enabled
+10-05 15:22:19.895  5117  5117 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+10-05 15:22:21.023  5117  5117 D AndroidRuntime: Shutting down VM
+10-05 15:22:31.243   828   859 D WindowManagerShell: onActivityRestartAttempt: ComponentInfo{com.kolnovel.reader/com.kolnovel.reader.MainActivity}
+10-05 15:22:31.244   517  1946 I ActivityTaskManager: START u0 {flg=0x10000000 cmp=com.kolnovel.reader/.MainActivity (has extras)} with LAUNCH_SINGLE_TASK from uid 2000 (BAL_ALLOW_PERMISSION) result code=3
+10-05 15:22:32.734  2984  3004 I kolnovel.reader: Background concurrent copying GC freed 662691(14MB) AllocSpace objects, 8(2332KB) LOS objects, 38% free, 38MB/62MB, paused 26.198ms,292us total 379.916ms
+10-05 15:22:47.039  5944  5944 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-05 15:22:47.047  5944  5944 I AndroidRuntime: Using default boot image
+10-05 15:22:47.047  5944  5944 I AndroidRuntime: Leaving lock profiling enabled
+10-05 15:22:47.207  5944  5944 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+10-05 15:22:48.285  5944  5944 D AndroidRuntime: Shutting down VM
+10-05 15:22:49.325   517  1935 D CoreBackPreview: Window{2609503 u0 com.kolnovel.reader/com.kolnovel.reader.MainActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@1b2da57, mPriority=0, mIsAnimationCallback=false}
+10-05 15:22:49.748   517  1935 I ImeTracker: com.kolnovel.reader:bd3e566: onRequestHide at ORIGIN_SERVER_HIDE_INPUT reason HIDE_UNSPECIFIED_WINDOW
+10-05 15:22:49.748   517  1935 I ImeTracker: com.kolnovel.reader:bd3e566: onCancelled at PHASE_SERVER_SHOULD_HIDE
+10-05 15:22:49.766  1542  1542 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1877 onStartInput(EditorInfo{inputType=0x0(NULL) imeOptions=0x0 privateImeOptions=null actionName=UNSPECIFIED actionLabel=null actionId=0 initialSelStart=-1 initialSelEnd=-1 initialCapsMode=0x0 hintText=null label=null packageName=com.kolnovel.reader fieldId=0 fieldName=null extras=null}, false)
+10-05 15:22:51.579  6001  6001 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-05 15:22:51.589  6001  6001 I AndroidRuntime: Using default boot image
+10-05 15:22:51.589  6001  6001 I AndroidRuntime: Leaving lock profiling enabled
+10-05 15:22:51.716  6001  6001 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+10-05 15:22:52.769  6001  6001 D AndroidRuntime: Shutting down VM
+10-05 15:22:53.746  6025  6025 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-05 15:22:53.758  6025  6025 I AndroidRuntime: Using default boot image
+10-05 15:22:53.758  6025  6025 I AndroidRuntime: Leaving lock profiling enabled
+10-05 15:22:53.870  6025  6025 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+10-05 15:22:54.895  6025  6025 D AndroidRuntime: Shutting down VM
+10-05 15:22:55.751   517  2855 I ActivityManager: Background started FGS: Allowed [callingPackage: com.kolnovel.reader; callingUid: 10192; uidState: TOP ; uidBFSL: [BFSL]; intent: Intent { cmp=com.kolnovel.reader/.data.DownloadService }; code:PROC_STATE_TOP; tempAllowListReason:<null>; targetSdkVersion:35; callerTargetSdkVersion:35; startForegroundCount:0; bindFromPackage:null: isBindService:false]
+10-05 15:22:55.761   517  2831 D CoreBackPreview: Window{2609503 u0 com.kolnovel.reader/com.kolnovel.reader.MainActivity}: Setting back callback null
+10-05 15:22:55.772   517  2831 W InputManager-JNI: Input channel object '2609503 com.kolnovel.reader/com.kolnovel.reader.MainActivity (client)' was disposed without first being removed with the input manager!
+10-05 15:22:55.927   517  2831 I ImeTracker: com.kolnovel.reader:dfa59a24: onRequestHide at ORIGIN_SERVER_HIDE_INPUT reason HIDE_UNSPECIFIED_WINDOW
+10-05 15:22:55.927   517  2831 I ImeTracker: com.kolnovel.reader:dfa59a24: onCancelled at PHASE_SERVER_SHOULD_HIDE
+10-05 15:22:55.932  1542  1542 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1877 onStartInput(EditorInfo{inputType=0x0(NULL) imeOptions=0x0 privateImeOptions=null actionName=UNSPECIFIED actionLabel=null actionId=0 initialSelStart=-1 initialSelEnd=-1 initialCapsMode=0x0 hintText=null label=null packageName=com.kolnovel.reader fieldId=0 fieldName=null extras=null}, false)
+10-05 15:22:56.577  2984  3004 W kolnovel.reader: Cleared Reference was only reachable from finalizer (only reported once)
+10-05 15:22:59.014  2984  3004 I kolnovel.reader: Background young concurrent copying GC freed 655009(18MB) AllocSpace objects, 7(648KB) LOS objects, 35% free, 24MB/38MB, paused 4.491ms,9us total 133.761ms
+10-05 15:23:34.814   517  2578 I ActivityTaskManager: START u0 {flg=0x10000000 cmp=com.kolnovel.reader/.MainActivity (has extras)} with LAUNCH_SINGLE_TASK from uid 2000 (BAL_ALLOW_PERMISSION) result code=3
+10-05 15:23:34.815   828   859 D WindowManagerShell: onActivityRestartAttempt: ComponentInfo{com.kolnovel.reader/com.kolnovel.reader.MainActivity}
+10-05 15:23:39.221   517  1935 I ActivityTaskManager: START u0 {flg=0x10000000 cmp=com.kolnovel.reader/.MainActivity (has extras)} with LAUNCH_SINGLE_TASK from uid 2000 (BAL_ALLOW_PERMISSION) result code=3
+10-05 15:23:39.222   828   859 D WindowManagerShell: onActivityRestartAttempt: ComponentInfo{com.kolnovel.reader/com.kolnovel.reader.MainActivity}
+10-05 15:23:51.116  6220  6220 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-05 15:23:51.119  6220  6220 I AndroidRuntime: Using default boot image
+10-05 15:23:51.119  6220  6220 I AndroidRuntime: Leaving lock profiling enabled
+10-05 15:23:51.185  6220  6220 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+10-05 15:23:52.225  6220  6220 D AndroidRuntime: Shutting down VM
+10-05 15:24:05.963  6277  6277 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-05 15:24:05.965  6277  6277 I AndroidRuntime: Using default boot image
+10-05 15:24:05.965  6277  6277 I AndroidRuntime: Leaving lock profiling enabled
+10-05 15:24:06.029  6277  6277 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+10-05 15:24:07.054  6277  6277 D AndroidRuntime: Shutting down VM
+10-05 15:24:10.196  6313  6313 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-05 15:24:10.199  6313  6313 I AndroidRuntime: Using default boot image
+10-05 15:24:10.199  6313  6313 I AndroidRuntime: Leaving lock profiling enabled
+10-05 15:24:10.262  6313  6313 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+10-05 15:24:11.284  6313  6313 D AndroidRuntime: Shutting down VM
+10-05 15:24:14.171  6335  6335 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-05 15:24:14.174  6335  6335 I AndroidRuntime: Using default boot image
+10-05 15:24:14.174  6335  6335 I AndroidRuntime: Leaving lock profiling enabled
+10-05 15:24:14.237  6335  6335 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+10-05 15:24:15.260  6335  6335 D AndroidRuntime: Shutting down VM
+10-05 15:24:18.149  6358  6358 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-05 15:24:18.152  6358  6358 I AndroidRuntime: Using default boot image
+10-05 15:24:18.152  6358  6358 I AndroidRuntime: Leaving lock profiling enabled
+10-05 15:24:18.177  2984  2984 E FrameTracker: force finish cuj, time out: J<IME_INSETS_ANIMATION::1@0@com.kolnovel.reader>
+10-05 15:24:18.223  6358  6358 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+10-05 15:24:19.247  6358  6358 D AndroidRuntime: Shutting down VM
+10-05 15:24:22.142  6383  6383 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-05 15:24:22.146  6383  6383 I AndroidRuntime: Using default boot image
+10-05 15:24:22.146  6383  6383 I AndroidRuntime: Leaving lock profiling enabled
+10-05 15:24:22.216  6383  6383 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+10-05 15:24:23.235  6383  6383 D AndroidRuntime: Shutting down VM
+10-05 15:24:26.121  6402  6402 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-05 15:24:26.124  6402  6402 I AndroidRuntime: Using default boot image
+10-05 15:24:26.124  6402  6402 I AndroidRuntime: Leaving lock profiling enabled
+10-05 15:24:26.191  6402  6402 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+10-05 15:24:27.209  6402  6402 D AndroidRuntime: Shutting down VM
+10-05 15:24:30.096  6420  6420 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-05 15:24:30.099  6420  6420 I AndroidRuntime: Using default boot image
+10-05 15:24:30.099  6420  6420 I AndroidRuntime: Leaving lock profiling enabled
+10-05 15:24:30.164  6420  6420 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+10-05 15:24:31.186  6420  6420 D AndroidRuntime: Shutting down VM
+10-05 15:24:34.076  6447  6447 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-05 15:24:34.079  6447  6447 I AndroidRuntime: Using default boot image
+10-05 15:24:34.079  6447  6447 I AndroidRuntime: Leaving lock profiling enabled
+10-05 15:24:34.144  6447  6447 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+10-05 15:24:35.161  6447  6447 D AndroidRuntime: Shutting down VM
+10-05 15:24:38.054  6464  6464 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-05 15:24:38.057  6464  6464 I AndroidRuntime: Using default boot image
+10-05 15:24:38.057  6464  6464 I AndroidRuntime: Leaving lock profiling enabled
+10-05 15:24:38.122  6464  6464 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+10-05 15:24:39.139  6464  6464 D AndroidRuntime: Shutting down VM
+10-05 15:24:42.354   517  1945 I ImeTracker: com.kolnovel.reader:e88c82f4: onRequestHide at ORIGIN_SERVER_HIDE_INPUT reason HIDE_UNSPECIFIED_WINDOW
+10-05 15:24:42.354   517  1945 I ImeTracker: com.kolnovel.reader:e88c82f4: onCancelled at PHASE_SERVER_SHOULD_HIDE
+10-05 15:24:42.365  1542  1542 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1877 onStartInput(EditorInfo{inputType=0x0(NULL) imeOptions=0x0 privateImeOptions=null actionName=UNSPECIFIED actionLabel=null actionId=0 initialSelStart=-1 initialSelEnd=-1 initialCapsMode=0x0 hintText=null label=null packageName=com.kolnovel.reader fieldId=0 fieldName=null extras=null}, false)
+10-05 15:24:51.329  1016  1016 I AndroidRuntime: VM exiting with result code 0, cleanup skipped.
+10-05 15:24:53.526   517  1938 I ActivityManager: Force stopping com.kolnovel.reader appid=10192 user=0: from pid 6551
+10-05 15:24:53.528   517  1938 I ActivityManager: Killing 2984:com.kolnovel.reader/u0a192 (adj 0): stop com.kolnovel.reader due to from pid 6551
+10-05 15:24:53.533   517  1938 W ActivityTaskManager: Force removing ActivityRecord{10b43d5 u0 com.kolnovel.reader/.MainActivity t8 f}}: app died, no saved state
+10-05 15:24:53.533   828   859 V WindowManagerShell: Transition requested: android.os.BinderProxy@dc5eaf9 TransitionRequestInfo { type = CLOSE, triggerTask = TaskInfo{userId=0 taskId=8 displayId=0 isRunning=false baseIntent=Intent { flg=0x10000000 cmp=com.kolnovel.reader/.MainActivity } baseActivity=null topActivity=null origActivity=null realActivity=ComponentInfo{com.kolnovel.reader/com.kolnovel.reader.MainActivity} numActivities=0 lastActiveTime=39086 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{android.window.IWindowContainerToken$Stub$Proxy@731a3e} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=null topActivityInfo=null launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=true isVisible=true isVisibleRequested=true isSleeping=false topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= false topActivityLetterboxed= false isFromDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 locusId=null displayAreaFeatureId=1 cameraCompatControlState=hidden}, remoteTransition = null, displayChange = null }
+10-05 15:24:53.574  1040  1040 D CarrierSvcBindHelper: onHandleForceStop: [com.kolnovel.reader]
+10-05 15:24:53.620   517  1731 V ActivityManager: Got obituary of 2984:com.kolnovel.reader
+10-05 15:24:53.623   517  1391 I WindowManager: WIN DEATH: Window{91f39f7 u0 com.kolnovel.reader/com.kolnovel.reader.MainActivity}
+10-05 15:24:53.623   517  1391 W InputManager-JNI: Input channel object '91f39f7 com.kolnovel.reader/com.kolnovel.reader.MainActivity (client)' was disposed without first being removed with the input manager!
+10-05 15:24:53.663   517  1801 V SplashScreenExceptionList: SplashScreen checking exception for package com.kolnovel.reader (target sdk:35) -> false
+10-05 15:24:53.671   517  1801 I ActivityTaskManager: Add Task{8cc8978 #8 type=standard A=10192:com.kolnovel.reader} to hidden list because adding Task{1bf345a #9 type=standard A=10192:com.kolnovel.reader}
+10-05 15:24:53.673   517  1801 I ActivityTaskManager: START u0 {flg=0x10000000 cmp=com.kolnovel.reader/.MainActivity (has extras)} with LAUNCH_SINGLE_TASK from uid 2000 (BAL_ALLOW_PERMISSION) result code=0
+10-05 15:24:53.692   517   547 I ActivityManager: Start proc 6567:com.kolnovel.reader/u0a192 for next-top-activity {com.kolnovel.reader/com.kolnovel.reader.MainActivity}
+10-05 15:24:53.839  6567  6567 I kolnovel.reader: Using CollectorTypeCC GC.
+10-05 15:24:53.840  6567  6567 W kolnovel.reader: Unexpected CPU variant for x86: x86_64.
+10-05 15:24:53.840  6567  6567 W kolnovel.reader: Known variants: atom, sandybridge, silvermont, goldmont, goldmont-plus, tremont, kabylake, default
+10-05 15:24:53.841  6567  6567 E kolnovel.reader: Not starting debugger since process cannot load the jdwp agent.
+10-05 15:24:53.856   517  1801 D CoreBackPreview: Window{704a9fe u0 Splash Screen com.kolnovel.reader}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@dfd680a, mPriority=0, mIsAnimationCallback=false}
+10-05 15:24:54.005  6567  6567 D nativeloader: Configuring clns-6 for other apk /data/app/~~7hgg0x7Hb3BYeGS_dfJFew==/com.kolnovel.reader-bPVkCsBRzeRQW3iMLX1yAA==/base.apk. target_sdk_version=35, uses_libraries=, library_path=/data/app/~~7hgg0x7Hb3BYeGS_dfJFew==/com.kolnovel.reader-bPVkCsBRzeRQW3iMLX1yAA==/lib/x86_64:/data/app/~~7hgg0x7Hb3BYeGS_dfJFew==/com.kolnovel.reader-bPVkCsBRzeRQW3iMLX1yAA==/base.apk!/lib/x86_64, permitted_path=/data:/mnt/expand:/data/user/0/com.kolnovel.reader
+10-05 15:24:54.020  6567  6567 V GraphicsEnvironment: ANGLE GameManagerService for com.kolnovel.reader: false
+10-05 15:24:54.020  6567  6567 V GraphicsEnvironment: com.kolnovel.reader is not listed in per-application setting
+10-05 15:24:54.100  6567  6567 W kolnovel.reader: Entry not found
+10-05 15:24:54.311  6567  6590 I cr_VariationsUtils: Failed reading seed file "/data/user/0/com.kolnovel.reader/app_webview/variations_seed_new"
+10-05 15:24:54.311  6567  6590 I cr_VariationsUtils: Failed reading seed file "/data/user/0/com.kolnovel.reader/app_webview/variations_seed"
+10-05 15:24:54.386   517   536 V WindowManager: Sent Transition #11 createdAt=10-05 15:24:53.533 via request=TransitionRequestInfo { type = CLOSE, triggerTask = TaskInfo{userId=0 taskId=8 displayId=0 isRunning=false baseIntent=Intent { flg=0x10000000 cmp=com.kolnovel.reader/.MainActivity } baseActivity=null topActivity=null origActivity=null realActivity=ComponentInfo{com.kolnovel.reader/com.kolnovel.reader.MainActivity} numActivities=0 lastActiveTime=39086 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{RemoteToken{76bc286 Task{8cc8978 #8 type=standard A=10192:com.kolnovel.reader}}} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=null topActivityInfo=null launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=true isVisible=true isVisibleRequested=true isSleeping=false topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= false topActivityLetterboxed= false isFromDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 locusId=null displayAreaFeatureId=1 cameraCompatControlState=hidden}, remoteTransition = null, displayChange = null }
+10-05 15:24:54.394   517   536 V WindowManager:     info={id=11 t=CLOSE f=0x0 trk=0 r=[0@Point(0, 0)] c=[{WCT{RemoteToken{f731e47 Task{1bf345a #9 type=standard A=10192:com.kolnovel.reader}}} m=OPEN f=MOVE_TO_TOP leash=Surface(name=Task=9)/@0x7f2f44f sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0},{WCT{RemoteToken{76bc286 Task{8cc8978 #8 type=standard A=10192:com.kolnovel.reader}}} m=CLOSE f=NONE leash=Surface(name=Task=8)/@0xb2dd402 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) d=0}]}
+10-05 15:24:54.403   517  2038 W WindowManager: Failed to deliver inset control state change to w=Window{91f39f7 u0 com.kolnovel.reader/com.kolnovel.reader.MainActivity EXITING}
+10-05 15:24:54.421   517  1088 W WindowManager: Exception thrown during dispatchAppVisibility Window{91f39f7 u0 com.kolnovel.reader/com.kolnovel.reader.MainActivity EXITING}
+10-05 15:24:54.802   517   952 D CoreBackPreview: Window{798060b u0 com.kolnovel.reader/com.kolnovel.reader.MainActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@c57f3f5, mPriority=0, mIsAnimationCallback=false}
+10-05 15:24:56.028   517   536 I ActivityTaskManager: Displayed com.kolnovel.reader/.MainActivity for user 0: +2s390ms
+10-05 15:24:56.136   517  1938 W InputManager-JNI: Input channel object '704a9fe Splash Screen com.kolnovel.reader (client)' was disposed without first being removed with the input manager!
+10-05 15:24:56.861   517  1088 I ImeTracker: com.kolnovel.reader:cbb67b16: onRequestHide at ORIGIN_SERVER_HIDE_INPUT reason HIDE_UNSPECIFIED_WINDOW
+10-05 15:24:56.864   517  1088 I ImeTracker: com.kolnovel.reader:cbb67b16: onCancelled at PHASE_SERVER_SHOULD_HIDE
+10-05 15:24:56.891  1542  1542 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1877 onStartInput(EditorInfo{inputType=0x0(NULL) imeOptions=0x0 privateImeOptions=null actionName=UNSPECIFIED actionLabel=null actionId=0 initialSelStart=-1 initialSelEnd=-1 initialCapsMode=0x0 hintText=null label=null packageName=com.kolnovel.reader fieldId=0 fieldName=null extras=null}, false)
+10-05 15:25:00.087  6567  6623 D ProfileInstaller: Skipping profile installation for com.kolnovel.reader
+10-05 15:25:04.142   517  1088 I ActivityTaskManager: START u0 {flg=0x10000000 cmp=com.kolnovel.reader/.MainActivity (has extras)} with LAUNCH_SINGLE_TASK from uid 2000 (BAL_ALLOW_PERMISSION) result code=3
+10-05 15:25:04.143   828   859 D WindowManagerShell: onActivityRestartAttempt: ComponentInfo{com.kolnovel.reader/com.kolnovel.reader.MainActivity}
+10-05 15:25:07.217  6636  6636 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-05 15:25:07.220  6636  6636 I AndroidRuntime: Using default boot image
+10-05 15:25:07.220  6636  6636 I AndroidRuntime: Leaving lock profiling enabled
+10-05 15:25:07.280  6636  6636 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+10-05 15:25:08.395  6636  6636 D AndroidRuntime: Shutting down VM
