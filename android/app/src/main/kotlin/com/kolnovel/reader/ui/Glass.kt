@@ -53,6 +53,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kolnovel.reader.data.KolSource
+import com.kolnovel.reader.data.LibraryEntry
 import com.kolnovel.reader.data.LibraryStore
 import com.kolnovel.reader.data.NovelSummary
 import kotlin.math.cos
@@ -141,6 +143,8 @@ fun NovelCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
+    /** (chapter reached, chapters in the novel): shows "10/556 • 2%" with a filling bar. */
+    progress: Pair<Int, Int>? = null,
     badge: String? = null,
 ) {
     val colors = LocalAppColors.current
@@ -206,7 +210,37 @@ fun NovelCard(
                 modifier = Modifier.padding(horizontal = 4.dp),
             )
         }
+        if (progress != null) {
+            ReadingProgress(progress.first, progress.second, Modifier.padding(start = 4.dp, end = 4.dp, top = 4.dp, bottom = 2.dp))
+        }
     }
+}
+
+/** "10/556" and the percentage, over a bar that fills up as the novel is read. */
+@Composable
+fun ReadingProgress(read: Int, total: Int, modifier: Modifier = Modifier) {
+    val colors = LocalAppColors.current
+    val fraction = if (total > 0) (read.toFloat() / total).coerceIn(0f, 1f) else 0f
+    val percent = (fraction * 100).toInt().let { if (it == 0 && read > 0) 1 else it }
+    Column(modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("$read/$total", color = colors.muted, fontSize = 11.sp, maxLines = 1, modifier = Modifier.weight(1f))
+            Text("$percent%", color = colors.accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        }
+        Box(Modifier.fillMaxWidth().height(5.dp).clip(CircleShape).background(colors.glassFillStrong)) {
+            Box(Modifier.fillMaxWidth(fraction).fillMaxSize().clip(CircleShape).background(colors.accent))
+        }
+    }
+}
+
+/**
+ * How far into a novel the reader is, from the last chapter read and the novel's chapter count.
+ * Works from the synced library entry alone, so it is the same on every device.
+ */
+fun readingProgress(entry: LibraryEntry?): Pair<Int, Int>? {
+    if (entry == null || entry.knownChapters <= 0) return null
+    val n = entry.lastChapterTitle?.let { KolSource.chapterNumber(it) }?.toInt() ?: return null
+    return n.coerceIn(1, entry.knownChapters) to entry.knownChapters
 }
 
 @Composable

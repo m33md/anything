@@ -83,7 +83,7 @@ fun HomeScreen() {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         items(history, key = { it.url }) { e ->
                             val novel = NovelSummary(e.url, e.title, e.cover)
-                            ContinueCard(novel, e.lastChapterTitle.orEmpty()) {
+                            ContinueCard(novel, e.lastChapterTitle.orEmpty(), readingProgress(e)) {
                                 services.nav.go(Screen.Reader(novel, e.lastChapterUrl!!, e.lastParagraph))
                             }
                         }
@@ -181,7 +181,7 @@ private fun Featured(items: List<NovelSummary>) {
 }
 
 @Composable
-private fun ContinueCard(novel: NovelSummary, chapter: String, onClick: () -> Unit) {
+private fun ContinueCard(novel: NovelSummary, chapter: String, progress: Pair<Int, Int>?, onClick: () -> Unit) {
     val colors = LocalAppColors.current
     Row(
         Modifier.width(250.dp).glass(colors, RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(7.dp),
@@ -192,6 +192,7 @@ private fun ContinueCard(novel: NovelSummary, chapter: String, onClick: () -> Un
         Column(Modifier.weight(1f)) {
             Text(novel.title, color = colors.text, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 14.sp)
             Text(chapter, color = colors.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            progress?.let { ReadingProgress(it.first, it.second, Modifier.padding(top = 4.dp)) }
         }
         Icon(Icons.Filled.PlayArrow, null, tint = colors.accent, modifier = Modifier.size(26.dp))
     }

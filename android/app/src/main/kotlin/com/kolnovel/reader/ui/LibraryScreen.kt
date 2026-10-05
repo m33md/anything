@@ -110,6 +110,7 @@ fun LibraryScreen() {
                         else services.nav.go(Screen.Details(novel))
                     },
                     subtitle = e.lastChapterTitle ?: "لم تبدأ بعد",
+                    progress = readingProgress(e),
                 )
             }
         }

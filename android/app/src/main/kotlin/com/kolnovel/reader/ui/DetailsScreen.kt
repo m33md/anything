@@ -151,6 +151,11 @@ fun DetailsScreen(novel: NovelSummary) {
                             (d?.rating ?: novel.rating)?.let { RatingTag(it) }
                             d?.let { Text("${it.chapters.size} فصل", color = colors.muted, fontSize = 13.sp) }
                         }
+                        val position = d?.chapters?.indexOfFirst { it.url == entry?.lastChapterUrl } ?: -1
+                        if (d != null && position >= 0) {
+                            Gap(8)
+                            ReadingProgress(position + 1, d.chapters.size)
+                        }
                         if (offline) {
                             Gap(6)
                             Text("بدون اتصال: تعرض النسخة المحفوظة", color = colors.accent, fontSize = 12.sp)

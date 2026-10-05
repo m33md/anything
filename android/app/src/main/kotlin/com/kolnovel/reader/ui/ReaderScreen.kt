@@ -106,6 +106,7 @@ private suspend fun withListNeighbours(source: KolSource, c: ChapterContent, fal
         if (chapters != null) {
             ChapterLists.novelUrl = novelUrl
             ChapterLists.chapters = chapters
+            LibraryStore.noteChapterCount(novelUrl, chapters.size)
         }
         chapters
     } ?: return c

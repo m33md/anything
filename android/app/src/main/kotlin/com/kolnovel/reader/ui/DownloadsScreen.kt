@@ -216,6 +216,8 @@ private fun SavedCard(e: SavedEntry, onOpen: () -> Unit, onRead: () -> Unit, onD
             LibraryStore.entries[e.novel.url]?.lastChapterTitle?.let {
                 Text("آخر قراءة: $it", color = colors.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
+            val read = e.novel.chapters.indexOfFirst { it.url == LibraryStore.entries[e.novel.url]?.lastChapterUrl }
+            if (read >= 0) ReadingProgress(read + 1, e.novel.chapters.size, Modifier.padding(top = 4.dp))
         }
         IconBtn(Icons.Filled.PlayArrow, "اقرأ", onClick = onRead)
         IconBtn(Icons.Filled.Delete, "حذف", onClick = onDelete)
