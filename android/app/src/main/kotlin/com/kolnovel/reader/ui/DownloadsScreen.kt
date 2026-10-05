@@ -128,7 +128,7 @@ fun DownloadsScreen() {
                         onOpen = { services.nav.go(Screen.Details(NovelSummary(e.novel.url, e.novel.title, e.novel.cover))) },
                         onRead = {
                             val summary = NovelSummary(e.novel.url, e.novel.title, e.novel.cover)
-                            val last = LibraryStore.entries[e.novel.url]
+                            val last = LibraryStore[e.novel.url]
                             val url = last?.lastChapterUrl ?: e.firstSaved
                             if (url != null) services.nav.go(Screen.Reader(summary, url, if (url == last?.lastChapterUrl) last.lastParagraph else 0))
                         },
@@ -213,10 +213,10 @@ private fun SavedCard(e: SavedEntry, onOpen: () -> Unit, onRead: () -> Unit, onD
                 "${e.chapters} من ${e.novel.chapters.size} فصل  •  %.1f م.ب".format(e.bytes / 1_048_576.0),
                 color = colors.muted, fontSize = 12.sp,
             )
-            LibraryStore.entries[e.novel.url]?.lastChapterTitle?.let {
+            LibraryStore[e.novel.url]?.lastChapterTitle?.let {
                 Text("آخر قراءة: $it", color = colors.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            val read = e.novel.chapters.indexOfFirst { it.url == LibraryStore.entries[e.novel.url]?.lastChapterUrl }
+            val read = e.novel.chapters.indexOfFirst { it.url == LibraryStore[e.novel.url]?.lastChapterUrl }
             if (read >= 0) ReadingProgress(read + 1, e.novel.chapters.size, Modifier.padding(top = 4.dp))
         }
         IconBtn(Icons.Filled.PlayArrow, "اقرأ", onClick = onRead)

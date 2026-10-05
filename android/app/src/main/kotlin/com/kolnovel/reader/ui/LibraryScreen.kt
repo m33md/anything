@@ -49,6 +49,7 @@ fun LibraryScreen() {
         LibTab.Library -> all.filter { it.inLibrary }.sortedWith(compareByDescending<LibraryEntry> { it.newChapters > 0 }.thenByDescending { maxOf(it.lastReadAt, it.addedAt) })
         LibTab.Favorites -> all.filter { it.favorite }.sortedByDescending { it.lastReadAt }
         LibTab.History -> all.filter { it.lastReadAt > 0 && it.lastChapterUrl != null }.sortedByDescending { it.lastReadAt }
+            .distinctBy { it.title.trim().ifBlank { it.url } }
     }
     val gridState = rememberLazyGridState()
     Box(Modifier.fillMaxSize()) {

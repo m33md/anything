@@ -148,7 +148,7 @@ fun NovelCard(
     badge: String? = null,
 ) {
     val colors = LocalAppColors.current
-    val entry = LibraryStore.entries[novel.url]
+    val entry = LibraryStore[novel.url]
     Column(
         modifier
             .glass(colors, RoundedCornerShape(16.dp))

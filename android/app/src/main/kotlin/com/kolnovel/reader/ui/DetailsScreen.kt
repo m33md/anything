@@ -113,7 +113,7 @@ fun DetailsScreen(novel: NovelSummary) {
             }
         }
     }
-    val entry = LibraryStore.entries[novel.url]
+    val entry = LibraryStore[novel.url]
     LaunchedEffect(novel.url) { LibraryStore.clearNew(novel.url) }
 
     val d = details
@@ -457,7 +457,7 @@ private fun DownloadPanel(novel: NovelSummary, d: NovelDetails) {
             }
             Gap(8)
         }
-        val entry = LibraryStore.entries[novel.url]
+        val entry = LibraryStore[novel.url]
         val unread = d.chapters.filter { entry?.readChapters?.contains(it.url) != true }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             AccentButton("الرواية كاملة", KolIcons.Download, { enqueue(d.chapters) })
@@ -478,7 +478,7 @@ private fun DownloadPanel(novel: NovelSummary, d: NovelDetails) {
     }
 
     if (rangeOpen) {
-        RangeDialog(d, entry = LibraryStore.entries[novel.url]?.lastChapterUrl, onDismiss = { rangeOpen = false }) { chosen ->
+        RangeDialog(d, entry = LibraryStore[novel.url]?.lastChapterUrl, onDismiss = { rangeOpen = false }) { chosen ->
             rangeOpen = false
             enqueue(chosen)
         }
@@ -602,7 +602,7 @@ private fun ChapterMenu(novel: NovelSummary, d: NovelDetails, onSelect: () -> Un
                 open = false
                 LibraryStore.markRead(novel.url, d.chapters.map { it.url }, false)
             })
-            val last = LibraryStore.entries[novel.url]?.lastChapterUrl
+            val last = LibraryStore[novel.url]?.lastChapterUrl
             val idx = d.chapters.indexOfFirst { it.url == last }
             if (idx > 0) {
                 DropdownMenuItem({ Text("تحديد ما قبل الفصل الحالي كمقروء") }, onClick = {

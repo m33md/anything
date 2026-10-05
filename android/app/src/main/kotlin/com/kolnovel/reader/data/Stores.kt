@@ -120,8 +120,31 @@ object LibraryStore {
         private set
 
     private fun load(): Map<String, LibraryEntry> = runCatching {
-        AppJson.decodeFromString(LibraryFile.serializer(), file.readText()).entries.associateBy { it.url }
+        normalized(AppJson.decodeFromString(LibraryFile.serializer(), file.readText()).entries)
     }.getOrElse { emptyMap() }
+
+    /**
+     * One entry per novel. The same novel can arrive under slightly different links (percent-encoded
+     * Arabic slug, missing "/", http, ?query), which used to show it several times in "تابع القراءة".
+     */
+    fun key(url: String): String {
+        var u = url.trim().substringBefore('#').substringBefore('?')
+        u = runCatching { java.net.URLDecoder.decode(u.replace("+", "%2B"), "UTF-8") }.getOrDefault(u)
+        u = u.replaceFirst(Regex("^http://", RegexOption.IGNORE_CASE), "https://")
+            .replaceFirst(Regex("^(https://)www\\.", RegexOption.IGNORE_CASE), "$1")
+        return if (u.endsWith("/")) u else "$u/"
+    }
+
+    /** Re-keys entries by [key], merging duplicates of one novel into a single entry. */
+    fun normalized(list: Collection<LibraryEntry>): Map<String, LibraryEntry> {
+        val out = LinkedHashMap<String, LibraryEntry>()
+        for (raw in list) {
+            val k = key(raw.url)
+            val e = if (raw.url == k) raw else raw.copy(url = k)
+            out[k] = out[k]?.let { LibraryMerge.merge(it, e) } ?: e
+        }
+        return out
+    }
 
     /** Called after every local change (sync uses it to push the change to other devices). */
     var onChanged: (() -> Unit)? = null
@@ -135,15 +158,17 @@ object LibraryStore {
     /** Replaces the whole library with a merged copy from sync, without counting it as a local change. */
     @Synchronized
     fun replaceFromSync(merged: Map<String, LibraryEntry>) {
-        if (merged == entries) return
-        entries = merged
+        val clean = normalized(merged.values)
+        if (clean == entries) return
+        entries = clean
         save()
     }
 
-    operator fun get(url: String): LibraryEntry? = entries[url]
+    operator fun get(url: String): LibraryEntry? = entries[key(url)]
 
     @Synchronized
-    fun edit(url: String, title: String, cover: String?, change: (LibraryEntry) -> LibraryEntry) {
+    fun edit(novelUrl: String, title: String, cover: String?, change: (LibraryEntry) -> LibraryEntry) {
+        val url = key(novelUrl)
         val old = entries[url] ?: LibraryEntry(url = url, title = title, cover = cover)
         val updated = change(old.copy(title = title.ifBlank { old.title }, cover = cover ?: old.cover))
         entries = entries + (url to updated)
@@ -164,7 +189,7 @@ object LibraryStore {
     }
 
     fun markRead(novelUrl: String, chapterUrls: Collection<String>, read: Boolean) {
-        val e = entries[novelUrl] ?: return
+        val e = get(novelUrl) ?: return
         edit(novelUrl, e.title, e.cover) {
             it.copy(readChapters = if (read) it.readChapters + chapterUrls else it.readChapters - chapterUrls.toSet())
         }
@@ -182,7 +207,7 @@ object LibraryStore {
         }
 
     fun noteChapterCount(novelUrl: String, count: Int) {
-        val e = entries[novelUrl] ?: return
+        val e = get(novelUrl) ?: return
         if (e.knownChapters == count) return
         edit(novelUrl, e.title, e.cover) {
             val fresh = if (it.knownChapters in 1 until count) count - it.knownChapters else 0
@@ -191,12 +216,12 @@ object LibraryStore {
     }
 
     fun clearNew(novelUrl: String) {
-        val e = entries[novelUrl] ?: return
+        val e = get(novelUrl) ?: return
         if (e.newChapters != 0) edit(novelUrl, e.title, e.cover) { it.copy(newChapters = 0) }
     }
 
     fun removeHistory(novelUrl: String) {
-        val e = entries[novelUrl] ?: return
+        val e = get(novelUrl) ?: return
         edit(novelUrl, e.title, e.cover) { it.copy(lastReadAt = 0, lastChapterUrl = null, lastChapterTitle = null) }
     }
 }

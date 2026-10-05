@@ -70,7 +70,7 @@ fun HomeScreen() {
         }
     }
     val history = LibraryStore.entries.values.filter { it.lastReadAt > 0 && it.lastChapterUrl != null }
-        .sortedByDescending { it.lastReadAt }.take(12)
+        .sortedByDescending { it.lastReadAt }.distinctBy { it.title.trim().ifBlank { it.url } }.take(12)
 
     val homeState = rememberLazyListState()
     Box(Modifier.fillMaxSize()) {
@@ -217,7 +217,7 @@ private fun UpdateCard(entry: LatestEntry, modifier: Modifier) {
             )
             Gap(4)
             entry.chapters.take(3).forEach { ch ->
-                val read = LibraryStore.entries[entry.novel.url]?.readChapters?.contains(ch.url) == true
+                val read = LibraryStore[entry.novel.url]?.readChapters?.contains(ch.url) == true
                 Row(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
                         .clickable { services.nav.go(Screen.Reader(entry.novel, ch.url)) }
