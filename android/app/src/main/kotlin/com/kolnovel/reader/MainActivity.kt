@@ -13,6 +13,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.kolnovel.reader.data.Downloads
 import com.kolnovel.reader.data.NovelSummary
 import com.kolnovel.reader.data.SettingsStore
@@ -35,10 +37,16 @@ class MainActivity : ComponentActivity() {
                 runCatching { notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS) }
             }
         }
-        services.systemBars = { lightBackground, keepOn ->
+        services.systemBars = { lightBackground, keepOn, immersive ->
             val controller = WindowCompat.getInsetsController(window, window.decorView)
             controller.isAppearanceLightStatusBars = lightBackground
             controller.isAppearanceLightNavigationBars = lightBackground
+            if (immersive) {
+                controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                controller.hide(WindowInsetsCompat.Type.systemBars())
+            } else {
+                controller.show(WindowInsetsCompat.Type.systemBars())
+            }
             if (keepOn) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }

@@ -14,6 +14,9 @@ import java.util.concurrent.TimeUnit
  * Reads kolnovel.com (ملوك الروايات). The site runs the Themesia "lightnovel" WordPress theme,
  * and its REST API is closed, so everything is scraped from the HTML pages.
  */
+/** Thrown when the phone has no connection (or the site can't be reached at all). */
+class OfflineException : java.io.IOException("لا يوجد اتصال بالإنترنت. الفصول المنزّلة تعمل بدون نت.")
+
 class KolSource(private val client: OkHttpClient = defaultClient()) {
 
     @Volatile
@@ -54,7 +57,13 @@ class KolSource(private val client: OkHttpClient = defaultClient()) {
             .header("Accept-Language", "ar,en;q=0.8")
             .header("Referer", "$BASE_URL/")
             .build()
-        client.newCall(request).execute().use { response ->
+        val call = client.newCall(request)
+        val response = try {
+            call.execute()
+        } catch (e: java.io.IOException) {
+            throw OfflineException()
+        }
+        response.use { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
                 throw SiteException(
@@ -224,9 +233,27 @@ class KolSource(private val client: OkHttpClient = defaultClient()) {
                 genres = doc.select(".sertogenre a").map { it.text().trim() },
                 rating = doc.selectFirst(".custom-rating-value")?.text()?.trim()
                     ?: doc.selectFirst(".sertorating .num, .rating .num")?.text()?.trim(),
-                chapters = chapters,
+                chapters = sortByNumber(chapters),
             )
         }
+
+        /**
+         * The site lists chapters by publish date, so batches published together come out of order
+         * (e.g. 6578 followed by 6619), and its own next/previous links follow that wrong order.
+         * Sort by chapter number; entries without a number stay right after the chapter before them.
+         */
+        fun sortByNumber(oldestFirst: List<ChapterRef>): List<ChapterRef> {
+            var last = 0.0
+            val keyed = oldestFirst.mapIndexed { i, ch ->
+                val n = chapterNumber(ch.number)
+                if (n != null) last = n
+                Triple(n ?: last, i, ch)
+            }
+            return keyed.sortedWith(compareBy({ it.first }, { it.second })).map { it.third }
+        }
+
+        fun chapterNumber(text: String): Double? =
+            Regex("(\\d+(?:\\.\\d+)?)").find(text)?.groupValues?.get(1)?.toDoubleOrNull()
 
         fun parseChapter(doc: Document, url: String): ChapterContent {
             val content = doc.getElementById("kol_content") ?: doc.selectFirst(".epcontent")
@@ -251,9 +278,25 @@ class KolSource(private val client: OkHttpClient = defaultClient()) {
 
             val crumbs = doc.select(".ts-breadcrumb [itemprop=itemListElement] a")
             val novelLink = crumbs.getOrNull(1)
+            val headline = doc.selectFirst(".epheader h1.entry-title, h1.entry-title")?.text()?.trim().orEmpty()
+            val chapterTitle = doc.selectFirst(".epheader .cat-series, .cat-series")?.text()?.trim().orEmpty()
+            val number = Regex("(\\d+(?:\\.\\d+)?)\\s*$").find(headline)?.groupValues?.get(1)
+            val title = when {
+                number != null && chapterTitle.isNotEmpty() && chapterTitle != number -> "الفصل $number - $chapterTitle"
+                number != null -> "الفصل $number"
+                chapterTitle.isNotEmpty() -> chapterTitle
+                else -> headline
+            }
+            // The text starts by repeating the title ("ساخن", "6578 – ساخن"); the heading already shows it.
+            fun norm(s: String) = s.replace(Regex("[\\s\\-–—:.]+"), " ").trim()
+            val repeats = setOfNotNull(
+                norm(chapterTitle), norm(headline), number, number?.let { norm("$it $chapterTitle") },
+                number?.let { norm("الفصل $it $chapterTitle") }, number?.let { "الفصل $it" },
+            ).filter { it.isNotEmpty() }
+            while (paragraphs.isNotEmpty() && norm(paragraphs.first()) in repeats) paragraphs.removeAt(0)
             return ChapterContent(
                 url = url,
-                title = doc.selectFirst(".epheader h1.entry-title, h1.entry-title")?.text()?.trim().orEmpty(),
+                title = title,
                 novelTitle = novelLink?.text()?.trim(),
                 novelUrl = novelLink?.absUrl("href"),
                 paragraphs = paragraphs.dropTrailingSiteNotes(),

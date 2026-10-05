@@ -36,6 +36,10 @@ if [ -n "$NOVEL" ]; then
   adb shell input swipe 540 1700 540 600 300; shot 08-chapter-list 3
   $UI "ابدأ القراءة" || $UI "تابع"
   shot 09-reader 10
+  adb shell input swipe 540 1600 540 700 300; shot 09b-reader-scrolled 2
+  $UI "قفل" x && shot 09c-reader-locked 2
+  $UI "إلغاء القفل" x
+  adb shell input swipe 200 1200 900 1200 250; shot 09d-next-chapter-by-swipe 8
   # Offline: the saved chapters must still open.
   adb shell cmd connectivity airplane-mode enable; sleep 3
   adb shell am force-stop $PKG

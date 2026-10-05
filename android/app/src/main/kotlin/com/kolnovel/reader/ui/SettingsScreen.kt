@@ -54,9 +54,10 @@ import com.kolnovel.reader.data.Settings
 fun SettingsScreen() {
     val colors = LocalAppColors.current
     val s = SettingsStore.settings
+    val scroll = rememberScrollState()
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
-            Modifier.widthIn(max = 700.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(12.dp),
+            Modifier.widthIn(max = 700.dp).fillMaxWidth().verticalScroll(scroll).padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             GlassPanel(Modifier.fillMaxWidth()) {
@@ -146,6 +147,7 @@ fun SettingsScreen() {
                 Text("الإصدار ${com.kolnovel.reader.BuildConfig.VERSION_NAME}", color = colors.muted, fontSize = 12.sp)
             }
         }
+        FastScrollbar(scroll)
     }
 }
 

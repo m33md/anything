@@ -72,49 +72,52 @@ fun HomeScreen() {
     val history = LibraryStore.entries.values.filter { it.lastReadAt > 0 && it.lastChapterUrl != null }
         .sortedByDescending { it.lastReadAt }.take(12)
 
-    LazyColumn(Modifier.fillMaxSize(), state = rememberLazyListState(), contentPadding = PaddingValues(12.dp, 0.dp, 12.dp, 20.dp)) {
-        val p = page
-        if (p != null && p.featured.isNotEmpty()) item { Featured(p.featured) }
-        if (history.isNotEmpty()) {
-            item { SectionTitle("تابع القراءة") }
-            item {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(history, key = { it.url }) { e ->
-                        val novel = NovelSummary(e.url, e.title, e.cover)
-                        ContinueCard(novel, e.lastChapterTitle.orEmpty()) {
-                            services.nav.go(Screen.Reader(novel, e.lastChapterUrl!!, e.lastParagraph))
-                        }
-                    }
-                }
-            }
-        }
-        when {
-            p == null && error != null -> item { ErrorBox(error!!, onRetry = { reload++ }) }
-            p == null -> item { Loading() }
-            else -> {
-                if (p.popularToday.isNotEmpty()) {
-                    item { SectionTitle("رائج اليوم") }
-                    item {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            items(p.popularToday, key = { it.url }) { n ->
-                                NovelCard(n, onClick = { services.nav.go(Screen.Details(n)) }, modifier = Modifier.width(128.dp))
+    val homeState = rememberLazyListState()
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(Modifier.fillMaxSize(), state = homeState, contentPadding = PaddingValues(12.dp, 0.dp, 12.dp, 20.dp)) {
+            val p = page
+            if (p != null && p.featured.isNotEmpty()) item { Featured(p.featured) }
+            if (history.isNotEmpty()) {
+                item { SectionTitle("تابع القراءة") }
+                item {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(history, key = { it.url }) { e ->
+                            val novel = NovelSummary(e.url, e.title, e.cover)
+                            ContinueCard(novel, e.lastChapterTitle.orEmpty()) {
+                                services.nav.go(Screen.Reader(novel, e.lastChapterUrl!!, e.lastParagraph))
                             }
                         }
                     }
                 }
-                item {
-                    SectionTitle("أخر التحديثات") {
-                        GlassButton("تحديث", Icons.Filled.Refresh, onClick = { reload++ })
+            }
+            when {
+                p == null && error != null -> item { ErrorBox(error!!, onRetry = { reload++ }) }
+                p == null -> item { Loading() }
+                else -> {
+                    if (p.popularToday.isNotEmpty()) {
+                        item { SectionTitle("رائج اليوم") }
+                        item {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                items(p.popularToday, key = { it.url }) { n ->
+                                    NovelCard(n, onClick = { services.nav.go(Screen.Details(n)) }, modifier = Modifier.width(128.dp))
+                                }
+                            }
+                        }
                     }
-                }
-                item {
-                    BoxWithConstraints(Modifier.fillMaxWidth()) {
-                        val columns = (maxWidth / 360.dp).toInt().coerceIn(1, 4)
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            p.latest.chunked(columns).forEach { row ->
-                                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    row.forEach { UpdateCard(it, Modifier.weight(1f)) }
-                                    repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
+                    item {
+                        SectionTitle("أخر التحديثات") {
+                            GlassButton("تحديث", Icons.Filled.Refresh, onClick = { reload++ })
+                        }
+                    }
+                    item {
+                        BoxWithConstraints(Modifier.fillMaxWidth()) {
+                            val columns = (maxWidth / 360.dp).toInt().coerceIn(1, 4)
+                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                p.latest.chunked(columns).forEach { row ->
+                                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        row.forEach { UpdateCard(it, Modifier.weight(1f)) }
+                                        repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
+                                    }
                                 }
                             }
                         }
@@ -122,6 +125,7 @@ fun HomeScreen() {
                 }
             }
         }
+        FastScrollbar(homeState)
     }
 }
 

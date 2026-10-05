@@ -96,26 +96,29 @@ fun NovelGrid(
             (info.visibleItemsInfo.lastOrNull()?.index ?: 0) >= info.totalItemsCount - 8
         }.collect { nearEnd -> if (nearEnd) paged.loadMore() }
     }
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minWidth.dp),
-        state = state,
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 20.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        if (header != null) item(span = { GridItemSpan(maxLineSpan) }) { header() }
-        itemsIndexed(paged.items, key = { _, n -> n.url }) { _, novel ->
-            NovelCard(novel, onClick = { services.nav.go(Screen.Details(novel)) })
-        }
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            when {
-                paged.error != null -> ErrorBox(paged.error!!, onRetry = { scope.launch { paged.loadMore() } })
-                paged.loading -> Loading()
-                paged.endReached && paged.items.isEmpty() ->
-                    Text(empty, color = colors.muted, modifier = Modifier.padding(30.dp))
+    Box(modifier.fillMaxSize()) {
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minWidth.dp),
+            state = state,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            if (header != null) item(span = { GridItemSpan(maxLineSpan) }) { header() }
+            itemsIndexed(paged.items, key = { _, n -> n.url }) { _, novel ->
+                NovelCard(novel, onClick = { services.nav.go(Screen.Details(novel)) })
+            }
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                when {
+                    paged.error != null -> ErrorBox(paged.error!!, onRetry = { scope.launch { paged.loadMore() } })
+                    paged.loading -> Loading()
+                    paged.endReached && paged.items.isEmpty() ->
+                        Text(empty, color = colors.muted, modifier = Modifier.padding(30.dp))
+                }
             }
         }
+        FastScrollbar(state)
     }
 }
 

@@ -5,6 +5,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -53,6 +54,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.painterResource
+import com.kolnovel.reader.R
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -117,8 +120,10 @@ class AppServices(val source: KolSource) {
     val downloads = Downloads
     /** Asks for the notification permission (Android 13+), so download progress can show. */
     var askNotifications: () -> Unit = {}
-    /** (light background, keep screen on) -> sets the system bar icon colors and the screen timeout. */
-    var systemBars: (Boolean, Boolean) -> Unit = { _, _ -> }
+    /** (light background, keep screen on, hide status/navigation bars) for the current screen. */
+    var systemBars: (Boolean, Boolean, Boolean) -> Unit = { _, _, _ -> }
+    /** Reading lock: every control hidden until the small lock is tapped. Stays on from chapter to chapter. */
+    var readerLocked by mutableStateOf(false)
     /** Set by the reader: volume down scrolls forward, volume up back. */
     var readerVolume: ((Boolean) -> Unit)? = null
 }
@@ -135,7 +140,7 @@ fun App(services: AppServices) {
             val reading = screen is Screen.Reader
             BackHandler(enabled = services.nav.stack.size > 1 || screen != Screen.Main(Tab.Home)) { services.nav.back() }
             if (!reading) {
-                SideEffect { services.systemBars(!colors.dark, false) }
+                SideEffect { services.systemBars(!colors.dark, false, false) }
             }
             LiveBackground(enabled = settings.liveBackground && !reading, modifier = Modifier.fillMaxSize()) {
                 Column(Modifier.fillMaxSize()) {
@@ -174,10 +179,9 @@ private fun TopBar(services: AppServices) {
     val colors = LocalAppColors.current
     val nav = services.nav
     val current = nav.current
+    // No box around it: the bar sits on the app's own background, like the site's header.
     Row(
-        Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 6.dp)
-            .glass(colors, RoundedCornerShape(18.dp), strong = true)
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+        Modifier.fillMaxWidth().statusBarsPadding().padding(start = 10.dp, end = 6.dp, top = 4.dp, bottom = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (nav.stack.size > 1) {
@@ -193,6 +197,11 @@ private fun TopBar(services: AppServices) {
                 }
             }
         } else {
+            Image(
+                painterResource(R.drawable.logo), contentDescription = null,
+                modifier = Modifier.size(34.dp).clip(RoundedCornerShape(9.dp)),
+            )
+            Spacer(Modifier.width(8.dp))
             Text("ملوك", color = colors.accent, fontWeight = FontWeight.Black, fontSize = 20.sp)
             Text(" الروايات", color = colors.text, fontWeight = FontWeight.Black, fontSize = 20.sp)
             Spacer(Modifier.weight(1f))

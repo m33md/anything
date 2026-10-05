@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -68,69 +70,74 @@ fun DownloadsScreen() {
     var toDelete by remember { mutableStateOf<SavedEntry?>(null) }
     val jobs = Downloads.jobs
 
-    LazyColumn(
-        Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(12.dp, 4.dp, 12.dp, 20.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Downloads.notice?.let { notice ->
-            item {
-                GlassPanel(Modifier.fillMaxWidth(), strong = true, padding = 12.dp) {
-                    Text(notice, color = colors.text, fontSize = 14.sp, lineHeight = 22.sp)
-                    Gap(8)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        AccentButton("استئناف", Icons.Filled.PlayArrow, { Downloads.resume() })
-                        if (notice == KolSource.CLOUDFLARE_MESSAGE) {
-                            GlassButton("تحقق من الموقع", onClick = { services.nav.go(Screen.Verify) })
+    val listState = rememberLazyListState()
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            state = listState,
+            contentPadding = PaddingValues(12.dp, 4.dp, 12.dp, 20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Downloads.notice?.let { notice ->
+                item {
+                    GlassPanel(Modifier.fillMaxWidth(), strong = true, padding = 12.dp) {
+                        Text(notice, color = colors.text, fontSize = 14.sp, lineHeight = 22.sp)
+                        Gap(8)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            AccentButton("استئناف", Icons.Filled.PlayArrow, { Downloads.resume() })
+                            if (notice == KolSource.CLOUDFLARE_MESSAGE) {
+                                GlassButton("تحقق من الموقع", onClick = { services.nav.go(Screen.Verify) })
+                            }
                         }
                     }
                 }
             }
-        }
-        if (jobs.isNotEmpty()) {
-            item {
-                SectionTitle("قائمة التنزيل") {
-                    if (Downloads.hasPending) {
-                        if (Downloads.paused) AccentButton("استئناف الكل", Icons.Filled.PlayArrow, { Downloads.resume() })
-                        else GlassButton("إيقاف مؤقت", KolIcons.Pause, onClick = { Downloads.pause() })
-                    }
-                    if (jobs.any { it.finished }) {
-                        Spacer(Modifier.width(6.dp))
-                        GlassChip("مسح المكتمل") { Downloads.clearFinished() }
+            if (jobs.isNotEmpty()) {
+                item {
+                    SectionTitle("قائمة التنزيل") {
+                        if (Downloads.hasPending) {
+                            if (Downloads.paused) AccentButton("استئناف الكل", Icons.Filled.PlayArrow, { Downloads.resume() })
+                            else GlassButton("إيقاف مؤقت", KolIcons.Pause, onClick = { Downloads.pause() })
+                        }
+                        if (jobs.any { it.finished }) {
+                            Spacer(Modifier.width(6.dp))
+                            GlassChip("مسح المكتمل") { Downloads.clearFinished() }
+                        }
                     }
                 }
+                items(jobs, key = { "job:" + it.novelUrl }) { job -> JobCard(job) }
             }
-            items(jobs, key = { "job:" + it.novelUrl }) { job -> JobCard(job) }
-        }
-        item { SectionTitle("محفوظ على الجهاز") }
-        val list = saved
-        when {
-            list == null -> item { Loading() }
-            list.isEmpty() -> item {
-                GlassPanel(Modifier.fillMaxWidth(), padding = 16.dp) {
-                    Text("لا توجد فصول محفوظة بعد.", color = colors.text, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                    Gap(4)
-                    Text(
-                        "افتح أي رواية واضغط \"الرواية كاملة\" أو \"نطاق فصول\"، أو زر التنزيل بجانب أي فصل. " +
-                            "الفصول المحفوظة تُقرأ بدون إنترنت.",
-                        color = colors.muted, fontSize = 13.sp, lineHeight = 21.sp,
+            item { SectionTitle("محفوظ على الجهاز") }
+            val list = saved
+            when {
+                list == null -> item { Loading() }
+                list.isEmpty() -> item {
+                    GlassPanel(Modifier.fillMaxWidth(), padding = 16.dp) {
+                        Text("لا توجد فصول محفوظة بعد.", color = colors.text, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        Gap(4)
+                        Text(
+                            "افتح أي رواية واضغط \"الرواية كاملة\" أو \"نطاق فصول\"، أو زر التنزيل بجانب أي فصل. " +
+                                "الفصول المحفوظة تُقرأ بدون إنترنت.",
+                            color = colors.muted, fontSize = 13.sp, lineHeight = 21.sp,
+                        )
+                    }
+                }
+                else -> items(list, key = { "saved:" + it.novel.url }) { e ->
+                    SavedCard(
+                        e,
+                        onOpen = { services.nav.go(Screen.Details(NovelSummary(e.novel.url, e.novel.title, e.novel.cover))) },
+                        onRead = {
+                            val summary = NovelSummary(e.novel.url, e.novel.title, e.novel.cover)
+                            val last = LibraryStore.entries[e.novel.url]
+                            val url = last?.lastChapterUrl ?: e.firstSaved
+                            if (url != null) services.nav.go(Screen.Reader(summary, url, if (url == last?.lastChapterUrl) last.lastParagraph else 0))
+                        },
+                        onDelete = { toDelete = e },
                     )
                 }
             }
-            else -> items(list, key = { "saved:" + it.novel.url }) { e ->
-                SavedCard(
-                    e,
-                    onOpen = { services.nav.go(Screen.Details(NovelSummary(e.novel.url, e.novel.title, e.novel.cover))) },
-                    onRead = {
-                        val summary = NovelSummary(e.novel.url, e.novel.title, e.novel.cover)
-                        val last = LibraryStore.entries[e.novel.url]
-                        val url = last?.lastChapterUrl ?: e.firstSaved
-                        if (url != null) services.nav.go(Screen.Reader(summary, url, if (url == last?.lastChapterUrl) last.lastParagraph else 0))
-                    },
-                    onDelete = { toDelete = e },
-                )
-            }
         }
+        FastScrollbar(listState)
     }
 
     toDelete?.let { e ->

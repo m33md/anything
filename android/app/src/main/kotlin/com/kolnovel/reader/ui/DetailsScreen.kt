@@ -285,6 +285,7 @@ fun DetailsScreen(novel: NovelSummary) {
                 )
             }
         }
+        FastScrollbar(listState)
         val sel = selection
         if (sel != null && d != null) {
             SelectionBar(
