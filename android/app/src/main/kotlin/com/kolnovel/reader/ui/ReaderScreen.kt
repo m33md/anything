@@ -278,8 +278,8 @@ private fun ChapterText(c: ChapterContent, listState: LazyListState, topPadding:
                         Modifier.fillMaxWidth().padding(top = 30.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
                     ) {
-                        if (c.prevUrl != null) GlassButton("السابق", Icons.AutoMirrored.Filled.KeyboardArrowRight, onClick = { onOpen(c.prevUrl) })
-                        if (c.nextUrl != null) AccentButton("الفصل التالي", Icons.AutoMirrored.Filled.KeyboardArrowLeft, { onOpen(c.nextUrl) })
+                        if (c.prevUrl != null) GlassButton("السابق", Icons.AutoMirrored.Filled.KeyboardArrowLeft, onClick = { onOpen(c.prevUrl) })
+                        if (c.nextUrl != null) AccentButton("الفصل التالي", Icons.AutoMirrored.Filled.KeyboardArrowRight, { onOpen(c.nextUrl) })
                         else Text("هذا أخر فصل منشور.", color = colors.muted, fontSize = 15.sp)
                     }
                 }
@@ -306,7 +306,7 @@ private fun ReaderTopBar(c: ChapterContent?, screen: Screen.Reader, listState: L
                 )
                 Text(c?.title.orEmpty(), color = colors.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            IconBtn(Icons.AutoMirrored.Filled.KeyboardArrowRight, "الفصل السابق", enabled = c?.prevUrl != null) {
+            IconBtn(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "الفصل السابق", enabled = c?.prevUrl != null) {
                 c?.prevUrl?.let { services.nav.go(Screen.Reader(screen.novel, it)) }
             }
             IconBtn(Icons.AutoMirrored.Filled.List, "قائمة الفصول") {
@@ -315,7 +315,7 @@ private fun ReaderTopBar(c: ChapterContent?, screen: Screen.Reader, listState: L
                 val below = services.nav.stack.getOrNull(services.nav.stack.size - 2)
                 if (below is Screen.Details && below.novel.url == novel.url) services.nav.back() else services.nav.go(Screen.Details(novel))
             }
-            IconBtn(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "الفصل التالي", enabled = c?.nextUrl != null) {
+            IconBtn(Icons.AutoMirrored.Filled.KeyboardArrowRight, "الفصل التالي", enabled = c?.nextUrl != null) {
                 c?.nextUrl?.let { services.nav.go(Screen.Reader(screen.novel, it)) }
             }
             IconBtn(Icons.Filled.Lock, "قفل: إخفاء كل الأزرار", onClick = onLock)

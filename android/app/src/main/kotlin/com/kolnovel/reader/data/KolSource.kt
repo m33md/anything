@@ -252,8 +252,12 @@ class KolSource(private val client: OkHttpClient = defaultClient()) {
             return keyed.sortedWith(compareBy({ it.first }, { it.second })).map { it.third }
         }
 
-        fun chapterNumber(text: String): Double? =
-            Regex("(\\d+(?:\\.\\d+)?)").find(text)?.groupValues?.get(1)?.toDoubleOrNull()
+        /** "الفصل 65" -> 65; arc names before it ("أرك 2 ... الفصل 65") are skipped. */
+        fun chapterNumber(text: String): Double? {
+            val afterWord = Regex("الفصل\\s*(\\d+(?:\\.\\d+)?)").find(text)?.groupValues?.get(1)
+            val last = Regex("(\\d+(?:\\.\\d+)?)").findAll(text).lastOrNull()?.groupValues?.get(1)
+            return (afterWord ?: last)?.toDoubleOrNull()
+        }
 
         fun parseChapter(doc: Document, url: String): ChapterContent {
             val content = doc.getElementById("kol_content") ?: doc.selectFirst(".epcontent")

@@ -66,6 +66,10 @@ data class Settings(
     val gridColumnsMin: Int = 108,
     /** Download chapters only on Wi-Fi. */
     val wifiOnly: Boolean = false,
+    /** Folder (picked through Android's file picker) the library is synced through; empty = off. */
+    val syncTreeUri: String = "",
+    /** Random id naming this device's file in the sync folder (same scheme as the PC app). */
+    val deviceId: String = "",
 )
 
 object SettingsStore {
@@ -102,6 +106,8 @@ data class LibraryEntry(
     val readChapters: Set<String> = emptySet(),
     val knownChapters: Int = 0,
     val newChapters: Int = 0,
+    /** When "in library" or "favourite" last changed, so syncing keeps the newest choice. */
+    val flagsChangedAt: Long = 0,
 )
 
 @Serializable
@@ -117,10 +123,21 @@ object LibraryStore {
         AppJson.decodeFromString(LibraryFile.serializer(), file.readText()).entries.associateBy { it.url }
     }.getOrElse { emptyMap() }
 
+    /** Called after every local change (sync uses it to push the change to other devices). */
+    var onChanged: (() -> Unit)? = null
+
     private fun save() {
         runCatching {
             file.writeAtomically(AppJson.encodeToString(LibraryFile.serializer(), LibraryFile(entries.values.toList())))
         }
+    }
+
+    /** Replaces the whole library with a merged copy from sync, without counting it as a local change. */
+    @Synchronized
+    fun replaceFromSync(merged: Map<String, LibraryEntry>) {
+        if (merged == entries) return
+        entries = merged
+        save()
     }
 
     operator fun get(url: String): LibraryEntry? = entries[url]
@@ -131,14 +148,19 @@ object LibraryStore {
         val updated = change(old.copy(title = title.ifBlank { old.title }, cover = cover ?: old.cover))
         entries = entries + (url to updated)
         save()
+        onChanged?.invoke()
     }
 
     fun toggleLibrary(novel: NovelSummary) = edit(novel.url, novel.title, novel.cover) {
-        it.copy(inLibrary = !it.inLibrary, addedAt = if (!it.inLibrary) System.currentTimeMillis() else it.addedAt)
+        it.copy(
+            inLibrary = !it.inLibrary,
+            addedAt = if (!it.inLibrary) System.currentTimeMillis() else it.addedAt,
+            flagsChangedAt = System.currentTimeMillis(),
+        )
     }
 
     fun toggleFavorite(novel: NovelSummary) = edit(novel.url, novel.title, novel.cover) {
-        it.copy(favorite = !it.favorite, inLibrary = it.inLibrary || !it.favorite)
+        it.copy(favorite = !it.favorite, inLibrary = it.inLibrary || !it.favorite, flagsChangedAt = System.currentTimeMillis())
     }
 
     fun markRead(novelUrl: String, chapterUrls: Collection<String>, read: Boolean) {

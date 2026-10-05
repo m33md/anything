@@ -4,6 +4,7 @@ import android.app.Application
 import com.kolnovel.reader.data.AppDirs
 import com.kolnovel.reader.data.Downloads
 import com.kolnovel.reader.data.KolSource
+import com.kolnovel.reader.data.LibrarySync
 import com.kolnovel.reader.data.WebViewCookieJar
 import com.kolnovel.reader.ui.AppServices
 
@@ -16,6 +17,8 @@ class KolApp : Application() {
         val source = KolSource()
         services = AppServices(source)
         Downloads.init(this, source)
+        LibrarySync.init(this)
+        LibrarySync.start()
     }
 
     companion object {

@@ -23,6 +23,7 @@ rm -f "$OUT/home.html"
 
 $UI "تصفح" x; shot 02-browse 12
 $UI "الإعدادات" x; shot 03-settings 4
+for i in 1 2 3; do adb shell input swipe 540 1800 540 500 300; done; shot 03b-settings-sync 2
 
 if [ -n "$NOVEL" ]; then
   start --es novel "$NOVEL"; shot 04-details 15
@@ -44,7 +45,8 @@ if [ -n "$NOVEL" ]; then
   adb shell cmd connectivity airplane-mode enable; sleep 3
   adb shell am force-stop $PKG
   start --es novel "$NOVEL"; shot 10-offline-details 10
-  $UI "ابدأ القراءة" || $UI "تابع"
+  start --es open downloads; sleep 3
+  $UI "اقرأ" x
   shot 11-offline-reader 6
   adb shell cmd connectivity airplane-mode disable
 fi

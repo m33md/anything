@@ -128,6 +128,8 @@ fun SettingsScreen() {
                 )
             }
 
+            SyncPanel()
+
             StoragePanel()
 
             GlassPanel(Modifier.fillMaxWidth()) {
