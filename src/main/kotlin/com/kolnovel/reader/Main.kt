@@ -10,6 +10,7 @@ import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import com.kolnovel.reader.data.LibrarySync
 import com.kolnovel.reader.data.SettingsStore
 import com.kolnovel.reader.ui.App
 import com.kolnovel.reader.ui.AppServices
@@ -20,6 +21,7 @@ import androidx.compose.ui.res.painterResource
 
 @OptIn(FlowPreview::class)
 fun main() = application {
+    remember { LibrarySync.start() }
     val saved = SettingsStore.settings
     val state = rememberWindowState(
         placement = if (saved.windowMaximized) WindowPlacement.Maximized else WindowPlacement.Floating,

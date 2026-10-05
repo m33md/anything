@@ -1,5 +1,12 @@
 package com.kolnovel.reader.ui
 
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.hoverable
+import androidx.compose.ui.AbsoluteAlignment
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -26,7 +33,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -66,6 +72,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kolnovel.reader.data.ChapterContent
+import com.kolnovel.reader.data.ChapterLists
 import com.kolnovel.reader.data.ChapterStore
 import com.kolnovel.reader.data.LibraryStore
 import com.kolnovel.reader.data.SettingsStore
@@ -85,6 +92,7 @@ fun ReaderScreen(screen: Screen.Reader) {
     var reload by remember { mutableIntStateOf(0) }
     var showBars by remember { mutableStateOf(true) }
     var showSettings by remember { mutableStateOf(false) }
+    val locked = services.readerLocked
     val listState = remember(screen.chapterUrl) { LazyListState(firstVisibleItemIndex = if (screen.startParagraph > 0) screen.startParagraph + 1 else 0) }
     val scope = rememberCoroutineScope()
 
@@ -100,16 +108,27 @@ fun ReaderScreen(screen: Screen.Reader) {
                 error = e.message ?: e.toString()
             }
         }
+    }
+
+    // Previous/next come from the novel's chapter list in number order; the page's own links follow
+    // posting order and can jump over dozens of chapters. They are only used when the list can't be had.
+    var order by remember(screen.chapterUrl) { mutableStateOf<Pair<String?, String?>?>(null) }
+    LaunchedEffect(chapter?.url) {
+        val c = chapter ?: return@LaunchedEffect
+        val list = ChapterLists.get(services.source, novelUrlFor(c, screen))
+        order = list?.let { ChapterLists.neighbours(it, c.url) }
         // Fetch the next chapter quietly so turning the page is instant.
-        chapter?.nextUrl?.let { next ->
-            if (!ChapterStore.has(next)) runCatching { ChapterStore.save(services.source.chapter(next)) }
-        }
+        val next = order?.let { it.second } ?: c.nextUrl.takeIf { order == null }
+        if (next != null && !ChapterStore.has(next)) runCatching { ChapterStore.save(services.source.chapter(next)) }
+    }
+    val shown = remember(chapter, order) {
+        chapter?.let { c -> order?.let { (prev, next) -> c.copy(prevUrl = prev, nextUrl = next) } ?: c }
     }
 
     // Remember where the reader is; reaching the end marks the chapter read.
     LaunchedEffect(chapter) {
         val c = chapter ?: return@LaunchedEffect
-        val novelUrl = c.novelUrl ?: screen.novel.url
+        val novelUrl = novelUrlFor(c, screen)
         snapshotFlow {
             val info = listState.layoutInfo
             val last = info.visibleItemsInfo.lastOrNull()?.index ?: 0
@@ -125,11 +144,13 @@ fun ReaderScreen(screen: Screen.Reader) {
         if (url != null) services.nav.go(Screen.Reader(screen.novel, url))
     }
 
-    DisposableEffect(chapter) {
-        services.readerKeys = { e ->
+    DisposableEffect(shown) {
+        val keys: (KeyEvent) -> Boolean = { e ->
             when {
-                e.key == Key.DirectionLeft && !e.isCtrlPressed -> { open(chapter?.nextUrl); true }
-                e.key == Key.DirectionRight && !e.isCtrlPressed -> { open(chapter?.prevUrl); true }
+                e.key == Key.L && !e.isCtrlPressed -> { services.readerLocked = !services.readerLocked; showSettings = false; true }
+                e.key == Key.Escape && services.readerLocked -> { services.readerLocked = false; true }
+                e.key == Key.DirectionLeft && !e.isCtrlPressed -> { open(shown?.nextUrl); true }
+                e.key == Key.DirectionRight && !e.isCtrlPressed -> { open(shown?.prevUrl); true }
                 e.key == Key.Spacebar || e.key == Key.PageDown -> { scope.launch { listState.animateScrollBy(600f) }; true }
                 e.key == Key.PageUp -> { scope.launch { listState.animateScrollBy(-600f) }; true }
                 e.key == Key.DirectionDown -> { scope.launch { listState.animateScrollBy(120f) }; true }
@@ -145,29 +166,46 @@ fun ReaderScreen(screen: Screen.Reader) {
                 else -> false
             }
         }
-        onDispose { services.readerKeys = null }
+        services.readerKeys = keys
+        // The old chapter fades out after the new one is shown; it must not unhook the new chapter's keys.
+        onDispose { if (services.readerKeys === keys) services.readerKeys = null }
     }
 
     KolTheme(colors) {
         Box(Modifier.fillMaxSize().background(colors.background)) {
-            val c = chapter
+            val c = shown
             when {
-                c != null -> ChapterText(c, listState, settings.readerWidth, onTap = { showBars = !showBars }, onOpen = ::open)
+                c != null -> ChapterText(
+                    c, listState, settings.readerWidth, showScrollbar = !locked,
+                    onTap = { if (!locked) showBars = !showBars }, onOpen = ::open,
+                )
                 error != null -> ErrorBox(error!!, onRetry = { reload++ }, modifier = Modifier.align(Alignment.Center))
                 else -> Loading(Modifier.align(Alignment.Center))
             }
-            AnimatedVisibility(showBars, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.TopCenter)) {
-                ReaderTopBar(c, screen, listState, onSettings = { showSettings = !showSettings })
+            AnimatedVisibility(showBars && !locked, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.TopCenter)) {
+                ReaderTopBar(c, screen, listState, onSettings = { showSettings = !showSettings }, onLock = {
+                    services.readerLocked = true
+                    showSettings = false
+                })
             }
-            AnimatedVisibility(showSettings, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.CenterStart)) {
+            AnimatedVisibility(showSettings && !locked, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.CenterStart)) {
                 ReaderSettingsPanel(onClose = { showSettings = false })
             }
+            // While locked, only a faint lock in the corner stays; it brightens under the mouse. Click it (or press L / Esc) to unlock.
+            if (locked) UnlockButton(Modifier.align(AbsoluteAlignment.BottomLeft).padding(14.dp)) { services.readerLocked = false }
         }
     }
 }
 
 @Composable
-private fun ChapterText(c: ChapterContent, listState: LazyListState, width: Int, onTap: () -> Unit, onOpen: (String?) -> Unit) {
+private fun ChapterText(
+    c: ChapterContent,
+    listState: LazyListState,
+    width: Int,
+    showScrollbar: Boolean,
+    onTap: () -> Unit,
+    onOpen: (String?) -> Unit,
+) {
     val colors = LocalAppColors.current
     val s = SettingsStore.settings
     val font = readerFontFamily(s.readerFont)
@@ -175,7 +213,7 @@ private fun ChapterText(c: ChapterContent, listState: LazyListState, width: Int,
         Modifier.fillMaxSize().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onTap),
         contentAlignment = Alignment.TopCenter,
     ) {
-        SelectionContainer {
+        Box(Modifier.fillMaxSize().dragScroll(listState), contentAlignment = Alignment.TopCenter) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxHeight().widthIn(max = width.dp).fillMaxWidth(),
@@ -184,10 +222,13 @@ private fun ChapterText(c: ChapterContent, listState: LazyListState, width: Int,
                 item {
                     Column(Modifier.fillMaxWidth().padding(bottom = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         c.novelTitle?.let { Text(it, color = colors.accent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
+                        val number = c.chapterNumber
                         Text(
-                            c.title, color = colors.text, fontSize = (s.readerFontSize + 6).sp, fontWeight = FontWeight.Bold,
+                            c.name ?: number?.let { "الفصل $it" } ?: c.title,
+                            color = colors.text, fontSize = (s.readerFontSize + 6).sp, fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center, fontFamily = font,
                         )
+                        if (c.name != null && number != null) Text("الفصل $number", color = colors.muted, fontSize = 14.sp)
                     }
                 }
                 itemsIndexed(c.paragraphs) { _, p ->
@@ -212,12 +253,13 @@ private fun ChapterText(c: ChapterContent, listState: LazyListState, width: Int,
                     }
                 }
             }
+            if (showScrollbar) EdgeScrollbar(rememberScrollbarAdapter(listState))
         }
     }
 }
 
 @Composable
-private fun ReaderTopBar(c: ChapterContent?, screen: Screen.Reader, listState: LazyListState, onSettings: () -> Unit) {
+private fun ReaderTopBar(c: ChapterContent?, screen: Screen.Reader, listState: LazyListState, onSettings: () -> Unit, onLock: () -> Unit) {
     val services = LocalServices.current
     val colors = LocalAppColors.current
     val total = listState.layoutInfo.totalItemsCount
@@ -231,7 +273,7 @@ private fun ReaderTopBar(c: ChapterContent?, screen: Screen.Reader, listState: L
                     c?.novelTitle ?: screen.novel.title, color = colors.text, fontWeight = FontWeight.Bold, fontSize = 15.sp,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
-                Text(c?.title.orEmpty(), color = colors.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(c?.label.orEmpty(), color = colors.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             IconBtn(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "الفصل السابق", enabled = c?.prevUrl != null) {
                 c?.prevUrl?.let { services.nav.go(Screen.Reader(screen.novel, it)) }
@@ -244,6 +286,7 @@ private fun ReaderTopBar(c: ChapterContent?, screen: Screen.Reader, listState: L
                 c?.nextUrl?.let { services.nav.go(Screen.Reader(screen.novel, it)) }
             }
             Spacer(Modifier.width(6.dp))
+            IconBtn(Icons.Filled.Lock, "قفل: إخفاء كل شيء ما عدا النص (L)", onClick = onLock)
             IconBtn(Icons.Filled.Settings, "إعدادات القراءة", onClick = onSettings)
         }
         LinearProgressIndicator(
@@ -275,7 +318,8 @@ private fun ReaderSettingsPanel(onClose: () -> Unit) {
     val colors = LocalAppColors.current
     val s = SettingsStore.settings
     GlassPanel(Modifier.padding(16.dp).width(330.dp), strong = true) {
-        Column(Modifier.verticalScroll(rememberScrollState())) {
+        val panelScroll = rememberScrollState()
+        Column(Modifier.verticalScroll(panelScroll).dragScroll(panelScroll)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("إعدادات القراءة", color = colors.text, fontWeight = FontWeight.Bold, fontSize = 17.sp, modifier = Modifier.weight(1f))
                 IconBtn(Icons.Filled.Close, "إغلاق", onClick = onClose)
@@ -334,3 +378,20 @@ fun SettingSwitch(label: String, checked: Boolean, onChange: (Boolean) -> Unit) 
         )
     }
 }
+
+@Composable
+private fun UnlockButton(modifier: Modifier, onClick: () -> Unit) {
+    val colors = LocalAppColors.current
+    val hover = remember { MutableInteractionSource() }
+    val hovered by hover.collectIsHoveredAsState()
+    Icon(
+        Icons.Filled.Lock, "فتح القفل",
+        tint = colors.muted.copy(alpha = if (hovered) 0.9f else 0.18f),
+        modifier = modifier.clip(CircleShape).hoverable(hover).pointerHoverIcon(PointerIcon.Hand)
+            .clickable(onClick = onClick).padding(8.dp).size(22.dp),
+    )
+}
+
+/** The novel a chapter belongs to: the novel page it was opened from, else the chapter page's own link to it. */
+private fun novelUrlFor(c: ChapterContent, screen: Screen.Reader): String =
+    screen.novel.url.takeIf { "/series/" in it } ?: c.novelUrl?.takeIf { "/series/" in it } ?: screen.novel.url

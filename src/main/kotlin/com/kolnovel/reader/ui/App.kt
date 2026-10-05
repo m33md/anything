@@ -1,5 +1,9 @@
 package com.kolnovel.reader.ui
 
+import androidx.compose.material.icons.filled.AccountCircle
+import com.kolnovel.reader.data.LibrarySync
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -32,6 +36,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -70,6 +75,7 @@ enum class Tab(val label: String, val icon: ImageVector) {
     Home("الرئيسية", Icons.Filled.Home),
     Browse("تصفح", Icons.AutoMirrored.Filled.List),
     Library("مكتبتي", Icons.Filled.Favorite),
+    Downloads("التحميلات", DownloadIcon),
     Settings("الإعدادات", Icons.Filled.Settings),
 }
 
@@ -109,9 +115,13 @@ class AppServices(val source: KolSource = KolSource()) {
     val nav = Navigator()
     /** Set by the reader so arrow keys turn chapters. */
     var readerKeys: ((KeyEvent) -> Boolean)? = null
+    /** Reader lock: only the text shows. Kept here so it stays on while turning chapters. */
+    var readerLocked by mutableStateOf(false)
 }
 
 val LocalServices = staticCompositionLocalOf<AppServices> { error("no services") }
+
+private val tabKeys = listOf(Key.One, Key.Two, Key.Three, Key.Four, Key.Five)
 
 fun handleGlobalKey(services: AppServices, event: KeyEvent): Boolean {
     if (event.type != KeyEventType.KeyDown) return false
@@ -119,10 +129,10 @@ fun handleGlobalKey(services: AppServices, event: KeyEvent): Boolean {
     return when {
         event.key == Key.Escape || (event.isAltPressed && event.key == Key.DirectionLeft) || event.key == Key.Back -> services.nav.back()
         event.isCtrlPressed && event.key == Key.F -> { services.nav.go(Screen.Search("")); true }
-        event.isCtrlPressed && event.key == Key.One -> { services.nav.go(Screen.Main(Tab.Home)); true }
-        event.isCtrlPressed && event.key == Key.Two -> { services.nav.go(Screen.Main(Tab.Browse)); true }
-        event.isCtrlPressed && event.key == Key.Three -> { services.nav.go(Screen.Main(Tab.Library)); true }
-        event.isCtrlPressed && event.key == Key.Four -> { services.nav.go(Screen.Main(Tab.Settings)); true }
+        event.isCtrlPressed && event.key in tabKeys -> {
+            Tab.entries.getOrNull(tabKeys.indexOf(event.key))?.let { services.nav.go(Screen.Main(it)) }
+            true
+        }
         else -> false
     }
 }
@@ -135,6 +145,7 @@ fun App(services: AppServices) {
         KolTheme(colors) {
             val screen = services.nav.current
             val reading = screen is Screen.Reader
+            LaunchedEffect(reading) { if (!reading) services.readerLocked = false }
             LiveBackground(enabled = settings.liveBackground && !reading, modifier = Modifier.fillMaxSize()) {
                 Column(Modifier.fillMaxSize()) {
                     if (!reading) TopBar(services)
@@ -149,6 +160,7 @@ fun App(services: AppServices) {
                                 Tab.Home -> HomeScreen()
                                 Tab.Browse -> BrowseScreen()
                                 Tab.Library -> LibraryScreen()
+                                Tab.Downloads -> DownloadsScreen()
                                 Tab.Settings -> SettingsScreen()
                             }
                             is Screen.Search -> SearchScreen(s.query)
@@ -168,10 +180,9 @@ private fun TopBar(services: AppServices) {
     val colors = LocalAppColors.current
     val nav = services.nav
     val current = nav.current
+    // No card of its own: the bar sits straight on the app background so it reads as part of the page.
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)
-            .glass(colors, RoundedCornerShape(20.dp), strong = true)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (nav.stack.size > 1) {
@@ -182,6 +193,11 @@ private fun TopBar(services: AppServices) {
             )
             Spacer(Modifier.width(6.dp))
         }
+        Image(
+            painterResource("app_icon.png"), "ملوك الروايات",
+            Modifier.size(40.dp).clip(RoundedCornerShape(11.dp)).pointerHoverIcon(PointerIcon.Hand).clickable { nav.go(Screen.Main(Tab.Home)) },
+        )
+        Spacer(Modifier.width(10.dp))
         Text("ملوك", color = colors.accent, fontWeight = FontWeight.Black, fontSize = 22.sp)
         Text(" الروايات", color = colors.text, fontWeight = FontWeight.Black, fontSize = 22.sp)
         Spacer(Modifier.width(22.dp))
@@ -199,10 +215,21 @@ private fun TopBar(services: AppServices) {
                     Icon(tab.icon, null, tint = if (selected) colors.onAccent else colors.muted, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
                     Text(tab.label, color = if (selected) colors.onAccent else colors.text, fontWeight = FontWeight.SemiBold)
+                    val active = services.downloads.activeCount
+                    if (tab == Tab.Downloads && active > 0) {
+                        Spacer(Modifier.width(6.dp))
+                        Pill("$active", if (selected) colors.onAccent else colors.accent, if (selected) colors.accent else colors.onAccent)
+                    }
                 }
             }
         }
         Spacer(Modifier.weight(1f))
+        Icon(
+            Icons.Filled.AccountCircle, "الحساب والمزامنة", tint = if (LibrarySync.folder != null) colors.accent else colors.muted,
+            modifier = Modifier.clip(CircleShape).pointerHoverIcon(PointerIcon.Hand)
+                .clickable { nav.go(Screen.Main(Tab.Settings)) }.padding(6.dp).size(26.dp),
+        )
+        Spacer(Modifier.width(8.dp))
         SearchBox(initial = (current as? Screen.Search)?.query.orEmpty()) { q ->
             if (q.isNotBlank()) nav.go(Screen.Search(q.trim()))
         }

@@ -1,5 +1,6 @@
 package com.kolnovel.reader.ui
 
+import androidx.compose.foundation.LocalScrollbarStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
@@ -155,7 +156,7 @@ fun KolTheme(colors: AppColors, content: @Composable () -> Unit) {
         extraSmall = RoundedCornerShape(6.dp), small = RoundedCornerShape(10.dp),
         medium = RoundedCornerShape(14.dp), large = RoundedCornerShape(20.dp), extraLarge = RoundedCornerShape(28.dp),
     )
-    CompositionLocalProvider(LocalAppColors provides colors) {
+    CompositionLocalProvider(LocalAppColors provides colors, LocalScrollbarStyle provides scrollbarStyle(colors)) {
         MaterialTheme(colorScheme = scheme, typography = typography, shapes = shapes, content = content)
     }
 }

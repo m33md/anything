@@ -1,5 +1,6 @@
 package com.kolnovel.reader.ui
 
+import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
@@ -38,7 +40,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -61,11 +63,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kolnovel.reader.data.ChapterLists
 import com.kolnovel.reader.data.ChapterRef
 import com.kolnovel.reader.data.ChapterStore
 import com.kolnovel.reader.data.LibraryStore
 import com.kolnovel.reader.data.NovelDetails
 import com.kolnovel.reader.data.NovelSummary
+import com.kolnovel.reader.data.SavedNovels
 import kotlinx.coroutines.launch
 import java.awt.Desktop
 import java.net.URI
@@ -87,19 +91,30 @@ fun DetailsScreen(novel: NovelSummary) {
     val colors = LocalAppColors.current
     var details by remember(novel.url) { mutableStateOf(DetailsCache.map[novel.url]) }
     var error by remember { mutableStateOf<String?>(null) }
+    var offline by remember(novel.url) { mutableStateOf(false) }
     var reload by remember { mutableIntStateOf(0) }
     LaunchedEffect(novel.url, reload) {
         error = null
         try {
             val d = services.source.details(novel.url)
             DetailsCache.map[novel.url] = d
+            ChapterLists.remember(novel.url, d.chapters)
             details = d
-            LibraryStore.noteChapterCount(novel.url, d.chapters.size)
+            offline = false
+            LibraryStore.noteChapters(novel.url, d.chapters)
+            // Keep the offline copy's chapter list current.
+            if (SavedNovels[novel.url] != null) SavedNovels.remember(novel.copy(title = d.title.ifBlank { novel.title }, cover = d.cover ?: novel.cover), d.chapters)
         } catch (e: Exception) {
-            if (details == null) error = e.message ?: e.toString()
+            val saved = SavedNovels[novel.url]
+            if (details == null && saved != null && saved.chapters.isNotEmpty()) {
+                details = saved.toDetails()
+                offline = true
+            } else if (details == null) {
+                error = e.message ?: e.toString()
+            }
         }
     }
-    val entry = LibraryStore.entries[novel.url]
+    val entry = LibraryStore[novel.url]
     LaunchedEffect(novel.url) { LibraryStore.clearNew(novel.url) }
 
     val d = details
@@ -107,6 +122,7 @@ fun DetailsScreen(novel: NovelSummary) {
     var newestFirst by remember { mutableStateOf(false) }
     var filter by remember { mutableStateOf("") }
     var synopsisOpen by remember { mutableStateOf(false) }
+    var rangeOpen by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
@@ -118,7 +134,7 @@ fun DetailsScreen(novel: NovelSummary) {
                 Brush.verticalGradient(listOf(colors.background.copy(alpha = 0.35f), colors.background))
             )
         )
-        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 30.dp)) {
+        LazyColumn(Modifier.fillMaxSize().dragScroll(listState), state = listState, contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 30.dp)) {
             item {
                 Row(Modifier.fillMaxWidth()) {
                     Box(Modifier.glass(colors, RoundedCornerShape(20.dp)).padding(7.dp)) {
@@ -133,6 +149,7 @@ fun DetailsScreen(novel: NovelSummary) {
                             d?.status?.let { Pill(it, colors.accent, colors.onAccent) }
                             (d?.rating ?: novel.rating)?.let { RatingTag(it) }
                             d?.let { Text("${it.chapters.size} فصل", color = colors.muted, fontSize = 13.sp) }
+                            if (offline) Pill("بدون إنترنت: الفصول المحملة فقط", colors.glassFillStrong, colors.text)
                         }
                         Gap(12)
                         if (d != null) {
@@ -156,15 +173,15 @@ fun DetailsScreen(novel: NovelSummary) {
                             if (d != null && d.chapters.isNotEmpty()) {
                                 val resume = entry?.lastChapterUrl
                                 if (resume != null) {
-                                    AccentButton("تابع: ${entry.lastChapterTitle.orEmpty()}".take(40), Icons.Filled.PlayArrow, {
+                                    AccentButton("تابع القراءة", Icons.Filled.PlayArrow, {
                                         services.nav.go(Screen.Reader(summary, resume, entry.lastParagraph))
                                     })
-                                    GlassButton("من البداية", onClick = { services.nav.go(Screen.Reader(summary, d.chapters.first().url)) })
                                 } else {
                                     AccentButton("ابدأ القراءة", Icons.Filled.PlayArrow, {
                                         services.nav.go(Screen.Reader(summary, d.chapters.first().url))
                                     })
                                 }
+                                DownloadMenu(summary, d, onRange = { rangeOpen = true })
                             }
                             val inLib = entry?.inLibrary == true
                             GlassButton(
@@ -179,10 +196,18 @@ fun DetailsScreen(novel: NovelSummary) {
                                 onClick = { LibraryStore.toggleFavorite(summary) },
                                 tint = if (entry?.favorite == true) colors.accent else null,
                             )
-                            if (d != null) DownloadButton(summary, d)
                             GlassButton("افتح في الموقع", Icons.Filled.Share, onClick = { openInBrowser(novel.url) })
                             GlassButton("تحديث", Icons.Filled.Refresh, onClick = { reload++ })
                         }
+                        if (entry?.lastChapterUrl != null && entry.lastChapterIndex > 0) {
+                            GlassPanel(Modifier.fillMaxWidth().padding(top = 10.dp), padding = 12.dp) {
+                                Text("آخر فصل قرأته: ${entry.lastChapterTitle.orEmpty()}", color = colors.text, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Gap(6)
+                                ReadingProgress(entry, big = true)
+                            }
+                        }
+                        services.downloads.progress[novel.url]?.let { DownloadProgressRow(it, services.downloads) }
+                        if (rangeOpen && d != null) RangePanel(summary, d, onClose = { rangeOpen = false })
                     }
                 }
             }
@@ -238,16 +263,32 @@ fun DetailsScreen(novel: NovelSummary) {
                 it.number.contains(filter.trim()) || it.title?.contains(filter.trim()) == true
             }
             items(shown, key = { it.url }) { ch ->
-                ChapterRow(ch, read = entry?.readChapters?.contains(ch.url) == true, current = entry?.lastChapterUrl == ch.url) {
+                ChapterRow(
+                    ch,
+                    read = entry?.readChapters?.contains(ch.url) == true,
+                    current = entry?.lastChapterUrl == ch.url,
+                    saved = ChapterStore.has(ch.url),
+                    queued = ch.url in services.downloads.queued,
+                    onDownload = { services.downloads.enqueue(summary, d.chapters, listOf(ch)) },
+                ) {
                     services.nav.go(Screen.Reader(summary, ch.url, if (entry?.lastChapterUrl == ch.url) entry.lastParagraph else 0))
                 }
             }
         }
+        EdgeScrollbar(rememberScrollbarAdapter(listState))
     }
 }
 
 @Composable
-private fun ChapterRow(ch: ChapterRef, read: Boolean, current: Boolean, onClick: () -> Unit) {
+private fun ChapterRow(
+    ch: ChapterRef,
+    read: Boolean,
+    current: Boolean,
+    saved: Boolean,
+    queued: Boolean,
+    onDownload: () -> Unit,
+    onClick: () -> Unit,
+) {
     val colors = LocalAppColors.current
     Row(
         Modifier.fillMaxWidth().padding(vertical = 3.dp)
@@ -268,59 +309,126 @@ private fun ChapterRow(ch: ChapterRef, read: Boolean, current: Boolean, onClick:
             ch.title.orEmpty(), color = if (read) colors.muted else colors.text, fontSize = 14.sp,
             modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
-        if (ChapterStore.has(ch.url)) {
-            Icon(Icons.Filled.CheckCircle, "محفوظ", tint = colors.muted, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(8.dp))
-        }
         if (read) {
             Icon(Icons.Filled.Done, "مقروء", tint = colors.accent, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(8.dp))
         }
         ch.date?.let { Text(it, color = colors.muted, fontSize = 12.sp) }
+        Spacer(Modifier.width(10.dp))
+        Box(Modifier.size(28.dp), contentAlignment = Alignment.Center) {
+            when {
+                saved -> Icon(Icons.Filled.CheckCircle, "محمّل", tint = colors.accent, modifier = Modifier.size(18.dp))
+                queued -> CircularProgressIndicator(Modifier.size(16.dp), color = colors.accent, strokeWidth = 2.dp)
+                else -> Icon(
+                    DownloadIcon, "تحميل هذا الفصل", tint = colors.muted,
+                    modifier = Modifier.clip(CircleShape).pointerHoverIcon(PointerIcon.Hand).clickable(onClick = onDownload).padding(4.dp).size(20.dp),
+                )
+            }
+        }
     }
 }
 
 @Composable
-private fun DownloadButton(novel: NovelSummary, d: NovelDetails) {
+private fun DownloadMenu(novel: NovelSummary, d: NovelDetails, onRange: () -> Unit) {
     val services = LocalServices.current
-    val colors = LocalAppColors.current
-    val p = services.downloads.progress[novel.url]
-    val running = services.downloads.isRunning(novel.url) && p != null && p.done + p.failed < p.total
+    val downloads = services.downloads
+    val total = d.chapters.size
+    val ids = ChapterStore.savedIds
+    val savedCount = remember(d.chapters, ids) { ChapterStore.countSaved(d.chapters.map { it.url }) }
     var menu by remember { mutableStateOf(false) }
     Box {
-        if (running) {
-            Column(
-                Modifier.width(200.dp).glass(colors, RoundedCornerShape(12.dp))
-                    .clickable { services.downloads.cancel(novel.url) }.padding(horizontal = 12.dp, vertical = 6.dp)
-            ) {
-                Text("يحفظ ${p!!.done}/${p.total} (اضغط للإيقاف)", color = colors.text, fontSize = 12.sp)
-                LinearProgressIndicator(
-                    progress = { if (p.total == 0) 0f else (p.done + p.failed).toFloat() / p.total },
-                    color = colors.accent, modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                )
-            }
-        } else {
-            GlassButton(
-                if (p != null && p.total > 0) "تم الحفظ (${p.done}/${p.total})" else "حفظ للقراءة بدون نت",
-                Icons.Filled.KeyboardArrowDown, onClick = { menu = true },
-            )
-        }
+        AccentButton(
+            when {
+                savedCount >= total -> "كل الفصول محمّلة"
+                savedCount > 0 -> "تحميل الفصول ($savedCount/$total)"
+                else -> "تحميل الفصول"
+            },
+            DownloadIcon, onClick = { menu = true },
+        )
         DropdownMenu(menu, onDismissRequest = { menu = false }) {
-            val entry = LibraryStore.entries[novel.url]
+            fun get(list: List<ChapterRef>) {
+                menu = false
+                downloads.enqueue(novel, d.chapters, list)
+            }
+            val entry = LibraryStore[novel.url]
             val unread = d.chapters.filter { entry?.readChapters?.contains(it.url) != true }
-            DropdownMenuItem({ Text("الفصول غير المقروءة (${unread.size})") }, onClick = {
-                menu = false; services.downloads.start(novel.url, novel.title, unread)
-            })
-            DropdownMenuItem({ Text("أول 10 غير مقروءة") }, onClick = {
-                menu = false; services.downloads.start(novel.url, novel.title, unread.take(10))
-            })
-            DropdownMenuItem({ Text("كل الفصول (${d.chapters.size})") }, onClick = {
-                menu = false; services.downloads.start(novel.url, novel.title, d.chapters)
-            })
-            DropdownMenuItem({ Text("حذف الفصول المحفوظة") }, onClick = {
-                menu = false; services.downloads.cancel(novel.url); ChapterStore.delete(d.chapters.map { it.url })
-            })
+            val from = d.chapters.indexOfFirst { it.url == entry?.lastChapterUrl }.coerceAtLeast(0)
+            DropdownMenuItem({ Text("الرواية كاملة ($total فصل، الباقي ${total - savedCount})") }, onClick = { get(d.chapters) })
+            DropdownMenuItem({ Text("الفصول غير المقروءة (${unread.size})") }, onClick = { get(unread) })
+            DropdownMenuItem({ Text("10 فصول من حيث توقفت") }, onClick = { get(d.chapters.drop(from).take(10)) })
+            DropdownMenuItem({ Text("50 فصلاً من حيث توقفت") }, onClick = { get(d.chapters.drop(from).take(50)) })
+            DropdownMenuItem({ Text("من فصل إلى فصل...") }, onClick = { menu = false; onRange() })
+            if (savedCount > 0) {
+                DropdownMenuItem({ Text("حذف الفصول المحمّلة ($savedCount)") }, onClick = {
+                    menu = false
+                    downloads.cancel(novel.url)
+                    ChapterStore.delete(d.chapters.map { it.url })
+                })
+            }
         }
+    }
+}
+
+/** Finds a chapter by the number the user typed: its chapter number first, else its place in the list. */
+private fun resolveChapter(chapters: List<ChapterRef>, typed: String): Int? {
+    val n = typed.trim().toIntOrNull() ?: return null
+    val byNumber = chapters.indexOfFirst { Regex("""\d+""").find(it.number)?.value?.toIntOrNull() == n }
+    return if (byNumber >= 0) byNumber else (n - 1).takeIf { it in chapters.indices }
+}
+
+@Composable
+private fun RangePanel(novel: NovelSummary, d: NovelDetails, onClose: () -> Unit) {
+    val services = LocalServices.current
+    val colors = LocalAppColors.current
+    val entry = LibraryStore[novel.url]
+    val startAt = d.chapters.indexOfFirst { it.url == entry?.lastChapterUrl }.coerceAtLeast(0)
+    var fromText by remember { mutableStateOf(d.chapters.getOrNull(startAt)?.let { Regex("""\d+""").find(it.number)?.value } ?: "1") }
+    var toText by remember { mutableStateOf("") }
+    val from = resolveChapter(d.chapters, fromText)
+    val to = resolveChapter(d.chapters, toText)
+    GlassPanel(Modifier.fillMaxWidth().padding(top = 10.dp)) {
+        Text("تحميل من فصل إلى فصل", color = colors.text, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        Text("اكتب رقم الفصل الأول ورقم الفصل الأخير.", color = colors.muted, fontSize = 13.sp)
+        Gap(8)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("من الفصل", color = colors.text, fontSize = 14.sp)
+            Spacer(Modifier.width(8.dp))
+            NumberField(fromText) { fromText = it }
+            Spacer(Modifier.width(14.dp))
+            Text("إلى الفصل", color = colors.text, fontSize = 14.sp)
+            Spacer(Modifier.width(8.dp))
+            NumberField(toText) { toText = it }
+        }
+        Gap(8)
+        val range = if (from != null && to != null) minOf(from, to)..maxOf(from, to) else null
+        Text(
+            when {
+                range != null -> "${d.chapters[range.first].label}  ←  ${d.chapters[range.last].label}  (${range.count()} فصل)"
+                fromText.isNotBlank() && toText.isNotBlank() -> "لم أجد هذا الفصل في القائمة."
+                else -> " "
+            },
+            color = colors.muted, fontSize = 13.sp, maxLines = 2,
+        )
+        Gap(8)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AccentButton("تحميل", DownloadIcon, enabled = range != null, onClick = {
+                if (range != null) services.downloads.enqueue(novel, d.chapters, d.chapters.subList(range.first, range.last + 1))
+                onClose()
+            })
+            GlassButton("إلغاء", onClick = onClose)
+        }
+    }
+}
+
+@Composable
+private fun NumberField(value: String, onChange: (String) -> Unit) {
+    val colors = LocalAppColors.current
+    Box(Modifier.width(90.dp).glass(colors, RoundedCornerShape(10.dp)).padding(horizontal = 10.dp, vertical = 7.dp)) {
+        BasicTextField(
+            value, { v -> onChange(v.filter { it.isDigit() }.take(6)) }, singleLine = true,
+            textStyle = TextStyle(color = colors.text, fontSize = 15.sp, fontFamily = Cairo),
+            cursorBrush = SolidColor(colors.accent), modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 
@@ -339,7 +447,7 @@ private fun ChapterMenu(novel: NovelSummary, d: NovelDetails) {
                 open = false
                 LibraryStore.markRead(novel.url, d.chapters.map { it.url }, false)
             })
-            val last = LibraryStore.entries[novel.url]?.lastChapterUrl
+            val last = LibraryStore[novel.url]?.lastChapterUrl
             val idx = d.chapters.indexOfFirst { it.url == last }
             if (idx > 0) {
                 DropdownMenuItem({ Text("تحديد ما قبل الفصل الحالي كمقروء") }, onClick = {

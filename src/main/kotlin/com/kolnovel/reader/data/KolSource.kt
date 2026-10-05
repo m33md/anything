@@ -63,8 +63,10 @@ class KolSource(private val client: OkHttpClient = defaultClient()) {
                             "الموقع طلب تحقق (Cloudflare). افتح الموقع في المتصفح مرة ثم حاول مجددًا."
                         else "الموقع رفض الطلب (${response.code})."
                         404 -> "الصفحة غير موجودة على الموقع (404)."
+                        429 -> "الموقع طلب التمهل (429)."
                         else -> "خطأ من الموقع (${response.code})."
-                    }
+                    },
+                    response.code,
                 )
             }
             Jsoup.parse(body, url)
@@ -209,7 +211,7 @@ class KolSource(private val client: OkHttpClient = defaultClient()) {
                     date = a.selectFirst(".epl-date")?.text()?.trim()?.ifEmpty { null },
                     id = li.attr("data-ID").ifEmpty { li.attr("data-id") }.toLongOrNull(),
                 )
-            }.distinctBy { it.url }.reversed()
+            }.distinctBy { it.url }.reversed().let(::readingOrder)
             return NovelDetails(
                 url = url,
                 title = doc.selectFirst("h1.entry-title")?.text()?.trim().orEmpty(),
@@ -224,6 +226,30 @@ class KolSource(private val client: OkHttpClient = defaultClient()) {
                 chapters = chapters,
             )
         }
+
+        /**
+         * The site lists chapters by when they were posted, so a re-posted chapter (6578 between 6619 and 6443)
+         * lands in the wrong place and its prev/next links skip dozens of chapters. When every chapter has its own
+         * number, put them in number order; chapters without one stay right after the chapter they followed.
+         * Novels whose numbers restart per volume (many repeated numbers) keep the site's order.
+         */
+        fun readingOrder(oldestFirst: List<ChapterRef>): List<ChapterRef> {
+            val numbers = oldestFirst.map { chapterNumberOf(it.number) }
+            val known = numbers.filterNotNull()
+            // A few repeats are site typos (two posts called 6337); many mean numbering restarts per volume.
+            if (known.size < 2 || known.size - known.toSet().size > known.size / 20) return oldestFirst
+            var last = Double.NEGATIVE_INFINITY
+            val keys = numbers.mapIndexed { i, n ->
+                if (n != null) last = n
+                // Unnumbered chapters ride just behind the previous numbered one, keeping their own order.
+                n ?: (last + (i + 1) * 1e-7)
+            }
+            return oldestFirst.indices.sortedWith(compareBy({ keys[it] }, { it })).map { oldestFirst[it] }
+        }
+
+        /** 6578 from "الفصل 6578", 12.5 from "الفصل 12.5"; null when the label has no number at its end. */
+        fun chapterNumberOf(label: String): Double? =
+            Regex("""(\d+(?:\.\d+)?)\s*$""").find(label.trim())?.groupValues?.get(1)?.toDoubleOrNull()
 
         fun parseChapter(doc: Document, url: String): ChapterContent {
             val content = doc.getElementById("kol_content") ?: doc.selectFirst(".epcontent")
@@ -246,16 +272,26 @@ class KolSource(private val client: OkHttpClient = defaultClient()) {
                     .forEach { paragraphs += it }
             }
 
-            val crumbs = doc.select(".ts-breadcrumb [itemprop=itemListElement] a")
-            val novelLink = crumbs.getOrNull(1)
+            // The novel's own crumb; some pages have no novel crumb, and the chapter's link must not be taken for it.
+            val novelLink = doc.select(".ts-breadcrumb [itemprop=itemListElement] a").firstOrNull { it.absUrl("href").contains("/series/") }
+            val title = doc.selectFirst(".epheader h1.entry-title, h1.entry-title")?.text()?.trim().orEmpty()
+            val name = doc.selectFirst(".epheader .cat-series")?.text()?.trim()?.ifEmpty { null }
+            // The text often opens by repeating the heading ("ساخن", "6578 – ساخن"); the reader already shows it.
+            val repeat = Regex("""^\d+(?:\.\d+)?\s*[–—-]\s*""")
+            while (paragraphs.isNotEmpty() && paragraphs.size > 1) {
+                val first = paragraphs.first()
+                val bare = first.replace(repeat, "").trim()
+                if (first == title || (name != null && (first == name || bare == name))) paragraphs.removeAt(0) else break
+            }
             return ChapterContent(
                 url = url,
-                title = doc.selectFirst(".epheader h1.entry-title, h1.entry-title")?.text()?.trim().orEmpty(),
+                title = title,
                 novelTitle = novelLink?.text()?.trim(),
                 novelUrl = novelLink?.absUrl("href"),
                 paragraphs = paragraphs.dropTrailingSiteNotes(),
                 prevUrl = doc.selectFirst("a[rel=prev]")?.absUrl("href")?.ifEmpty { null }?.takeUnless { isSeriesLink(it) },
                 nextUrl = doc.selectFirst("a[rel=next]")?.absUrl("href")?.ifEmpty { null }?.takeUnless { isSeriesLink(it) },
+                name = name,
             )
         }
 
@@ -291,6 +327,19 @@ class KolSource(private val client: OkHttpClient = defaultClient()) {
             var end = size
             while (end > 0 && SITE_NOTES.any { this[end - 1].contains(it, ignoreCase = true) }) end--
             return subList(0, end)
+        }
+
+        /**
+         * One spelling per page, so the same novel is never stored twice: https, no "www.", no "#part",
+         * percent-escapes decoded, and a trailing slash.
+         */
+        fun normalizeUrl(url: String): String {
+            var u = url.trim().substringBefore('#')
+            u = runCatching { java.net.URLDecoder.decode(u.replace("+", "%2B"), Charsets.UTF_8) }.getOrDefault(u)
+            u = u.replaceFirst(Regex("^http://", RegexOption.IGNORE_CASE), "https://")
+                .replaceFirst(Regex("^https://www\\.", RegexOption.IGNORE_CASE), "https://")
+            if ('?' !in u && !u.endsWith('/')) u += "/"
+            return u
         }
 
         fun cleanChapterNumber(raw: String): String =
