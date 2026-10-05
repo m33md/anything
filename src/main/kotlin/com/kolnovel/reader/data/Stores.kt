@@ -181,7 +181,15 @@ object LibraryStore {
 
 /** Chapters the reader has opened or downloaded, kept as JSON so they open offline. */
 object ChapterStore {
-    private fun fileFor(url: String) = File(AppDirs.chapters, sha1(url) + ".json")
+    fun idFor(url: String) = sha1(url)
+    private fun fileFor(url: String) = File(AppDirs.chapters, idFor(url) + ".json")
+
+    /** Ids of the chapters on disk, kept in memory so chapter lists can show "saved" cheaply and update live. */
+    var savedIds by mutableStateOf(scan())
+        private set
+
+    private fun scan(): Set<String> =
+        AppDirs.chapters.listFiles()?.filter { it.name.endsWith(".json") }?.map { it.name.removeSuffix(".json") }?.toSet() ?: emptySet()
 
     fun load(url: String): ChapterContent? = runCatching {
         AppJson.decodeFromString(ChapterContent.serializer(), fileFor(url).readText())
@@ -190,14 +198,34 @@ object ChapterStore {
     /** True only when the chapter is on disk afterwards, so callers can count failed saves. */
     fun save(chapter: ChapterContent): Boolean {
         if (chapter.paragraphs.isEmpty()) return false
-        return runCatching {
+        val ok = runCatching {
             fileFor(chapter.url).writeAtomically(AppJson.encodeToString(ChapterContent.serializer(), chapter))
-        }.isSuccess && has(chapter.url)
+        }.isSuccess && fileFor(chapter.url).exists()
+        if (ok) changeIds { it + idFor(chapter.url) }
+        return ok
     }
 
-    fun has(url: String) = fileFor(url).exists()
+    fun has(url: String) = idFor(url) in savedIds
 
-    fun delete(urls: Collection<String>) = urls.forEach { fileFor(it).delete() }
+    fun countSaved(urls: Collection<String>): Int {
+        val ids = savedIds
+        return urls.count { idFor(it) in ids }
+    }
+
+    fun delete(urls: Collection<String>) {
+        urls.forEach { fileFor(it).delete() }
+        changeIds { it - urls.map(::idFor).toSet() }
+    }
+
+    fun deleteAll() {
+        AppDirs.chapters.listFiles()?.forEach { it.delete() }
+        changeIds { emptySet() }
+    }
+
+    @Synchronized
+    private fun changeIds(change: (Set<String>) -> Set<String>) {
+        savedIds = change(savedIds)
+    }
 
     fun sizeBytes(): Long = AppDirs.chapters.listFiles()?.sumOf { it.length() } ?: 0
 }

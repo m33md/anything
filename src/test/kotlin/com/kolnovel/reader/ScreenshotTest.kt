@@ -64,7 +64,14 @@ class ScreenshotTest {
             "reader" to Screen.Reader(novel, "https://kolnovel.com/x-2/"),
             "settings" to Screen.Main(Tab.Settings),
             "library" to Screen.Main(Tab.Library),
+            "downloads" to Screen.Main(Tab.Downloads),
         )
+        // Some chapters saved and more on the way, so the download parts of the screens have something to show.
+        val details = kotlinx.coroutines.runBlocking { services.source.details(novel.url) }
+        val summary = novel.copy(title = details.title, cover = details.cover)
+        services.downloads.enqueue(summary, details.chapters, details.chapters.take(3))
+        while (services.downloads.isRunning(novel.url)) Thread.sleep(100)
+        services.downloads.enqueue(summary, details.chapters, details.chapters.take(400))
         for (theme in listOf("black", "white", "grey")) {
             SettingsStore.update { it.copy(theme = theme, liveBackground = false) }
             val scene = ImageComposeScene(1400, 900, Density(1f)) { App(services) }

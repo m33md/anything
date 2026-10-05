@@ -1,4 +1,4 @@
-Kol Novel Reader for PC (unofficial) - version 0.1.1
+Kol Novel Reader for PC (unofficial) - version 0.2.0
 ======================================================
 A reader for the novels on kolnovel.com (ملوك الروايات), built the same way as Olympus Reader.
 
@@ -16,8 +16,12 @@ WHAT IT DOES
 - Home: featured novels, popular today, latest updates (click a chapter to read it), continue reading.
 - Browse: the site's own filters (order, status, type, genres).
 - Search: type in the box at the top and press Enter (Ctrl+F jumps there).
-- Novel page: details, story, every chapter, read/unread marks, add to library, favourite,
-  save chapters for reading without internet.
+- Download chapters to read without internet: on a novel's page press "تحميل الفصول"
+  (the whole novel, unread chapters, the next 10 or 50, or from chapter X to chapter Y),
+  or press the arrow next to any single chapter.
+- Downloads tab (التحميلات): what is downloading now, and every novel you saved. Press "اقرأ"
+  there to read offline; the novel's chapter list also opens without internet.
+- Novel page: details, story, every chapter, read/unread marks, add to library, favourite.
 - Reader: font size, line spacing, paragraph spacing, text width, font, its own colours.
   Your place in every chapter is remembered.
 - Library: your library, favourites and history. "بحث عن فصول جديدة" checks for new chapters.
@@ -25,7 +29,7 @@ WHAT IT DOES
   main colour (or your own #RRGGBB), glass transparency, live background, card size.
 
 KEYS
-- Esc or Alt+Left: back. Ctrl+F: search. Ctrl+1..4: the tabs at the top.
+- Esc or Alt+Left: back. Ctrl+F: search. Ctrl+1..5: the tabs at the top.
 - Reader: Left arrow = next chapter, Right arrow = previous, Space / Page Down scroll,
   Home / End = top / bottom, Ctrl + / Ctrl - = text size.
 
@@ -45,6 +49,8 @@ It is for your own reading. Don't share the site's text elsewhere.
    الجافا موجودة داخل مجلد runtime، ولا يحتاج تثبيت.
 2. إذا لم تفتح النافذة شغّل "Kol Novel Reader (if it does not open).bat" وأرسل صورة للنافذة السوداء.
 
+تحميل الفصول للقراءة بدون نت: افتح الرواية واضغط "تحميل الفصول" (الرواية كاملة، أو من فصل إلى فصل)،
+أو اضغط سهم التحميل بجانب أي فصل. كل ما حملته تجده في تبويب "التحميلات".
 الألوان والثيمات من: الإعدادات > المظهر (أسود، رمادي، أبيض وغيرها، واللون الأساسي وشفافية الزجاج).
 إعدادات القراءة من زر الترس داخل القارئ.
 بياناتك محفوظة في %APPDATA%\KolNovelReader.

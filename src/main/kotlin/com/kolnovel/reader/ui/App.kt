@@ -70,6 +70,7 @@ enum class Tab(val label: String, val icon: ImageVector) {
     Home("الرئيسية", Icons.Filled.Home),
     Browse("تصفح", Icons.AutoMirrored.Filled.List),
     Library("مكتبتي", Icons.Filled.Favorite),
+    Downloads("التحميلات", DownloadIcon),
     Settings("الإعدادات", Icons.Filled.Settings),
 }
 
@@ -113,16 +114,18 @@ class AppServices(val source: KolSource = KolSource()) {
 
 val LocalServices = staticCompositionLocalOf<AppServices> { error("no services") }
 
+private val tabKeys = listOf(Key.One, Key.Two, Key.Three, Key.Four, Key.Five)
+
 fun handleGlobalKey(services: AppServices, event: KeyEvent): Boolean {
     if (event.type != KeyEventType.KeyDown) return false
     services.readerKeys?.let { if (it(event)) return true }
     return when {
         event.key == Key.Escape || (event.isAltPressed && event.key == Key.DirectionLeft) || event.key == Key.Back -> services.nav.back()
         event.isCtrlPressed && event.key == Key.F -> { services.nav.go(Screen.Search("")); true }
-        event.isCtrlPressed && event.key == Key.One -> { services.nav.go(Screen.Main(Tab.Home)); true }
-        event.isCtrlPressed && event.key == Key.Two -> { services.nav.go(Screen.Main(Tab.Browse)); true }
-        event.isCtrlPressed && event.key == Key.Three -> { services.nav.go(Screen.Main(Tab.Library)); true }
-        event.isCtrlPressed && event.key == Key.Four -> { services.nav.go(Screen.Main(Tab.Settings)); true }
+        event.isCtrlPressed && event.key in tabKeys -> {
+            Tab.entries.getOrNull(tabKeys.indexOf(event.key))?.let { services.nav.go(Screen.Main(it)) }
+            true
+        }
         else -> false
     }
 }
@@ -149,6 +152,7 @@ fun App(services: AppServices) {
                                 Tab.Home -> HomeScreen()
                                 Tab.Browse -> BrowseScreen()
                                 Tab.Library -> LibraryScreen()
+                                Tab.Downloads -> DownloadsScreen()
                                 Tab.Settings -> SettingsScreen()
                             }
                             is Screen.Search -> SearchScreen(s.query)
@@ -199,6 +203,11 @@ private fun TopBar(services: AppServices) {
                     Icon(tab.icon, null, tint = if (selected) colors.onAccent else colors.muted, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
                     Text(tab.label, color = if (selected) colors.onAccent else colors.text, fontWeight = FontWeight.SemiBold)
+                    val active = services.downloads.activeCount
+                    if (tab == Tab.Downloads && active > 0) {
+                        Spacer(Modifier.width(6.dp))
+                        Pill("$active", if (selected) colors.onAccent else colors.accent, if (selected) colors.accent else colors.onAccent)
+                    }
                 }
             }
         }

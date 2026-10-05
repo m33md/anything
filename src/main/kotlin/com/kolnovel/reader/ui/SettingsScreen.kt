@@ -177,7 +177,7 @@ private fun StoragePanel() {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("الفصول المحفوظة: %.1f ميغابايت".format(size / 1_048_576.0), color = colors.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
             GlassButton("حذف كل الفصول المحفوظة", Icons.Filled.Delete, onClick = {
-                AppDirs.chapters.listFiles()?.forEach { it.delete() }
+                ChapterStore.deleteAll()
                 size = ChapterStore.sizeBytes()
             })
             Spacer(Modifier.width(8.dp))
