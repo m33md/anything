@@ -1,5 +1,9 @@
 package com.kolnovel.reader.ui
 
+import androidx.compose.material.icons.filled.AccountCircle
+import com.kolnovel.reader.data.LibrarySync
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -172,10 +176,9 @@ private fun TopBar(services: AppServices) {
     val colors = LocalAppColors.current
     val nav = services.nav
     val current = nav.current
+    // No card of its own: the bar sits straight on the app background so it reads as part of the page.
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)
-            .glass(colors, RoundedCornerShape(20.dp), strong = true)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (nav.stack.size > 1) {
@@ -186,6 +189,11 @@ private fun TopBar(services: AppServices) {
             )
             Spacer(Modifier.width(6.dp))
         }
+        Image(
+            painterResource("app_icon.png"), "ملوك الروايات",
+            Modifier.size(40.dp).clip(RoundedCornerShape(11.dp)).pointerHoverIcon(PointerIcon.Hand).clickable { nav.go(Screen.Main(Tab.Home)) },
+        )
+        Spacer(Modifier.width(10.dp))
         Text("ملوك", color = colors.accent, fontWeight = FontWeight.Black, fontSize = 22.sp)
         Text(" الروايات", color = colors.text, fontWeight = FontWeight.Black, fontSize = 22.sp)
         Spacer(Modifier.width(22.dp))
@@ -212,6 +220,12 @@ private fun TopBar(services: AppServices) {
             }
         }
         Spacer(Modifier.weight(1f))
+        Icon(
+            Icons.Filled.AccountCircle, "الحساب والمزامنة", tint = if (LibrarySync.folder != null) colors.accent else colors.muted,
+            modifier = Modifier.clip(CircleShape).pointerHoverIcon(PointerIcon.Hand)
+                .clickable { nav.go(Screen.Main(Tab.Settings)) }.padding(6.dp).size(26.dp),
+        )
+        Spacer(Modifier.width(8.dp))
         SearchBox(initial = (current as? Screen.Search)?.query.orEmpty()) { q ->
             if (q.isNotBlank()) nav.go(Screen.Search(q.trim()))
         }

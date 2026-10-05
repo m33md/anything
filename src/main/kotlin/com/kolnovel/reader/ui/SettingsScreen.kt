@@ -1,5 +1,6 @@
 package com.kolnovel.reader.ui
 
+import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -54,11 +55,13 @@ import com.kolnovel.reader.data.Settings
 fun SettingsScreen() {
     val colors = LocalAppColors.current
     val s = SettingsStore.settings
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+    val scroll = rememberScrollState()
+    Box(Modifier.fillMaxSize().dragScroll(scroll), contentAlignment = Alignment.TopCenter) {
         Column(
-            Modifier.widthIn(max = 900.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
+            Modifier.widthIn(max = 900.dp).fillMaxWidth().verticalScroll(scroll).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            AccountPanel()
             GlassPanel(Modifier.fillMaxWidth()) {
                 Text("المظهر", color = colors.text, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 Gap(8)
@@ -138,6 +141,7 @@ fun SettingsScreen() {
                 )
             }
         }
+        EdgeScrollbar(rememberScrollbarAdapter(scroll))
     }
 }
 

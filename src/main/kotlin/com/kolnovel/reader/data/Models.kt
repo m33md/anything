@@ -64,7 +64,23 @@ data class ChapterContent(
     val paragraphs: List<String>,
     val prevUrl: String? = null,
     val nextUrl: String? = null,
-)
+    /** The chapter's own name ("ساخن"); the page heading [title] is only "novel name + number". */
+    val name: String? = null,
+) {
+    /** "16" out of a heading like "البداية بعد النهاية 16". */
+    val chapterNumber: String?
+        get() {
+            val rest = novelTitle?.let { n -> title.removePrefix(n).trim().takeIf { title.startsWith(n) && it.isNotEmpty() } }
+            return rest ?: Regex("""(\d+(?:\.\d+)?)\s*$""").find(title)?.groupValues?.get(1)
+        }
+
+    /** "الفصل 16 - ساخن", for bars and lists. */
+    val label: String
+        get() {
+            val number = chapterNumber ?: return name ?: title
+            return if (name != null) "الفصل $number - $name" else "الفصل $number"
+        }
+}
 
 /** The choices of the site's own series filter (read from the /series/ page). */
 data class FilterOptions(

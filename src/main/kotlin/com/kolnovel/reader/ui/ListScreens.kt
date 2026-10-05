@@ -1,5 +1,6 @@
 package com.kolnovel.reader.ui
 
+import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -96,26 +97,29 @@ fun NovelGrid(
             (info.visibleItemsInfo.lastOrNull()?.index ?: 0) >= info.totalItemsCount - 8
         }.collect { nearEnd -> if (nearEnd) paged.loadMore() }
     }
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minWidth.dp),
-        state = state,
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        if (header != null) item(span = { GridItemSpan(maxLineSpan) }) { header() }
-        itemsIndexed(paged.items, key = { _, n -> n.url }) { _, novel ->
-            NovelCard(novel, onClick = { services.nav.go(Screen.Details(novel)) })
-        }
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            when {
-                paged.error != null -> ErrorBox(paged.error!!, onRetry = { scope.launch { paged.loadMore() } })
-                paged.loading -> Loading()
-                paged.endReached && paged.items.isEmpty() ->
-                    Text(empty, color = colors.muted, modifier = Modifier.padding(30.dp))
+    Box(modifier.fillMaxSize()) {
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minWidth.dp),
+            state = state,
+            modifier = Modifier.fillMaxSize().dragScroll(state),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            if (header != null) item(span = { GridItemSpan(maxLineSpan) }) { header() }
+            itemsIndexed(paged.items, key = { _, n -> n.url }) { _, novel ->
+                NovelCard(novel, onClick = { services.nav.go(Screen.Details(novel)) })
+            }
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                when {
+                    paged.error != null -> ErrorBox(paged.error!!, onRetry = { scope.launch { paged.loadMore() } })
+                    paged.loading -> Loading()
+                    paged.endReached && paged.items.isEmpty() ->
+                        Text(empty, color = colors.muted, modifier = Modifier.padding(30.dp))
+                }
             }
         }
+        EdgeScrollbar(rememberScrollbarAdapter(state))
     }
 }
 
@@ -179,7 +183,8 @@ fun BrowseScreen() {
                 }
                 if (showGenres) {
                     Gap(8)
-                    Box(Modifier.heightIn(max = 260.dp).verticalScroll(rememberScrollState())) {
+                    val genreScroll = rememberScrollState()
+                    Box(Modifier.heightIn(max = 260.dp).verticalScroll(genreScroll).dragScroll(genreScroll)) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             options.genres.forEach { o ->
                                 val on = o.value in filter.genres

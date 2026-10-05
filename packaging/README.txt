@@ -1,4 +1,4 @@
-Kol Novel Reader for PC (unofficial) - version 0.2.0
+Kol Novel Reader for PC (unofficial) - version 0.3.0
 ======================================================
 A reader for the novels on kolnovel.com (ملوك الروايات), built the same way as Olympus Reader.
 
@@ -25,6 +25,11 @@ WHAT IT DOES
 - Reader: font size, line spacing, paragraph spacing, text width, font, its own colours.
   Your place in every chapter is remembered.
 - Library: your library, favourites and history. "بحث عن فصول جديدة" checks for new chapters.
+- Account & sync (Settings, or the person icon at the top): the site keeps its bookmarks in the
+  browser only, so there is no site library to link. Instead pick your OneDrive or Google Drive
+  folder on each PC (and later the phone); your library, favourites and reading place follow you.
+  You can also save the library to a file and open it on another device.
+- Scrolling: drag with the mouse (click and pull), or grab the bar on the right edge.
 - Settings: background (black, dark grey, grey, light grey, white, paper, navy, wine),
   main colour (or your own #RRGGBB), glass transparency, live background, card size.
 

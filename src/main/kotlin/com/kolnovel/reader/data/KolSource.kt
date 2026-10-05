@@ -256,6 +256,7 @@ class KolSource(private val client: OkHttpClient = defaultClient()) {
                 paragraphs = paragraphs.dropTrailingSiteNotes(),
                 prevUrl = doc.selectFirst("a[rel=prev]")?.absUrl("href")?.ifEmpty { null }?.takeUnless { isSeriesLink(it) },
                 nextUrl = doc.selectFirst("a[rel=next]")?.absUrl("href")?.ifEmpty { null }?.takeUnless { isSeriesLink(it) },
+                name = doc.selectFirst(".epheader .cat-series")?.text()?.trim()?.ifEmpty { null },
             )
         }
 

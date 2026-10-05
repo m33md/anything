@@ -1,5 +1,6 @@
 package com.kolnovel.reader.ui
 
+import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -131,7 +132,7 @@ fun DetailsScreen(novel: NovelSummary) {
                 Brush.verticalGradient(listOf(colors.background.copy(alpha = 0.35f), colors.background))
             )
         )
-        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 30.dp)) {
+        LazyColumn(Modifier.fillMaxSize().dragScroll(listState), state = listState, contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 30.dp)) {
             item {
                 Row(Modifier.fillMaxWidth()) {
                     Box(Modifier.glass(colors, RoundedCornerShape(20.dp)).padding(7.dp)) {
@@ -266,6 +267,7 @@ fun DetailsScreen(novel: NovelSummary) {
                 }
             }
         }
+        EdgeScrollbar(rememberScrollbarAdapter(listState))
     }
 }
 

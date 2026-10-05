@@ -1,5 +1,8 @@
 package com.kolnovel.reader.ui
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -55,34 +58,38 @@ fun DownloadsScreen() {
     }
     val sizeMb = remember(ids) { ChapterStore.sizeBytes() / 1_048_576.0 }
 
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 30.dp)) {
-        if (running.isNotEmpty()) {
+    val listState = rememberLazyListState()
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(Modifier.fillMaxSize().dragScroll(listState), state = listState, contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 30.dp)) {
+            if (running.isNotEmpty()) {
+                item {
+                    SectionTitle("قيد التحميل") {
+                        if (running.any { it.finished }) GlassChip("إخفاء المكتمل") { downloads.clearFinished() }
+                    }
+                }
+                items(running, key = { "p" + it.novel.url }) { p -> DownloadProgressRow(p, downloads) }
+            }
             item {
-                SectionTitle("قيد التحميل") {
-                    if (running.any { it.finished }) GlassChip("إخفاء المكتمل") { downloads.clearFinished() }
+                SectionTitle("محفوظة للقراءة بدون نت") {
+                    Text("%.1f ميغابايت".format(sizeMb), color = colors.muted, fontSize = 13.sp)
                 }
             }
-            items(running, key = { "p" + it.novel.url }) { p -> DownloadProgressRow(p, downloads) }
-        }
-        item {
-            SectionTitle("محفوظة للقراءة بدون نت") {
-                Text("%.1f ميغابايت".format(sizeMb), color = colors.muted, fontSize = 13.sp)
-            }
-        }
-        if (saved.isEmpty()) {
-            item {
-                GlassPanel(Modifier.fillMaxWidth(), padding = 20.dp) {
-                    Text("لا توجد فصول محملة بعد.", color = colors.text, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    Gap(6)
-                    Text(
-                        "افتح أي رواية واضغط \"تحميل الفصول\" لتحميل الرواية كاملة أو مجموعة فصول، " +
-                            "أو اضغط سهم التحميل بجانب أي فصل. بعدها تجدها هنا وتقرأها بدون إنترنت.",
-                        color = colors.muted, fontSize = 14.sp, lineHeight = 24.sp,
-                    )
+            if (saved.isEmpty()) {
+                item {
+                    GlassPanel(Modifier.fillMaxWidth(), padding = 20.dp) {
+                        Text("لا توجد فصول محملة بعد.", color = colors.text, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Gap(6)
+                        Text(
+                            "افتح أي رواية واضغط \"تحميل الفصول\" لتحميل الرواية كاملة أو مجموعة فصول، " +
+                                "أو اضغط سهم التحميل بجانب أي فصل. بعدها تجدها هنا وتقرأها بدون إنترنت.",
+                            color = colors.muted, fontSize = 14.sp, lineHeight = 24.sp,
+                        )
+                    }
                 }
             }
+            items(saved, key = { "s" + it.first.url }) { (novel, count) -> SavedRow(novel, count) }
         }
-        items(saved, key = { "s" + it.first.url }) { (novel, count) -> SavedRow(novel, count) }
+        EdgeScrollbar(rememberScrollbarAdapter(listState))
     }
 }
 

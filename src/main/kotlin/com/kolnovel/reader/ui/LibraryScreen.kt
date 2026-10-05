@@ -1,5 +1,8 @@
 package com.kolnovel.reader.ui
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -47,61 +50,66 @@ fun LibraryScreen() {
         LibTab.Favorites -> all.filter { it.favorite }.sortedByDescending { it.lastReadAt }
         LibTab.History -> all.filter { it.lastReadAt > 0 && it.lastChapterUrl != null }.sortedByDescending { it.lastReadAt }
     }
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(SettingsStore.settings.gridColumnsMin.dp),
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                LibTab.entries.forEach { t ->
-                    GlassChip(t.label, t == tab) { tab = t }
-                    Spacer(Modifier.width(6.dp))
-                }
-                Spacer(Modifier.weight(1f))
-                if (checking != null) {
-                    Text(checking!!, color = colors.muted, fontSize = 13.sp)
-                } else if (tab == LibTab.Library && items.isNotEmpty()) {
-                    GlassButton("بحث عن فصول جديدة", Icons.Filled.Refresh, onClick = {
-                        scope.launch {
-                            val list = items
-                            list.forEachIndexed { i, e ->
-                                checking = "يفحص ${i + 1}/${list.size}: ${e.title}"
-                                runCatching { services.source.details(e.url) }.getOrNull()?.let {
-                                    LibraryStore.noteChapterCount(e.url, it.chapters.size)
+    val gridState = rememberLazyGridState()
+    Box(Modifier.fillMaxSize()) {
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(SettingsStore.settings.gridColumnsMin.dp),
+            state = gridState,
+            modifier = Modifier.fillMaxSize().dragScroll(gridState),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    LibTab.entries.forEach { t ->
+                        GlassChip(t.label, t == tab) { tab = t }
+                        Spacer(Modifier.width(6.dp))
+                    }
+                    Spacer(Modifier.weight(1f))
+                    if (checking != null) {
+                        Text(checking!!, color = colors.muted, fontSize = 13.sp)
+                    } else if (tab == LibTab.Library && items.isNotEmpty()) {
+                        GlassButton("بحث عن فصول جديدة", Icons.Filled.Refresh, onClick = {
+                            scope.launch {
+                                val list = items
+                                list.forEachIndexed { i, e ->
+                                    checking = "يفحص ${i + 1}/${list.size}: ${e.title}"
+                                    runCatching { services.source.details(e.url) }.getOrNull()?.let {
+                                        LibraryStore.noteChapterCount(e.url, it.chapters.size)
+                                    }
+                                    delay(300)
                                 }
-                                delay(300)
+                                checking = null
                             }
-                            checking = null
-                        }
-                    })
+                        })
+                    }
                 }
             }
-        }
-        if (items.isEmpty()) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Text(
-                    when (tab) {
-                        LibTab.Library -> "مكتبتك فارغة. افتح أي رواية واضغط \"أضف لمكتبتي\"."
-                        LibTab.Favorites -> "لا توجد روايات مفضلة بعد."
-                        LibTab.History -> "لم تقرأ أي فصل بعد."
+            if (items.isEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Text(
+                        when (tab) {
+                            LibTab.Library -> "مكتبتك فارغة. افتح أي رواية واضغط \"أضف لمكتبتي\"."
+                            LibTab.Favorites -> "لا توجد روايات مفضلة بعد."
+                            LibTab.History -> "لم تقرأ أي فصل بعد."
+                        },
+                        color = colors.muted, fontSize = 15.sp, modifier = Modifier.padding(30.dp),
+                    )
+                }
+            }
+            items(items, key = { it.url }) { e ->
+                val novel = NovelSummary(e.url, e.title, e.cover)
+                NovelCard(
+                    novel,
+                    onClick = {
+                        if (tab == LibTab.History && e.lastChapterUrl != null) services.nav.go(Screen.Reader(novel, e.lastChapterUrl, e.lastParagraph))
+                        else services.nav.go(Screen.Details(novel))
                     },
-                    color = colors.muted, fontSize = 15.sp, modifier = Modifier.padding(30.dp),
+                    subtitle = e.lastChapterTitle ?: "لم تبدأ بعد",
                 )
             }
         }
-        items(items, key = { it.url }) { e ->
-            val novel = NovelSummary(e.url, e.title, e.cover)
-            NovelCard(
-                novel,
-                onClick = {
-                    if (tab == LibTab.History && e.lastChapterUrl != null) services.nav.go(Screen.Reader(novel, e.lastChapterUrl, e.lastParagraph))
-                    else services.nav.go(Screen.Details(novel))
-                },
-                subtitle = e.lastChapterTitle ?: "لم تبدأ بعد",
-            )
-        }
+        EdgeScrollbar(rememberScrollbarAdapter(gridState))
     }
 }

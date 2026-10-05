@@ -1,5 +1,7 @@
 package com.kolnovel.reader.ui
 
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -26,7 +28,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -126,7 +127,7 @@ fun ReaderScreen(screen: Screen.Reader) {
     }
 
     DisposableEffect(chapter) {
-        services.readerKeys = { e ->
+        val keys: (KeyEvent) -> Boolean = { e ->
             when {
                 e.key == Key.DirectionLeft && !e.isCtrlPressed -> { open(chapter?.nextUrl); true }
                 e.key == Key.DirectionRight && !e.isCtrlPressed -> { open(chapter?.prevUrl); true }
@@ -145,7 +146,9 @@ fun ReaderScreen(screen: Screen.Reader) {
                 else -> false
             }
         }
-        onDispose { services.readerKeys = null }
+        services.readerKeys = keys
+        // The old chapter fades out after the new one is shown; it must not unhook the new chapter's keys.
+        onDispose { if (services.readerKeys === keys) services.readerKeys = null }
     }
 
     KolTheme(colors) {
@@ -175,7 +178,7 @@ private fun ChapterText(c: ChapterContent, listState: LazyListState, width: Int,
         Modifier.fillMaxSize().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onTap),
         contentAlignment = Alignment.TopCenter,
     ) {
-        SelectionContainer {
+        Box(Modifier.fillMaxSize().dragScroll(listState), contentAlignment = Alignment.TopCenter) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxHeight().widthIn(max = width.dp).fillMaxWidth(),
@@ -184,10 +187,13 @@ private fun ChapterText(c: ChapterContent, listState: LazyListState, width: Int,
                 item {
                     Column(Modifier.fillMaxWidth().padding(bottom = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         c.novelTitle?.let { Text(it, color = colors.accent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
+                        val number = c.chapterNumber
                         Text(
-                            c.title, color = colors.text, fontSize = (s.readerFontSize + 6).sp, fontWeight = FontWeight.Bold,
+                            c.name ?: number?.let { "الفصل $it" } ?: c.title,
+                            color = colors.text, fontSize = (s.readerFontSize + 6).sp, fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center, fontFamily = font,
                         )
+                        if (c.name != null && number != null) Text("الفصل $number", color = colors.muted, fontSize = 14.sp)
                     }
                 }
                 itemsIndexed(c.paragraphs) { _, p ->
@@ -212,6 +218,7 @@ private fun ChapterText(c: ChapterContent, listState: LazyListState, width: Int,
                     }
                 }
             }
+            EdgeScrollbar(rememberScrollbarAdapter(listState))
         }
     }
 }
@@ -231,7 +238,7 @@ private fun ReaderTopBar(c: ChapterContent?, screen: Screen.Reader, listState: L
                     c?.novelTitle ?: screen.novel.title, color = colors.text, fontWeight = FontWeight.Bold, fontSize = 15.sp,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
-                Text(c?.title.orEmpty(), color = colors.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(c?.label.orEmpty(), color = colors.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             IconBtn(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "الفصل السابق", enabled = c?.prevUrl != null) {
                 c?.prevUrl?.let { services.nav.go(Screen.Reader(screen.novel, it)) }
@@ -275,7 +282,8 @@ private fun ReaderSettingsPanel(onClose: () -> Unit) {
     val colors = LocalAppColors.current
     val s = SettingsStore.settings
     GlassPanel(Modifier.padding(16.dp).width(330.dp), strong = true) {
-        Column(Modifier.verticalScroll(rememberScrollState())) {
+        val panelScroll = rememberScrollState()
+        Column(Modifier.verticalScroll(panelScroll).dragScroll(panelScroll)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("إعدادات القراءة", color = colors.text, fontWeight = FontWeight.Bold, fontSize = 17.sp, modifier = Modifier.weight(1f))
                 IconBtn(Icons.Filled.Close, "إغلاق", onClick = onClose)
