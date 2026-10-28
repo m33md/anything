@@ -315,7 +315,8 @@ fun LazyListScope.songTable(
                     val start = ruleInset.toPx()
                     val end = size.width - 12.dp.toPx()
                     val stroke = 0.5.dp.toPx()
-                    if (i == 0) drawLine(Rule, Offset(start, stroke / 2), Offset(end, stroke / 2), stroke)
+                    // The column labels already rule off the top when they're shown.
+                    if (i == 0 && trailingLabel == null) drawLine(Rule, Offset(start, stroke / 2), Offset(end, stroke / 2), stroke)
                     drawLine(Rule, Offset(start, size.height - stroke / 2), Offset(end, size.height - stroke / 2), stroke)
                 },
         ) {
