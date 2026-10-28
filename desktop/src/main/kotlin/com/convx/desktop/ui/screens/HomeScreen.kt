@@ -324,7 +324,7 @@ fun MoodGrid(title: String, moods: List<MoodAndGenres.Item>) {
             contentPadding = PaddingValues(horizontal = Gutter),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier.fillMaxWidth().height(3 * 60.dp + 20.dp),
+            modifier = Modifier.fillMaxWidth().height(60.dp * 3 + 20.dp),
         ) {
             items(moods, key = { it.title }) { mood ->
                 MoodTile(mood) { navigator.navigate(Screen.Browse(mood.endpoint.browseId, mood.endpoint.params, mood.title)) }

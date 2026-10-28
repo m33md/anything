@@ -117,7 +117,8 @@ fun SettingsScreen() {
                                         .size(26.dp)
                                         .clip(CircleShape)
                                         .background(color)
-                                        .border(if (color == current) 2.5.dp else 0.dp, Color.White, CircleShape)
+                                        // A 0.dp border still draws a hairline, so only add one when selected.
+                                        .then(if (color == current) Modifier.border(2.5.dp, Color.White, CircleShape) else Modifier)
                                         .pressable({ AppSettings.update { it.copy(accent = color.toArgb().toLong() and 0xFFFFFFFFL) } }),
                                 )
                             }

@@ -96,7 +96,6 @@ fun PlayerBar(modifier: Modifier = Modifier) {
                 iconSize = 19.dp,
                 active = panel == SidePanel.Lyrics,
                 activeTint = LocalAccent.current,
-                tint = ConvxColors.SecondaryLabel.copy(alpha = 1f),
                 tooltip = "Lyrics",
             )
             IconButton(
