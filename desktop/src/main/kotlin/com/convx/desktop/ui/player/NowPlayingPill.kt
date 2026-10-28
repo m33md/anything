@@ -29,12 +29,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -54,12 +54,13 @@ import com.convx.desktop.ui.components.onSecondaryClick
 import com.convx.desktop.ui.components.openAtProvider
 import com.convx.desktop.ui.components.pressable
 import com.convx.desktop.ui.components.rememberMenuAnchor
-import com.convx.desktop.ui.glass.GlassShapes
 import com.convx.desktop.ui.glass.GlassTokens
-import com.convx.desktop.ui.glass.InteractiveHighlight
 import com.convx.desktop.ui.glass.additiveChrome
 import com.convx.desktop.ui.glass.rememberSymbolBounce
 import com.convx.desktop.ui.glass.liquidGlass
+import com.convx.desktop.ui.glass.elasticStretch
+import com.convx.desktop.ui.glass.rememberInteractiveHighlight
+import com.convx.desktop.ui.shapes.NavContinuousCapsule
 import com.convx.desktop.ui.shell.FullPlayerMode
 import com.convx.desktop.ui.shell.UiState
 import com.convx.desktop.ui.theme.ConvxType
@@ -83,14 +84,16 @@ private val PlayTint = GlassTokens.Icon.copy(alpha = 1f)
 fun NowPlayingPill(modifier: Modifier = Modifier) {
     val state by PlayerController.state.collectAsState()
     val song = state.current ?: return
-    val scope = rememberCoroutineScope()
-    val glow = remember(scope) { InteractiveHighlight(scope) }
-    val shape = GlassShapes.Capsule
+    val glow = rememberInteractiveHighlight()
+    // The phone's bar pills are Apple's continuous (G2) capsule, not a stadium.
+    val shape = NavContinuousCapsule
     val menu = rememberMenuAnchor()
 
     BoxWithConstraints(
         modifier
             .height(NowPlayingPillHeight)
+            // The phone pill's press swell and drag stretch.
+            .graphicsLayer(elasticStretch(glow))
             .shadow(10.dp, shape)
             .clip(shape)
             .liquidGlass(shape, highlightAlpha = 0.3f)

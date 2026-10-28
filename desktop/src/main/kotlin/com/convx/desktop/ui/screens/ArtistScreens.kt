@@ -5,8 +5,6 @@
 
 package com.convx.desktop.ui.screens
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -81,12 +79,11 @@ import com.convx.desktop.ui.components.link
 import com.convx.desktop.ui.components.onSecondaryClick
 import com.convx.desktop.ui.components.openAtProvider
 import com.convx.desktop.ui.components.pressable
-import com.convx.desktop.ui.components.rememberHeroColors
 import com.convx.desktop.ui.components.rememberImage
 import com.convx.desktop.ui.components.rememberMenuAnchor
 import com.convx.desktop.ui.shell.LocalNavigator
 import com.convx.desktop.ui.shell.Screen
-import com.convx.desktop.ui.shell.TopBarHeight
+import com.convx.desktop.ui.components.LocalPageInsets
 import com.convx.desktop.ui.theme.ConvxType
 import com.music.innertube.YouTube
 import com.music.innertube.models.AlbumItem
@@ -118,8 +115,8 @@ fun ArtistScreen(browseId: String) {
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
     val page = rememberPage("artist:$browseId") { YouTube.artist(browseId).getOrThrow() }
-    val hero by rememberHeroColors(page.value?.artist?.thumbnail)
-    val pageColor by animateColorAsState(hero?.background ?: Color(0xFF1C1C1E), tween(450))
+    // Convx black, not the photo's colour: the app keeps its own look on every page.
+    val pageColor = Color.Black
     val listState = rememberLazyListState()
     val menu = rememberMenuAnchor()
 
@@ -127,7 +124,7 @@ fun ArtistScreen(browseId: String) {
         val heroSide = (maxWidth * 0.42f).coerceAtMost(380.dp)
         val nameSize = if (maxWidth < 900.dp) 34.sp else 44.sp
 
-        PageContent(page, Modifier.padding(top = TopBarHeight)) { data ->
+        PageContent(page, Modifier.padding(top = LocalPageInsets.current.top)) { data ->
             val artist = data.artist
             val followed = library.artists.any { it.id == artist.id }
             val songSection = data.sections.firstOrNull { section -> section.items.isNotEmpty() && section.items.all { it is SongItem } }
@@ -158,7 +155,7 @@ fun ArtistScreen(browseId: String) {
                                 Modifier
                                     .weight(1f)
                                     .height(heroSide * HeroExtent)
-                                    .padding(start = 24.dp, end = 32.dp, top = TopBarHeight),
+                                    .padding(start = 24.dp, end = 32.dp, top = LocalPageInsets.current.top),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Center,
                             ) {

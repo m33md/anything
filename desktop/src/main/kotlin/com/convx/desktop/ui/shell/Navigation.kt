@@ -66,8 +66,22 @@ class Navigator {
         forwardStack.clear()
     }
 
-    /** Top-level destinations from the sidebar reset nothing, they just go there. */
+    /** Top-level destinations from the top bar reset nothing, they just go there. */
     fun openRoot(screen: Screen) = navigate(screen)
+
+    /**
+     * Moves between the pages of one section (the strip's views) without stacking an entry for
+     * each, so Back leaves the section rather than stepping through every view you looked at.
+     */
+    fun switchTo(screen: Screen) {
+        if (current.screen == screen) return
+        val here = current.screen.section()
+        if (here == null || here != screen.section()) return navigate(screen)
+        discarded += backStack.removeAt(backStack.lastIndex).key
+        backStack += Entry(screen)
+        discarded += forwardStack.map { it.key }
+        forwardStack.clear()
+    }
 
     fun back() {
         if (backStack.size <= 1) return

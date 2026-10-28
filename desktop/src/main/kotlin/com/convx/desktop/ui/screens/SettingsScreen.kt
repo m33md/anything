@@ -8,7 +8,6 @@ package com.convx.desktop.ui.screens
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,7 +35,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import com.convx.desktop.core.AppDirs
 import com.convx.desktop.core.AppInfo
@@ -61,19 +59,6 @@ import com.convx.desktop.ui.theme.ConvxType
 import com.convx.desktop.ui.theme.LocalAccent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-
-/** The phone's accent swatches. */
-private val Accents = listOf(
-    "Red" to Color(0xFFFA2D48),
-    "Pink" to Color(0xFFFF375F),
-    "Orange" to Color(0xFFFF9F0A),
-    "Yellow" to Color(0xFFFFD60A),
-    "Green" to Color(0xFF30D158),
-    "Mint" to Color(0xFF63E6E2),
-    "Blue" to Color(0xFF0A84FF),
-    "Indigo" to Color(0xFF5E5CE6),
-    "Purple" to Color(0xFFBF5AF2),
-)
 
 private val Countries = listOf(
     "" to "Automatic", "US" to "United States", "GB" to "United Kingdom", "CA" to "Canada", "AU" to "Australia",
@@ -107,29 +92,6 @@ fun SettingsScreen() {
 
         item {
             SettingsGroup("Appearance") {
-                SettingRow("Accent color", "Buttons, the playing song and highlights.") {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        val current = settings.accent?.let { Color(it) } ?: Accents.first().second
-                        Accents.forEach { (name, color) ->
-                            Tooltip(name) {
-                                Box(
-                                    Modifier
-                                        .size(26.dp)
-                                        .clip(CircleShape)
-                                        .background(color)
-                                        // A 0.dp border still draws a hairline, so only add one when selected.
-                                        .then(if (color == current) Modifier.border(2.5.dp, Color.White, CircleShape) else Modifier)
-                                        .pressable({ AppSettings.update { it.copy(accent = color.toArgb().toLong() and 0xFFFFFFFFL) } }),
-                                )
-                            }
-                        }
-                    }
-                }
-                Divider()
-                ToggleRow("Moving color background", "Soft colors from the current cover behind every page. The glass picks them up.", settings.ambientWindow) { v ->
-                    AppSettings.update { it.copy(ambientWindow = v) }
-                }
-                Divider()
                 ToggleRow("Wavy progress bar", "The phone's squiggly progress line while music plays.", settings.wavyProgress) { v ->
                     AppSettings.update { it.copy(wavyProgress = v) }
                 }

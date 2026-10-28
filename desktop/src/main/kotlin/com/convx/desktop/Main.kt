@@ -37,19 +37,23 @@ import com.convx.desktop.player.AudioEngine
 import com.convx.desktop.player.PlayerController
 import com.convx.desktop.ui.shell.AppShell
 import com.convx.desktop.ui.shell.Navigator
-import com.convx.desktop.ui.shell.Screen
+import com.convx.desktop.ui.shell.TopBarHeight
 import com.convx.desktop.ui.shell.UiState
+import com.convx.desktop.ui.shell.WindowTitleBar
 import com.sun.jna.Library as JnaLibrary
 import com.sun.jna.Native
 import com.sun.jna.Pointer
 import com.sun.jna.platform.win32.WinDef
 import com.sun.jna.ptr.IntByReference
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 import org.jetbrains.skia.Image
 import java.awt.Dimension
+import java.awt.event.ComponentAdapter
+import java.awt.event.ComponentEvent
 import java.awt.Window as AwtWindow
 
 @OptIn(FlowPreview::class)
@@ -103,6 +107,17 @@ fun main() {
                 window.minimumSize = Dimension(940, 600)
                 window.background = java.awt.Color.BLACK
                 WindowsChrome.darken(window)
+                // Spotify's window: the top bar is the title bar. Falls back to the dark Windows one.
+                WindowTitleBar.install(window, TopBarHeight)
+                window.addComponentListener(object : ComponentAdapter() {
+                    override fun componentResized(e: ComponentEvent?) = WindowTitleBar.updateInsets()
+                    override fun componentShown(e: ComponentEvent?) = WindowTitleBar.updateInsets()
+                })
+                // The buttons' width settles once the frame is on screen.
+                repeat(10) {
+                    delay(100)
+                    WindowTitleBar.updateInsets()
+                }
             }
             LaunchedEffect(windowState) {
                 snapshotFlow { Triple(windowState.size, windowState.placement, Unit) }
@@ -153,9 +168,7 @@ private fun shortcut(event: KeyEvent, navigator: Navigator): Boolean {
         }
         ctrl && (event.key == Key.L || event.key == Key.K) -> {
             UiState.fullPlayer = false
-            // The search field lives in the bottom pill, which only exists on the search pages.
-            val screen = navigator.current.screen
-            if (screen != Screen.Search && screen !is Screen.SearchResults) navigator.openRoot(Screen.Search)
+            // The top bar's field opens Search as it takes the keyboard.
             runCatching { UiState.searchFocus.requestFocus() }
             true
         }

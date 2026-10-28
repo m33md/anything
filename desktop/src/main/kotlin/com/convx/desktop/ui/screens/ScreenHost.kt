@@ -28,7 +28,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.convx.desktop.ui.components.LocalPageInsets
 import com.convx.desktop.ui.shell.Screen
-import com.convx.desktop.ui.shell.TopBarHeight
 import com.convx.desktop.ui.shell.TrackTopBar
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
@@ -62,7 +61,7 @@ fun ScreenHost(screen: Screen) {
 fun PageList(
     state: LazyListState = rememberLazyListState(),
     tint: Color = Color(0xFF161618),
-    topPadding: Dp = TopBarHeight + 8.dp,
+    topPadding: Dp = LocalPageInsets.current.top + 8.dp,
     background: (@Composable BoxScope.() -> Unit)? = null,
     onNearEnd: (() -> Unit)? = null,
     content: LazyListScope.() -> Unit,
@@ -92,7 +91,7 @@ fun PageList(
         }
         VerticalScrollbar(
             rememberScrollbarAdapter(state),
-            Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(top = TopBarHeight, bottom = insets.bottom + 8.dp, end = 2.dp),
+            Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(top = insets.top, bottom = insets.bottom + 8.dp, end = 2.dp),
         )
     }
 }

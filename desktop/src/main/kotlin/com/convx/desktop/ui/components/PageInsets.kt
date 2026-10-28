@@ -13,13 +13,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
- * Room the floating glass chrome takes from a page: the side bar on the left and the now
- * playing pill at the bottom. Pages spend it as list padding, as the phone's tab view
- * does, so rows start clear of the glass while the list still spans the whole window and
- * scrolls underneath it.
+ * Room the floating glass chrome takes from a page: Your Library on the left, the top bar (and
+ * a section's strip under it) at the top, and the now playing pill at the bottom. Pages spend
+ * it as list padding, as the phone's tab view does, so rows start clear of the glass while the
+ * list still spans the whole window and scrolls underneath it.
  */
 @Immutable
-data class PageInsets(val start: Dp = 0.dp, val bottom: Dp = 0.dp)
+data class PageInsets(val start: Dp = 0.dp, val top: Dp = 64.dp, val bottom: Dp = 0.dp)
 
 val LocalPageInsets = compositionLocalOf { PageInsets() }
 

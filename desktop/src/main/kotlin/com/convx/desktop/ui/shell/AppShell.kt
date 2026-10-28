@@ -15,19 +15,15 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -49,12 +45,9 @@ import com.convx.desktop.ui.components.OverlayHost
 import com.convx.desktop.ui.components.Overlays
 import com.convx.desktop.ui.components.PageInsets
 import com.convx.desktop.ui.components.Playback
-import com.convx.desktop.ui.components.artworkUrl
-import com.convx.desktop.ui.components.rememberMeshColors
 import com.convx.desktop.ui.glass.LocalAppBackdrop
 import com.convx.desktop.ui.glass.LocalMenuBackdrop
 import com.convx.desktop.ui.player.FullPlayer
-import com.convx.desktop.ui.player.MeshBackground
 import com.convx.desktop.ui.player.NowPlayingPill
 import com.convx.desktop.ui.player.NowPlayingPillHeight
 import com.convx.desktop.ui.player.NowPlayingPillWidthFraction
@@ -64,24 +57,22 @@ import com.convx.desktop.ui.theme.ConvxTheme
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 
-/** Below this window width the side bar folds to its icon rail on its own. */
+/** Below this window width Your Library folds to its rail of covers on its own. */
 private val AutoCollapseWidth = 1100.dp
 
 /** Space the pages leave under the bottom pill: the pill and its margins. */
 private val BottomChromeInset = NowPlayingPillHeight + 24.dp
 
 /**
- * The window, laid out as the phone lays itself out on a big screen (its tab view): the
- * pages fill the whole window on true black, and the chrome floats over them as liquid
- * glass that refracts them: the side bar on the left, the now playing pill at the bottom
- * (the search field while you search), back and forward at the top. On the artist page
- * the side bar folds into a pill at the top so the page keeps the whole width.
+ * The window: Spotify's arrangement (the top bar across the top, Your Library on the left, the
+ * player at the bottom) built from the phone's pieces. The pages fill the whole window on true
+ * black and the chrome floats over them as liquid glass that refracts them. A section's strip
+ * unfolds under the top bar out of its button and the pages make room for it.
  */
 @Composable
 fun AppShell(navigator: Navigator) {
     val settings by AppSettings.state.collectAsState()
     val player by PlayerController.state.collectAsState()
-    val accent = settings.accent?.let { Color(it) } ?: ConvxColors.AccentRed
     val playback = remember(player.current?.id, player.isPlaying, player.isLoading) {
         Playback(player.current?.id, player.isPlaying, player.isLoading)
     }
@@ -100,7 +91,10 @@ fun AppShell(navigator: Navigator) {
     }
 
     val screen = navigator.current.screen
-    LaunchedEffect(screen) { UiState.topNavMenuOpen = false }
+    // Leaving a section's pages folds its strip back into its button.
+    LaunchedEffect(screen) {
+        if (screen.section() != UiState.openSection) UiState.openSection = null
+    }
 
     // Everything the glass refracts: the pages over the phone's base fill.
     val appBackdrop = rememberLayerBackdrop(
@@ -112,31 +106,28 @@ fun AppShell(navigator: Navigator) {
         },
     )
 
-    ConvxTheme(accent) {
+    // Convx red on black, always: the app keeps its identity whatever is playing.
+    ConvxTheme(ConvxColors.AccentRed) {
         CompositionLocalProvider(LocalNavigator provides navigator, LocalPlayback provides playback, LocalMenuBackdrop provides appBackdrop) {
             BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)) {
                 val collapsed = settings.sidebarCollapsed || maxWidth < AutoCollapseWidth
-                val topNavigation = screen is Screen.Artist && !UiState.topNavMenuOpen
-                val searching = screen == Screen.Search || screen is Screen.SearchResults
-                val showPill = player.current != null || searching
                 // A spring overshoots past its target; an inset below zero would be negative padding.
                 val startInsetRaw by animateDpAsState(
-                    when {
-                        screen is Screen.Artist -> 0.dp
-                        collapsed -> SideBarCollapsedContentInset
-                        else -> SideBarContentInset
-                    },
+                    if (collapsed) SideBarCollapsedContentInset else SideBarContentInset,
                     spring(0.9f, 400f),
                 )
                 val startInset = startInsetRaw.coerceAtLeast(0.dp)
-                val insets = PageInsets(start = startInset, bottom = if (showPill) BottomChromeInset else 0.dp)
+                val open = UiState.openSection?.takeIf { screen.section() == it }
+                val strip = rememberStripMotion(open != null)
+                val showPill = player.current != null
+                val insets = PageInsets(
+                    start = startInset,
+                    top = TopBarHeight + SectionStripRoom * strip.room,
+                    bottom = if (showPill) BottomChromeInset else 0.dp,
+                )
 
                 // The pages, recorded as the backdrop every glass surface samples.
                 Box(Modifier.fillMaxSize().layerBackdrop(appBackdrop)) {
-                    if (settings.ambientWindow) {
-                        val mesh by rememberMeshColors(artworkUrl(player.current?.thumbnail, 226))
-                        MeshBackground(mesh, player.current?.id, scrim = 0.78f)
-                    }
                     CompositionLocalProvider(LocalPageInsets provides insets) {
                         Pages(navigator)
                     }
@@ -144,68 +135,28 @@ fun AppShell(navigator: Navigator) {
 
                 // The chrome samples the recording, so it sits outside it.
                 CompositionLocalProvider(LocalAppBackdrop provides appBackdrop) {
-                    AnimatedContent(
-                        targetState = topNavigation,
-                        transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(160)) },
-                        modifier = Modifier.fillMaxSize(),
-                    ) { asPill ->
-                        Box(Modifier.fillMaxSize()) {
-                            if (asPill) {
-                                TabTopPill(Modifier.align(Alignment.TopCenter).padding(top = 12.dp))
-                            } else {
-                                FloatingSideBar(
-                                    collapsed = collapsed && screen !is Screen.Artist,
-                                    modifier = Modifier
-                                        .align(Alignment.CenterStart)
-                                        .padding(start = SideBarMargin, top = SideBarMargin, bottom = SideBarMargin),
-                                )
-                            }
-                        }
-                    }
-
-                    // Beside the side bar; on the artist page the opened side bar overlays the page.
-                    val navStart by animateDpAsState(
-                        when {
-                            topNavigation -> 16.dp
-                            screen is Screen.Artist -> SideBarContentInset + 8.dp
-                            else -> startInset + 16.dp
-                        },
-                        spring(0.9f, 400f),
-                    )
-                    NavCapsule(
-                        Modifier
+                    LibraryPanel(
+                        collapsed = collapsed,
+                        modifier = Modifier
                             .align(Alignment.TopStart)
-                            .padding(start = navStart.coerceAtLeast(0.dp), top = 12.dp),
+                            .padding(start = SideBarMargin, top = TopBarHeight, bottom = SideBarMargin),
                     )
 
-                    // Centred in the content beside the side bar, not in the window; the side bar
-                    // opened over an artist page pushes it along too.
-                    val overlaidInset by animateDpAsState(
-                        if (screen is Screen.Artist && !topNavigation) SideBarContentInset else 0.dp,
-                        spring(0.9f, 400f),
-                    )
-                    val pillStart = if (screen is Screen.Artist) overlaidInset.coerceAtLeast(0.dp) else startInset
-                    BoxWithConstraints(Modifier.fillMaxSize().padding(start = pillStart)) {
+                    // Under the top bar, so it unfolds out from behind its button.
+                    SectionStrip(strip, open, startInset)
+                    TopBar(Modifier.align(Alignment.TopCenter))
+
+                    // Centred in the content beside Your Library, not in the window.
+                    BoxWithConstraints(Modifier.fillMaxSize().padding(start = startInset)) {
                         val pillWidth = (maxWidth * NowPlayingPillWidthFraction).coerceAtMost(1040.dp)
-                        AnimatedContent(
-                            targetState = if (searching) 1 else if (player.current != null) 2 else 0,
-                            transitionSpec = {
-                                // The phone's tabViewSearchPill: in on a bouncy spring, out flat.
-                                (
-                                    slideInVertically(spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium)) { if (targetState == 1) it / 2 else it } +
-                                        fadeIn()
-                                    ) togetherWith (
-                                    slideOutVertically(spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMedium)) { if (targetState == 1) it else it / 2 } +
-                                        fadeOut()
-                                    )
-                            },
+                        AnimatedVisibility(
+                            visible = showPill,
+                            // The phone's pill: in on a bouncy spring, out flat.
+                            enter = slideInVertically(spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium)) { it } + fadeIn(),
+                            exit = slideOutVertically(spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMedium)) { it / 2 } + fadeOut(),
                             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp),
-                        ) { which ->
-                            when (which) {
-                                1 -> SearchPill(Modifier.width(pillWidth))
-                                2 -> NowPlayingPill(Modifier.width(pillWidth))
-                                else -> Unit
-                            }
+                        ) {
+                            NowPlayingPill(Modifier.width(pillWidth))
                         }
                     }
                 }
@@ -215,8 +166,11 @@ fun AppShell(navigator: Navigator) {
                     enter = slideInVertically { it / 6 } + fadeIn(tween(220)) + scaleIn(initialScale = 0.98f),
                     exit = slideOutVertically { it / 6 } + fadeOut(tween(180)) + scaleOut(targetScale = 0.98f),
                 ) {
-                    // Menus over the player would refract the pages hidden under it.
-                    CompositionLocalProvider(LocalMenuBackdrop provides null) { FullPlayer() }
+                    // Menus over the player would refract the pages hidden under it. Its top edge
+                    // is the window's title bar while it covers the window.
+                    CompositionLocalProvider(LocalMenuBackdrop provides null) {
+                        Box(Modifier.fillMaxSize().windowDragArea()) { FullPlayer() }
+                    }
                 }
 
                 OverlayHost()

@@ -84,6 +84,8 @@ dependencies {
 
     // Native window tweaks on Windows (dark title bar).
     implementation("net.java.dev.jna:jna-platform:5.17.0")
+    // The JetBrains Runtime's custom title bar, so the top bar can be the window's title bar.
+    implementation("org.jetbrains.runtime:jbr-api:1.12.0")
 
     testImplementation(kotlin("test"))
 }
@@ -92,6 +94,9 @@ compose.desktop {
     application {
         mainClass = "com.convx.desktop.MainKt"
         jvmArgs += listOf("-Xmx1g", "-Dfile.encoding=UTF-8")
+        // The installer bundles this Java. CI points it at the JetBrains Runtime, whose custom
+        // title bar the app uses; without it the app keeps the Windows title bar.
+        System.getenv("CONVX_JBR")?.takeIf { it.isNotBlank() }?.let { javaHome = it }
 
         nativeDistributions {
             targetFormats(TargetFormat.Msi, TargetFormat.Exe)

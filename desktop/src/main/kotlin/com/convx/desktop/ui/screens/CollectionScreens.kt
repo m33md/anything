@@ -5,8 +5,6 @@
 
 package com.convx.desktop.ui.screens
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -73,21 +71,16 @@ import com.convx.desktop.ui.components.Overlays
 import com.convx.desktop.ui.components.SongRow
 import com.convx.desktop.ui.components.SongTableHeader
 import com.convx.desktop.ui.components.Tooltip
-import com.convx.desktop.ui.components.artworkUrl
 import com.convx.desktop.ui.components.onSecondaryClick
 import com.convx.desktop.ui.components.openAtProvider
 import com.convx.desktop.ui.components.pressable
-import com.convx.desktop.ui.components.rememberHeroColors
 import com.convx.desktop.ui.components.rememberMenuAnchor
-import com.convx.desktop.ui.components.rememberMeshColors
-import com.convx.desktop.ui.player.MeshBackground
 import com.convx.desktop.ui.components.GradientTile
 import com.convx.desktop.ui.shell.LocalNavigator
 import com.convx.desktop.ui.components.MosaicArt
 import com.convx.desktop.ui.shell.Screen
-import com.convx.desktop.ui.shell.TopBarHeight
+import com.convx.desktop.ui.components.LocalPageInsets
 import com.convx.desktop.ui.theme.ConvxType
-import com.convx.desktop.ui.theme.MeshColors
 import com.music.innertube.YouTube
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -95,7 +88,8 @@ import kotlinx.coroutines.withContext
 import java.text.DateFormat
 import java.util.Date
 
-private val DefaultHeroTint = Color(0xFF1C1C1E)
+/** Every page is Convx black; nothing takes a cover's colour. */
+private val PageBlack = Color.Black
 
 /** The phone's detail-page text tiers: metadata and descriptions sit at 48% white. */
 private val Metadata = Color.White.copy(alpha = 0.48f)
@@ -133,7 +127,7 @@ fun LazyListScope.collectionHeader(
         ) {
             val side = (maxWidth * 0.3f).coerceIn(200.dp, 300.dp)
             Row(
-                Modifier.fillMaxWidth().padding(start = Gutter, end = Gutter, top = TopBarHeight + 16.dp, bottom = 28.dp),
+                Modifier.fillMaxWidth().padding(start = Gutter, end = Gutter, top = LocalPageInsets.current.top + 16.dp, bottom = 28.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(
@@ -347,13 +341,12 @@ fun AlbumScreen(browseId: String) {
     val library by Library.state.collectAsState()
     val playback = com.convx.desktop.ui.components.LocalPlayback.current
     val page = rememberPage("album:$browseId") { YouTube.album(browseId).getOrThrow() }
-    val hero by rememberHeroColors(page.value?.album?.thumbnail)
-    // As on the phone, the whole page takes the cover's colour.
-    val pageColor by animateColorAsState(hero?.background ?: DefaultHeroTint, tween(450))
+    // Convx keeps its own black whatever the cover (the user's call); the art carries the colour.
+    val pageColor = PageBlack
     val listState = rememberLazyListState()
 
     Box(Modifier.fillMaxSize().background(pageColor)) {
-        PageContent(page, Modifier.padding(top = TopBarHeight)) { album ->
+        PageContent(page, Modifier.padding(top = LocalPageInsets.current.top)) { album ->
             val songs = remember(album) { album.songs.map { it.toSong() } }
             val saved = library.albums.any { it.browseId == browseId }
             val isThisPlaying = playback.isPlaying && songs.any { it.id == playback.currentId }
@@ -412,15 +405,13 @@ fun PlaylistScreen(id: String) {
     val playback = com.convx.desktop.ui.components.LocalPlayback.current
     val playlistId = id.removePrefix("VL")
     val page = rememberPage("playlist:$playlistId") { YouTube.playlist(playlistId).getOrThrow() }
-    val mesh by rememberMeshColors(page.value?.playlist?.thumbnail?.let { artworkUrl(it, 226) })
-    val barTint = MeshColors.dimmed((mesh ?: MeshColors.Fallback).first())
+    val barTint = PageBlack
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var loadingMore by remember { mutableStateOf(false) }
 
-    Box(Modifier.fillMaxSize().background(DefaultHeroTint).clipToBounds()) {
-        MeshBackground(mesh, playlistId, scrim = 0.55f)
-        PageContent(page, Modifier.padding(top = TopBarHeight)) { data ->
+    Box(Modifier.fillMaxSize().background(PageBlack).clipToBounds()) {
+        PageContent(page, Modifier.padding(top = LocalPageInsets.current.top)) { data ->
             val songs = remember(data) { data.songs.map { it.toSong() } }
             val playlist = data.playlist
             val saved = library.playlists.any { it.id == playlist.id }
@@ -507,13 +498,12 @@ fun LocalPlaylistScreen(id: String) {
     val playback = com.convx.desktop.ui.components.LocalPlayback.current
     val playlist = library.localPlaylists.firstOrNull { it.id == id }
     if (playlist == null) {
-        Box(Modifier.padding(top = TopBarHeight)) { MessageState("This playlist was deleted", icon = "delete") }
+        Box(Modifier.padding(top = LocalPageInsets.current.top)) { MessageState("This playlist was deleted", icon = "delete") }
         return
     }
     val songs = playlist.songs
     val thumbs = remember(songs) { songs.mapNotNull { it.thumbnail }.distinct().take(4) }
-    val hero by rememberHeroColors(thumbs.firstOrNull())
-    val pageColor by animateColorAsState(hero?.background ?: DefaultHeroTint, tween(450))
+    val pageColor = PageBlack
     val isThisPlaying = playback.isPlaying && songs.any { it.id == playback.currentId }
     Box(Modifier.fillMaxSize().background(pageColor)) {
         PageList(state = rememberLazyListState(), tint = pageColor, topPadding = 0.dp) {
@@ -589,7 +579,7 @@ fun LikedScreen() {
     val library by Library.state.collectAsState()
     val playback = com.convx.desktop.ui.components.LocalPlayback.current
     val songs = remember(library.liked) { library.liked.map { it.song } }
-    val tint = Color(0xFF3A1C5C)
+    val tint = PageBlack
     val isThisPlaying = playback.isPlaying && songs.any { it.id == playback.currentId }
     val dates = remember(library.liked) { library.liked.map { it.likedAt } }
     Box(Modifier.fillMaxSize().background(tint)) {
@@ -661,7 +651,7 @@ fun TopSongsScreen() {
     val library by Library.state.collectAsState()
     val top = remember(library.history) { Library.topSongs(50) }
     val songs = remember(top) { top.map { it.first } }
-    val tint = Color(0xFF4A2210)
+    val tint = PageBlack
     val playback = com.convx.desktop.ui.components.LocalPlayback.current
     val isThisPlaying = playback.isPlaying && songs.any { it.id == playback.currentId }
     Box(Modifier.fillMaxSize().background(tint)) {

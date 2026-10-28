@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,17 +20,17 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,7 +48,6 @@ import com.convx.desktop.data.Library
 import com.convx.desktop.data.toSong
 import com.convx.desktop.player.PlayerController
 import com.convx.desktop.ui.components.Artwork
-import com.convx.desktop.ui.components.Chip
 import com.convx.desktop.ui.components.Gutter
 import com.convx.desktop.ui.components.ItemCard
 import com.convx.desktop.ui.components.ItemShelf
@@ -59,6 +57,7 @@ import com.convx.desktop.ui.components.PlayButton
 import com.convx.desktop.ui.components.SongShelf
 import com.convx.desktop.ui.components.pressable
 import com.convx.desktop.ui.components.GradientTile
+import com.convx.desktop.ui.shell.ExploreAnchor
 import com.convx.desktop.ui.shell.LibraryTab
 import com.convx.desktop.ui.shell.LocalNavigator
 import com.convx.desktop.ui.components.MosaicArt
@@ -176,13 +175,9 @@ fun LibraryScreen() {
     val library by Library.state.collectAsState()
     val tab = UiState.libraryTab
     PageList {
+        // The filters live in Library's strip under the top bar.
         item(key = "title") {
-            Text("Your Library", style = ConvxType.LargeTitle, modifier = Modifier.padding(horizontal = Gutter, vertical = 8.dp))
-        }
-        item(key = "tabs") {
-            LazyRow(contentPadding = PaddingValues(horizontal = Gutter, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(LibraryTab.entries) { t -> Chip(t.label, tab == t, { UiState.libraryTab = t }) }
-            }
+            Text(tab.title, style = ConvxType.LargeTitle, modifier = Modifier.padding(horizontal = Gutter, vertical = 8.dp))
         }
         item(key = "grid") {
             FlowRow(
@@ -317,20 +312,44 @@ fun ExploreScreen() {
     val settings by AppSettings.state.collectAsState()
     val explore = rememberPage("explore") { YouTube.explore().getOrThrow() }
     val charts = rememberPage("charts") { YouTube.getChartsPage().getOrThrow() }
-    PageList {
+    val releases = explore.value?.newReleaseAlbums.orEmpty().filtered(settings)
+    val chartShelves = charts.value?.sections.orEmpty()
+        .map { it to it.items.filtered(settings).distinctBy { item -> item.id } }
+        .filter { it.second.isNotEmpty() }
+    val moods = explore.value?.moodAndGenres.orEmpty().distinctBy { it.title }
+
+    // Where each anchor of Explore's strip sits in the list: the title is row 0.
+    val anchors = buildMap {
+        var row = 1
+        if (releases.isNotEmpty()) put(ExploreAnchor.NewReleases, row++)
+        if (chartShelves.isNotEmpty()) put(ExploreAnchor.Charts, row)
+        row += chartShelves.size
+        if (moods.isNotEmpty()) put(ExploreAnchor.Moods, row)
+    }
+    val listState = rememberLazyListState()
+    val jump = UiState.exploreJump
+    LaunchedEffect(jump, anchors) {
+        val row = anchors[jump ?: return@LaunchedEffect] ?: return@LaunchedEffect
+        UiState.exploreJump = null
+        listState.animateScrollToItem(row)
+    }
+    LaunchedEffect(listState, anchors) {
+        snapshotFlow { listState.firstVisibleItemIndex }.collect { first ->
+            UiState.exploreInView = anchors.entries.filter { it.value <= first }.maxByOrNull { it.value }?.key
+        }
+    }
+
+    PageList(state = listState) {
         item(key = "title") {
             Text("Explore", style = ConvxType.LargeTitle, modifier = Modifier.padding(horizontal = Gutter, vertical = 8.dp))
         }
-        val releases = explore.value?.newReleaseAlbums.orEmpty().filtered(settings)
         if (releases.isNotEmpty()) {
             item(key = "new_releases") {
                 ItemShelf("New Releases", releases, onTitleClick = { navigator.navigate(Screen.Browse("FEmusic_new_releases_albums", null, "New Releases")) })
                 Spacer(Modifier.height(20.dp))
             }
         }
-        charts.value?.sections.orEmpty().forEachIndexed { index, section ->
-            val items = section.items.filtered(settings).distinctBy { it.id }
-            if (items.isEmpty()) return@forEachIndexed
+        chartShelves.forEachIndexed { index, (section, items) ->
             item(key = "chart-$index-${section.title}") {
                 if (items.isSongShelf()) {
                     val songs = items.filterIsInstance<SongItem>().map { it.toSong() }
@@ -341,7 +360,6 @@ fun ExploreScreen() {
                 Spacer(Modifier.height(20.dp))
             }
         }
-        val moods = explore.value?.moodAndGenres.orEmpty().distinctBy { it.title }
         if (moods.isNotEmpty()) {
             item(key = "moods") { MoodGrid("Moods & Genres", moods) }
         }

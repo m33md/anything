@@ -101,15 +101,19 @@ data class Settings(
     val muted: Boolean = false,
     val shuffle: Boolean = false,
     val repeat: RepeatMode = RepeatMode.OFF,
-    /** ARGB; null keeps Convx's red. */
+    /** No longer read: Convx is always red on black. Kept so older settings files still read. */
     val accent: Long? = null,
     val audioQuality: AudioQuality = AudioQuality.HIGH,
     /** Superseded by [ambientWindow]; kept so older settings files still read. */
     val dynamicBackground: Boolean = true,
-    /** Soft colours from the cover behind the pages. Off by default: the phone's pages are black. */
+    /** No longer read, like [accent]: pages never take a cover's colours. */
     val ambientWindow: Boolean = false,
     val wavyProgress: Boolean = true,
     val sidebarCollapsed: Boolean = false,
+    /** Your Library's pinned items, top first, by [libraryKey]. Liked Songs starts pinned, as on Spotify. */
+    val pinnedLibrary: List<String> = listOf("liked"),
+    /** Your Library's order: recents, added, alphabetical or creator. */
+    val librarySort: String = "recents",
     val rightPanel: String? = "nowPlaying",
     val lyricsWordSync: Boolean = true,
     val lyricsProviders: List<String> = emptyList(),

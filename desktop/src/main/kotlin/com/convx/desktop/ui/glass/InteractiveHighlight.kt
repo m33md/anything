@@ -9,17 +9,28 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.VisibilityThreshold
 import androidx.compose.animation.core.spring
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.util.lerp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import kotlin.math.abs
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.tanh
 
 /**
  * The phone's InteractiveHighlight: an additive sheen with a soft spot of light under the
@@ -28,6 +39,10 @@ import kotlinx.coroutines.launch
  *
  * [modifier] draws the light and [gestureModifier] listens; they are separate so the light can
  * sit on a recorded glass layer while the hit target is the moving element.
+ *
+ * It also tracks the press itself, [pressProgress] and the drag since the press, [offset], which
+ * [elasticStretch] turns into the phone's stretch: the glass swells a little under the press and
+ * leans and stretches toward a drag, then springs back when let go.
  */
 class InteractiveHighlight(
     private val scope: CoroutineScope,
@@ -40,8 +55,17 @@ class InteractiveHighlight(
     private val positionSpec = spring(0.5f, 300f, Offset.VisibilityThreshold)
     private val progress = Animatable(0f, 0.001f)
     private val position = Animatable(Offset.Zero, Offset.VectorConverter, Offset.VisibilityThreshold)
+    private val press = Animatable(0f, 0.001f)
+    private val drag = Animatable(Offset.Zero, Offset.VectorConverter, Offset.VisibilityThreshold)
+    private var start = Offset.Zero
     private var hovered = false
     private var pressed = false
+
+    /** 0 at rest, 1 held down; springs past both ends, as the phone's does. */
+    val pressProgress: Float get() = press.value
+
+    /** How far the pointer has moved since the press, springing back to zero after it. */
+    val offset: Offset get() = drag.value
 
     val modifier: Modifier = Modifier.drawWithContent {
         val p = progress.value
@@ -79,25 +103,43 @@ class InteractiveHighlight(
                     }
                     PointerEventType.Exit -> {
                         hovered = false
-                        pressed = false
+                        // A drag that leaves the glass keeps stretching it until the button is let go.
+                        if (!event.buttons.isPrimaryPressed) {
+                            if (pressed) letGo()
+                            pressed = false
+                        }
                         settle()
                     }
                     PointerEventType.Move -> scope.launch {
-                        if (pressed) position.snapTo(change.position) else position.animateTo(change.position, positionSpec)
+                        if (pressed) {
+                            position.snapTo(change.position)
+                            drag.snapTo(change.position - start)
+                        } else {
+                            position.animateTo(change.position, positionSpec)
+                        }
                     }
                     PointerEventType.Press -> {
                         pressed = true
+                        start = change.position
                         scope.launch { position.snapTo(change.position) }
+                        scope.launch { drag.snapTo(Offset.Zero) }
+                        scope.launch { press.animateTo(1f, progressSpec) }
                         settle()
                     }
                     PointerEventType.Release -> {
                         pressed = false
+                        letGo()
                         settle()
                     }
                     else -> Unit
                 }
             }
         }
+    }
+
+    private fun letGo() {
+        scope.launch { press.animateTo(0f, progressSpec) }
+        scope.launch { drag.animateTo(Offset.Zero, positionSpec) }
     }
 
     private fun settle() {
@@ -107,5 +149,37 @@ class InteractiveHighlight(
             else -> 0f
         }
         scope.launch { progress.animateTo(target, progressSpec) }
+    }
+}
+
+@Composable
+fun rememberInteractiveHighlight(radiusScale: Float = 1.5f): InteractiveHighlight {
+    val scope = rememberCoroutineScope()
+    return remember(scope, radiusScale) { InteractiveHighlight(scope, radiusScale = radiusScale) }
+}
+
+/**
+ * The phone's elastic stretch (GlassCircleButton.kt, elasticStretchLayerBlock), shared by every
+ * small floating glass control: pressing swells it by 4dp, dragging pulls it after the pointer
+ * on a tanh leash and stretches it along the drag. Bar pills pass [magnitude] 2 so the same feel
+ * travels far enough to read at their size. Draw-only, so the hit target never moves.
+ */
+fun elasticStretch(highlight: InteractiveHighlight, magnitude: Float = 1f): GraphicsLayerScope.() -> Unit = {
+    val width = size.width
+    val height = size.height
+    if (width > 0f && height > 0f) {
+        val progress = highlight.pressProgress
+        val scale = lerp(1f, 1f + magnitude * 4.dp.toPx() / height, progress)
+
+        val maxOffset = size.minDimension
+        val initialDerivative = 0.05f
+        val offset = highlight.offset
+        translationX = magnitude * maxOffset * tanh(initialDerivative * offset.x / maxOffset)
+        translationY = magnitude * maxOffset * tanh(initialDerivative * offset.y / maxOffset)
+
+        val maxDragScale = magnitude * 4.dp.toPx() / height
+        val offsetAngle = atan2(offset.y, offset.x)
+        scaleX = scale + maxDragScale * abs(cos(offsetAngle) * offset.x / size.maxDimension) * (width / height).coerceAtMost(1f)
+        scaleY = scale + maxDragScale * abs(sin(offsetAngle) * offset.y / size.maxDimension) * (height / width).coerceAtMost(1f)
     }
 }

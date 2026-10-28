@@ -33,6 +33,15 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # The runtime the installer ships: the JetBrains Runtime has the custom title bar the
+      # app's top bar replaces Windows' with. Set up first so Temurin stays the build's Java.
+      - uses: actions/setup-java@v5
+        id: jbr
+        continue-on-error: true
+        with:
+          distribution: jetbrains
+          java-version: "21"
+
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -75,7 +84,16 @@ jobs:
           git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" snapshots:convx-desktop-snapshots
 
       - name: Package installers
-        run: ./gradlew --no-daemon packageMsi packageExe createDistributable
+        env:
+          CONVX_JBR: ${{ steps.jbr.outputs.path }}
+        run: |
+          if [ -n "$CONVX_JBR" ]; then
+            echo "Packaging with the JetBrains Runtime at $CONVX_JBR"
+            ls "$CONVX_JBR" "$CONVX_JBR/jmods" | head -20 || true
+            ./gradlew --no-daemon packageMsi packageExe createDistributable && exit 0
+            echo "::warning::Packaging with the JetBrains Runtime failed; falling back to Temurin (Windows title bar)"
+          fi
+          CONVX_JBR= ./gradlew --no-daemon packageMsi packageExe createDistributable
 
       - name: Zip portable build
         shell: pwsh

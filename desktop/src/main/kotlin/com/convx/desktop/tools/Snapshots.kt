@@ -21,9 +21,11 @@ import com.convx.desktop.data.toSaved
 import com.convx.desktop.data.toSong
 import com.convx.desktop.player.PlayerController
 import com.convx.desktop.ui.shell.AppShell
+import com.convx.desktop.ui.shell.ExploreAnchor
 import com.convx.desktop.ui.shell.FullPlayerMode
 import com.convx.desktop.ui.shell.Navigator
 import com.convx.desktop.ui.shell.Screen
+import com.convx.desktop.ui.shell.Section
 import com.convx.desktop.ui.shell.UiState
 import com.music.innertube.SearchFilter
 import com.music.innertube.YouTube
@@ -62,9 +64,9 @@ fun main(args: Array<String>) {
     val navigator = Navigator()
     val scene = ImageComposeScene(1440, 900, Density(1f)) { AppShell(navigator) }
 
-    fun shoot(name: String, seconds: Int = 10, setup: () -> Unit = {}) {
+    fun shoot(name: String, seconds: Int = 10, millis: Long = seconds * 1000L, setup: () -> Unit = {}) {
         setup()
-        val end = System.nanoTime() + seconds * 1_000_000_000L
+        val end = System.nanoTime() + millis * 1_000_000L
         var image = scene.render(System.nanoTime())
         while (System.nanoTime() < end) {
             Snapshot.sendApplyNotifications()
@@ -82,6 +84,9 @@ fun main(args: Array<String>) {
 
     runCatching {
         shoot("01-home", seconds = 20)
+        // Home's strip mid-unfold, then settled with the feed's mood chips.
+        shoot("01a-home-strip-unfolding", millis = 160) { UiState.openSection(Section.Home, navigator) }
+        shoot("01b-home-strip", seconds = 3)
         shoot("02-search") { navigator.navigate(Screen.Search) }
         shoot("03-search-results") { navigator.navigate(Screen.SearchResults("the weeknd")) }
         album?.let { shoot("04-album") { navigator.navigate(Screen.Album(it.browseId)) } }
@@ -89,6 +94,8 @@ fun main(args: Array<String>) {
         playlist?.let { shoot("06-playlist") { navigator.navigate(Screen.Playlist(it.id)) } }
         shoot("07-settings", seconds = 4) { navigator.navigate(Screen.Settings) }
         shoot("08-explore", seconds = 12) { navigator.navigate(Screen.Explore) }
+        shoot("08a-explore-strip", seconds = 3) { UiState.openSection(Section.Explore, navigator) }
+        shoot("08b-explore-jump", seconds = 3) { UiState.exploreJump = ExploreAnchor.Moods }
         if (songs.isNotEmpty()) {
             shoot("09-home-playing") {
                 PlayerController.cue(songs, 0, positionMs = 62_000)
@@ -96,7 +103,7 @@ fun main(args: Array<String>) {
             }
             artist?.let {
                 shoot("10-artist-playing", seconds = 6) { navigator.navigate(Screen.Artist(it.id)) }
-                shoot("11-artist-sidebar-open", seconds = 3) { UiState.topNavMenuOpen = true }
+                shoot("11-library-strip-unfolding", millis = 200) { UiState.openSection(Section.Library, navigator) }
             }
             shoot("12-full-player-lyrics", seconds = 12) {
                 UiState.fullPlayerMode = FullPlayerMode.Lyrics

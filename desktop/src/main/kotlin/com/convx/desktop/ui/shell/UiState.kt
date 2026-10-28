@@ -31,8 +31,35 @@ enum class SidePanel(val key: String) {
     }
 }
 
-/** The library page's filter; the side bar's Library rows open it on one. */
-enum class LibraryTab(val label: String) { All("All"), Playlists("Playlists"), Albums("Albums"), Artists("Artists") }
+/** The library page's filter; the Library section's strip opens it on one. */
+enum class LibraryTab(val label: String, val title: String) {
+    All("All", "Your Library"),
+    Playlists("Playlists", "Playlists"),
+    Albums("Albums", "Albums"),
+    Artists("Artists", "Artists"),
+}
+
+/** The three places the top bar leads to, each with its own sections under it. */
+enum class Section(val label: String, val icon: String, val root: Screen) {
+    Home("Home", "sf_house_fill", Screen.Home),
+    Explore("Explore", "sf_square_grid_fill", Screen.Explore),
+    Library("Library", "sf_music_note_square_stack", Screen.Library),
+}
+
+/** Which section a screen is one of the pages of; detail pages belong to none. */
+fun Screen.section(): Section? = when (this) {
+    Screen.Home -> Section.Home
+    Screen.Explore -> Section.Explore
+    Screen.Library, Screen.Liked, Screen.History, Screen.TopSongs -> Section.Library
+    else -> null
+}
+
+/** Places on the Explore page its strip can jump to. */
+enum class ExploreAnchor(val label: String, val icon: String) {
+    NewReleases("New Releases", "album"),
+    Charts("Charts", "trending_up"),
+    Moods("Moods & Genres", "grid_view"),
+}
 
 /** What the full-screen player shows beside the artwork. */
 enum class FullPlayerMode { Lyrics, Queue, Artwork }
@@ -60,16 +87,33 @@ object UiState {
     var libraryTab by mutableStateOf(LibraryTab.All)
 
     /**
-     * On the artist page the side bar folds into a pill at the top, as on the phone, and the
-     * page takes the whole width; the pill's menu button opens the side bar over it.
+     * The section whose strip is unfolded under the top bar, if any. Clicking a section's button
+     * unfolds it; leaving that section's pages folds it back into the button.
      */
-    var topNavMenuOpen by mutableStateOf(false)
+    var openSection by mutableStateOf<Section?>(null)
+
+    /** Home's mood chips, which live in its strip: the titles the feed offers and the one picked. */
+    var homeChips by mutableStateOf<List<String>>(emptyList())
+    var homeChip by mutableStateOf<String?>(null)
+
+    /** Explore's strip asks the page to scroll to an anchor; the page reports the one in view. */
+    var exploreJump by mutableStateOf<ExploreAnchor?>(null)
+    var exploreInView by mutableStateOf<ExploreAnchor?>(null)
+
+    /** The top bar's buttons: go to the section, or fold and unfold its strip when already there. */
+    fun openSection(section: Section, navigator: Navigator) {
+        val here = navigator.current.screen.section()
+        when {
+            here != section -> {
+                navigator.openRoot(section.root)
+                openSection = section
+            }
+            openSection == section -> openSection = null
+            else -> openSection = section
+        }
+    }
 
     fun toggleSideBar() {
-        if (topNavMenuOpen) {
-            topNavMenuOpen = false
-            return
-        }
         AppSettings.update { it.copy(sidebarCollapsed = !it.sidebarCollapsed) }
     }
 
@@ -92,6 +136,7 @@ object UiState {
     }
 }
 
+/** The top bar, which is also the window's title bar. */
 val TopBarHeight = 64.dp
 
 /** Fades the top bar in as [state] scrolls past the hero, tinted with [tint]. */

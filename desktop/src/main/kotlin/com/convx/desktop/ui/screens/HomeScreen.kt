@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyHorizontalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -30,12 +29,12 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,7 +48,6 @@ import com.convx.desktop.data.Library
 import com.convx.desktop.data.Settings
 import com.convx.desktop.data.toSong
 import com.convx.desktop.player.PlayerController
-import com.convx.desktop.ui.components.Chip
 import com.convx.desktop.ui.components.Gutter
 import com.convx.desktop.ui.components.LocalPageInsets
 import com.convx.desktop.ui.components.bleedStart
@@ -63,6 +61,7 @@ import com.convx.desktop.ui.components.TopPickCard
 import com.convx.desktop.ui.components.pressable
 import com.convx.desktop.ui.shell.LocalNavigator
 import com.convx.desktop.ui.shell.Screen
+import com.convx.desktop.ui.shell.UiState
 import com.convx.desktop.ui.theme.ConvxColors
 import com.convx.desktop.ui.theme.ConvxType
 import com.music.innertube.YouTube
@@ -101,11 +100,17 @@ fun HomeScreen() {
     val settings by AppSettings.state.collectAsState()
     val library by Library.state.collectAsState()
     val scope = rememberCoroutineScope()
-    var selectedChip by rememberSaveable { mutableStateOf<String?>(null) }
+    // The mood chips live in Home's strip under the top bar.
+    val selectedChip = UiState.homeChip
 
     val home = rememberPage("home") { YouTube.home().getOrThrow() }
     val charts = rememberPage("charts") { YouTube.getChartsPage().getOrThrow() }
     val explore = rememberPage("explore") { YouTube.explore().getOrThrow() }
+    val chipTitles = home.value?.chips.orEmpty().map { it.title }
+    LaunchedEffect(chipTitles) {
+        UiState.homeChips = chipTitles
+        if (selectedChip != null && chipTitles.isNotEmpty() && selectedChip !in chipTitles) UiState.homeChip = null
+    }
     val chipPage = selectedChip?.let { title ->
         val chip = home.value?.chips?.firstOrNull { it.title == title }
         rememberPage("home-chip-$title") {
@@ -132,20 +137,6 @@ fun HomeScreen() {
     ) {
         item(key = "greeting") {
             Text(greeting(), style = ConvxType.LargeTitle, modifier = Modifier.padding(horizontal = Gutter, vertical = 8.dp))
-        }
-        val chips = home.value?.chips.orEmpty()
-        if (chips.isNotEmpty()) {
-            item(key = "chips") {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = Gutter, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    item { Chip("All", selectedChip == null, { selectedChip = null }) }
-                    items(chips, key = { it.title }) { chip ->
-                        Chip(chip.title, selectedChip == chip.title, { selectedChip = if (selectedChip == chip.title) null else chip.title })
-                    }
-                }
-            }
         }
 
         if (chipPage != null) {
