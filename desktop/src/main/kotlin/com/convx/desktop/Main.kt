@@ -89,8 +89,8 @@ fun main() {
             icon = icon,
             onPreviewKeyEvent = { shortcut(it, navigator) },
             onKeyEvent = { event ->
-                // Only reaches here when nothing focused (a text field) used the key.
-                if (event.type == KeyEventType.KeyDown && event.key == Key.Spacebar && !event.isCtrlPressed) {
+                // A text field takes the typed space but lets the key press through, so check.
+                if (event.type == KeyEventType.KeyDown && event.key == Key.Spacebar && !event.isCtrlPressed && UiState.typingIn == null) {
                     PlayerController.togglePlay()
                     true
                 } else {

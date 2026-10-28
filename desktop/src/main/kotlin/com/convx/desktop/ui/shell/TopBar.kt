@@ -144,6 +144,7 @@ private fun SearchField(modifier: Modifier = Modifier) {
                     .fillMaxWidth()
                     .focusRequester(UiState.searchFocus)
                     .onFocusChanged { state ->
+                        UiState.typingFocusChanged("search", state.isFocused)
                         val screen = navigator.current.screen
                         if (state.isFocused && screen != Screen.Search && screen !is Screen.SearchResults) navigator.navigate(Screen.Search)
                     }

@@ -42,6 +42,18 @@ object UiState {
     /** Focus target for the top bar's search field (Ctrl+L / Ctrl+K). */
     val searchFocus = FocusRequester()
 
+    /**
+     * The text field that has the keyboard, if any. Typing a space there must not also
+     * reach the window's Space-to-play shortcut: the field takes the typed character,
+     * but the key press itself still bubbles up to the window.
+     */
+    var typingIn by mutableStateOf<Any?>(null)
+        private set
+
+    fun typingFocusChanged(field: Any, focused: Boolean) {
+        if (focused) typingIn = field else if (typingIn == field) typingIn = null
+    }
+
     /** 0 = top bar transparent over a page's hero, 1 = solid. */
     var topBarOpacity by mutableFloatStateOf(0f)
 

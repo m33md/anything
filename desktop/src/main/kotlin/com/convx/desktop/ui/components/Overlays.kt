@@ -5,6 +5,9 @@
 
 package com.convx.desktop.ui.components
 
+import com.convx.desktop.ui.shell.UiState
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -83,6 +86,7 @@ object Overlays {
             var text by remember { mutableStateOf(initial) }
             val focus = remember { FocusRequester() }
             LaunchedEffect(Unit) { focus.requestFocus() }
+            DisposableEffect(Unit) { onDispose { UiState.typingFocusChanged("prompt", false) } }
             DialogCard(title) {
                 Box(
                     Modifier
@@ -107,6 +111,7 @@ object Overlays {
                         modifier = Modifier
                             .fillMaxWidth()
                             .focusRequester(focus)
+                            .onFocusChanged { UiState.typingFocusChanged("prompt", it.isFocused) }
                             .onPreviewKeyEvent {
                                 when (it.key) {
                                     Key.Enter, Key.NumPadEnter -> {
