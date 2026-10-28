@@ -11,6 +11,8 @@ import androidx.compose.ui.unit.Density
 import com.convx.desktop.core.Log
 import com.convx.desktop.core.initYouTube
 import com.convx.desktop.data.AppSettings
+import com.convx.desktop.data.Library
+import com.convx.desktop.data.toSaved
 import com.convx.desktop.data.toSong
 import com.convx.desktop.player.PlayerController
 import com.convx.desktop.ui.shell.AppShell
@@ -94,6 +96,19 @@ fun main(args: Array<String>) {
                 UiState.fullPlayer = true
             }
             shoot("12-full-player-queue", seconds = 4) { UiState.fullPlayerMode = FullPlayerMode.Queue }
+
+            // A lived-in library, for the sidebar, the library page and the song-list pages.
+            UiState.fullPlayer = false
+            AppSettings.update { it.copy(rightPanel = null) }
+            songs.take(6).forEach { Library.toggleLike(it) }
+            songs.take(4).forEach { Library.recordPlay(it) }
+            album?.let { Library.toggleAlbum(it.toSaved()) }
+            artist?.let { Library.toggleArtist(it.toSaved()) }
+            playlist?.let { Library.togglePlaylist(it.toSaved()) }
+            val mix = Library.createPlaylist("Late night drive", songs.take(8))
+            shoot("13-library", seconds = 8) { navigator.navigate(Screen.Library) }
+            shoot("14-liked", seconds = 6) { navigator.navigate(Screen.Liked) }
+            shoot("15-local-playlist", seconds = 6) { navigator.navigate(Screen.LocalPlaylist(mix)) }
         }
     }.onFailure { Log.e("Snapshots", "Rendering failed", it) }
 

@@ -70,6 +70,7 @@ import com.convx.desktop.ui.theme.ConvxColors
 import com.convx.desktop.ui.theme.ConvxType
 import com.music.innertube.SearchFilter
 import com.music.innertube.YouTube
+import com.music.innertube.models.Artist
 import com.music.innertube.models.ArtistItem
 import com.music.innertube.models.SongItem
 import com.music.innertube.models.YTItem
@@ -312,6 +313,7 @@ fun SearchResultsScreen(query: String) {
                             .filterIsInstance<SongItem>()
                             .distinctBy { it.id }
                             .take(4)
+                            .map { it.withRealArtists(top.items.first()) }
                         item(key = "top:${top.title}") { TopResult(top.title, top.items.first(), beside) }
                         val rest = top.items.drop(1).filter { it !is SongItem }
                         if (rest.isNotEmpty()) {
@@ -385,6 +387,19 @@ fun SearchResultsScreen(query: String) {
         }
     }
 }
+
+/**
+ * The top card's songs come back with their length parsed as the artist ("Acquainted, 5:49").
+ * Drop those names, and when nothing is left, credit the artist the card is about.
+ */
+private fun SongItem.withRealArtists(top: YTItem): SongItem {
+    val real = artists.filterNot { DurationText.matches(it.name.trim()) }
+    if (real.size == artists.size) return this
+    val card = (top as? ArtistItem)?.let { listOf(Artist(it.title, it.id)) }.orEmpty()
+    return copy(artists = real.ifEmpty { card })
+}
+
+private val DurationText = Regex("""\d{1,2}(:\d{2}){1,2}""")
 
 /** Spotify's "Top result" card beside the first few songs. */
 @Composable
