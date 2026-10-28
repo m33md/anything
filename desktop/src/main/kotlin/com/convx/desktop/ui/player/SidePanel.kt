@@ -138,9 +138,6 @@ fun RightPanel(panel: SidePanel, modifier: Modifier = Modifier) {
                     state.current,
                     Modifier.fillMaxSize(),
                     style = ConvxType.LyricsCompact,
-                    immersive = false,
-                    horizontalPadding = 14.dp,
-                    dimColor = Color.White.copy(alpha = 0.38f),
                 )
                 SidePanel.Queue -> QueueList(state, Modifier.fillMaxSize())
             }

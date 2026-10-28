@@ -235,6 +235,15 @@ object PlayerController : AudioEngine.Listener {
         }
     }
 
+    /**
+     * The playhead read straight off the audio line rather than the 100 ms ticker, for
+     * views that move every frame (word-synced lyrics).
+     */
+    fun livePositionMs(): Long {
+        val s = _state.value
+        return if (s.current != null && engineToken != 0L && !s.isLoading) engine.positionMs else _position.value
+    }
+
     fun seekTo(positionMs: Long) = scope.launch { seekNow(positionMs) }
 
     fun seekBy(deltaMs: Long) = scope.launch { seekNow((_position.value + deltaMs).coerceAtLeast(0)) }

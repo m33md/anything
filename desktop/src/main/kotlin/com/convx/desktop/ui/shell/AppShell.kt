@@ -41,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.convx.desktop.data.AppSettings
+import com.convx.desktop.lyrics.LyricsService
 import com.convx.desktop.player.PlayerController
 import com.convx.desktop.ui.components.LocalPageInsets
 import com.convx.desktop.ui.components.LocalPlayback
@@ -89,6 +90,12 @@ fun AppShell(navigator: Navigator) {
         val error = player.error ?: return@LaunchedEffect
         Overlays.toast(error, "error")
         PlayerController.dismissError()
+    }
+
+    // Look the lyrics up as a song starts, and the next one's too, so they are there on open.
+    LaunchedEffect(player.current?.id) {
+        player.current?.let(LyricsService::prefetch)
+        player.queue.getOrNull(player.index + 1)?.let(LyricsService::prefetch)
     }
 
     val screen = navigator.current.screen
@@ -155,10 +162,19 @@ fun AppShell(navigator: Navigator) {
                         }
                     }
 
+                    // Beside the side bar; on the artist page the opened side bar overlays the page.
+                    val navStart by animateDpAsState(
+                        when {
+                            topNavigation -> 16.dp
+                            screen is Screen.Artist -> SideBarContentInset + 8.dp
+                            else -> startInset + 16.dp
+                        },
+                        spring(0.9f, 400f),
+                    )
                     NavCapsule(
                         Modifier
                             .align(Alignment.TopStart)
-                            .padding(start = if (topNavigation) 16.dp else startInset + 16.dp, top = 12.dp),
+                            .padding(start = navStart.coerceAtLeast(0.dp), top = 12.dp),
                     )
 
                     // Centred in the content beside the side bar, not in the window.

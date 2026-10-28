@@ -5,15 +5,26 @@
 
 package com.convx.desktop.ui.player
 
-import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.EaseInOutQuad
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.TweenSpec
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
@@ -23,386 +34,701 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.LongState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.convx.desktop.data.AppSettings
 import com.convx.desktop.data.Song
 import com.convx.desktop.lyrics.Lyrics
 import com.convx.desktop.lyrics.LyricsService
+import com.convx.desktop.lyrics.LyricsState
 import com.convx.desktop.player.PlayerController
 import com.convx.desktop.ui.components.LoadingState
-import com.convx.desktop.ui.components.pressable
+import com.convx.desktop.ui.shell.fadingEdge
 import com.convx.desktop.ui.theme.ConvxColors
 import com.convx.desktop.ui.theme.ConvxType
 import com.convx.music.lyrics.bitchord.LyricAlignment
 import com.convx.music.lyrics.bitchord.LyricLine
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlin.math.abs
+import kotlin.math.max
 
-private sealed interface LyricsLoad {
-    data object Loading : LyricsLoad
-    data object Missing : LyricsLoad
-    data class Ready(val lyrics: Lyrics) : LyricsLoad
-}
+// The phone's default lyrics renderer is Flamingo (Yos-X, GPL-3.0); these are its values.
+private val YosEasing = CubicBezierEasing(0.75f, 0f, 0.25f, 1f)
+private val Focused = Color(0xFFFFFFFF)
+private val Unfocused = Color(0x2EFFFFFF)
+private val LyricScrollSpec = tween<Float>(550, easing = YosEasing)
 
-/** Lines light up a touch before their stamp, the way Apple Music leads the eye. */
-private const val LeadMs = 120L
+/** Flamingo lifts a word 4 px at the phone's 30 sp: about a twentieth of the type size. */
+private const val LiftPerFontPx = 0.048f
+
+/** How far either side of the fill edge the colour fades, in characters (Flamingo's px). */
+private const val Feather = 0.3f
+
+/** Pauses the follow after you scroll the lyrics yourself, as the phone does after a drag. */
+private const val FollowPauseMs = 2_000L
 
 /**
- * Apple Music style lyrics: big bold lines, the current one lit and swept word by
- * word, the rest dimmed and (in [immersive] mode) softly blurred by distance.
- * Click a line to jump there; scrolling by hand pauses the follow for a moment.
+ * The phone's lyrics: Flamingo, its default renderer. Lines wait at a fifth of white; the
+ * line being sung fills letter by letter, each letter glowing while it fills and each word
+ * rising a little as it is sung; a sung line stays lit. The current line sits on a faint glass
+ * strip, the view keeps it centred, and an instrumental break counts down with three dots.
+ * Lyrics without word timing light a whole line at a time. Click a line to jump to it.
  */
 @Composable
 fun LyricsView(
     song: Song?,
     modifier: Modifier = Modifier,
     style: TextStyle = ConvxType.Lyrics,
-    immersive: Boolean = true,
-    horizontalPadding: Dp = 32.dp,
-    dimColor: Color = Color.White.copy(alpha = 0.3f),
-    litColor: Color = Color.White,
+    blur: Boolean = false,
+    horizontalPadding: Dp = 0.dp,
 ) {
-    val load by produceState<LyricsLoad>(LyricsLoad.Loading, song?.id) {
-        if (song == null) {
-            value = LyricsLoad.Missing
-            return@produceState
-        }
-        val cached = LyricsService.cached(song.id)
-        value = if (cached != null) LyricsLoad.Ready(cached) else LyricsLoad.Loading
-        val lyrics = LyricsService.get(song)
-        value = if (lyrics == null || lyrics.lines.isEmpty()) LyricsLoad.Missing else LyricsLoad.Ready(lyrics)
+    val state by remember(song?.id) { song?.let(LyricsService::state) ?: MutableStateFlow<LyricsState>(LyricsState.Missing) }
+        .collectAsState()
+    // Flamingo's MainTextStyle at the caller's size: extra bold, airy, 1.3 line spacing.
+    val textStyle = remember(style) {
+        style.copy(
+            fontWeight = FontWeight.ExtraBold,
+            letterSpacing = 0.05.sp,
+            lineHeight = style.fontSize * 1.3f,
+            lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.None),
+        )
     }
     Box(modifier) {
-        when (val l = load) {
-            LyricsLoad.Loading -> LoadingState()
-            LyricsLoad.Missing -> Column(
-                Modifier.fillMaxSize().padding(horizontal = horizontalPadding),
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Text("No lyrics for this song", style = style.copy(fontSize = style.fontSize * 0.7f), color = dimColor)
+        when (val s = state) {
+            LyricsState.Loading -> LoadingState()
+            LyricsState.Missing -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    "Lyrics not found",
+                    style = textStyle.copy(fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.Bold),
+                    color = Color.White.copy(alpha = 0.5f),
+                )
             }
-            is LyricsLoad.Ready -> if (l.lyrics.synced) {
-                SyncedLyrics(l.lyrics, style, immersive, horizontalPadding, dimColor, litColor)
-            } else {
-                PlainLyrics(l.lyrics, style, horizontalPadding, dimColor)
+            // A better source landing later (word timing after line timing) cross-fades in.
+            is LyricsState.Ready -> Crossfade(s.lyrics, animationSpec = tween(300)) { lyrics ->
+                if (lyrics.synced) {
+                    FlamingoLyrics(lyrics, textStyle, blur, horizontalPadding)
+                } else {
+                    PlainLyrics(lyrics, textStyle, horizontalPadding)
+                }
             }
         }
     }
 }
 
 @Composable
-private fun SyncedLyrics(
-    lyrics: Lyrics,
-    style: TextStyle,
-    immersive: Boolean,
-    horizontalPadding: Dp,
-    dimColor: Color,
-    litColor: Color,
-) {
-    val position = rememberSmoothPosition()
+private fun FlamingoLyrics(lyrics: Lyrics, style: TextStyle, blur: Boolean, horizontalPadding: Dp) {
     val wordSync = AppSettings.state.collectAsState().value.lyricsWordSync
     val lines = lyrics.lines
-    val active by remember(lines) {
-        derivedStateOf {
-            val now = position.value + LeadMs
-            var index = -1
-            for (i in lines.indices) {
-                if (lines[i].timeMs <= now) index = i else break
-            }
-            index
+    val wordTimed = wordSync && lyrics.wordSynced
+
+    // The playhead off the audio line, every frame, like the phone's player.currentPosition.
+    val live = remember { mutableLongStateOf(PlayerController.livePositionMs()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            withFrameNanos { }
+            live.longValue = PlayerController.livePositionMs()
         }
     }
+
+    val ends = remember(lines) { lines.indices.map { lineEnd(lines, it) } }
+    val anchor = remember(lines) { derivedStateOf { anchorIndex(lines, live.longValue) } }
+    // Word timed, every line still being sung is lit at once (duets overlap); else the anchor.
+    val focused = remember(lines, wordTimed) {
+        derivedStateOf {
+            val now = live.longValue
+            val a = anchor.value
+            if (!wordTimed) return@derivedStateOf if (a >= 0) setOf(a) else emptySet()
+            val active = lines.indices.filterTo(HashSet()) { now >= lines[it].timeMs && now < max(ends[it], lines[it].timeMs + 1) }
+            active.ifEmpty { if (a >= 0) setOf(a) else emptySet() }
+        }
+    }
+
     val listState = rememberLazyListState()
-    var userScrollUntil by remember { mutableLongStateOf(0L) }
-    val interaction = remember { MutableInteractionSource() }
-    val hovered by interaction.collectIsHoveredAsState()
+    val measurer = rememberTextMeasurer(cacheSize = 96)
+    var follow by remember { mutableStateOf(true) }
+    var scrolls by remember { mutableIntStateOf(0) }
+    LaunchedEffect(scrolls) {
+        if (scrolls == 0) return@LaunchedEffect
+        follow = false
+        delay(FollowPauseMs)
+        follow = true
+    }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val topPad = maxHeight * 0.28f
-        LaunchedEffect(active) {
-            if (System.currentTimeMillis() < userScrollUntil) return@LaunchedEffect
-            if (active >= 0) listState.animateScrollToItem(active)
-            else listState.animateScrollToItem(0)
+        val half = maxHeight / 2
+        LaunchedEffect(anchor.value, follow, maxHeight) {
+            if (follow && anchor.value >= 0) listState.followLyricLine(anchor.value + 1)
         }
         LazyColumn(
             state = listState,
-            contentPadding = PaddingValues(start = horizontalPadding, end = horizontalPadding, top = topPad, bottom = maxHeight * 0.6f),
+            contentPadding = PaddingValues(start = horizontalPadding, end = horizontalPadding, top = half, bottom = half),
             modifier = Modifier
                 .fillMaxSize()
-                // Lines fade out at the edges instead of being cut by them.
-                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-                .drawWithContent {
-                    drawContent()
-                    drawRect(
-                        Brush.verticalGradient(0f to Color.Transparent, 0.08f to Color.Black, 0.84f to Color.Black, 1f to Color.Transparent),
-                        blendMode = BlendMode.DstIn,
-                    )
-                }
-                .hoverable(interaction)
+                .fadingEdge(64.dp)
                 .pointerInput(Unit) {
                     awaitPointerEventScope {
                         while (true) {
-                            val event = awaitPointerEvent()
-                            if (event.type == PointerEventType.Scroll) userScrollUntil = System.currentTimeMillis() + 3500
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            if (event.type == PointerEventType.Scroll) scrolls++
                         }
                     }
                 },
         ) {
-            itemsIndexed(lines, key = { index, line -> "$index:${line.timeMs}" }) { index, line ->
-                val distance = if (active < 0) index + 1 else abs(index - active)
-                LyricLineItem(
+            item(key = "top") { Spacer(Modifier.height(70.dp)) }
+            itemsIndexed(lines, key = { index, _ -> index }) { index, line ->
+                FlamingoLine(
                     line = line,
-                    isActive = index == active,
-                    distance = distance,
-                    blurred = immersive && !hovered,
-                    position = position,
+                    index = index,
+                    nextTimeMs = lines.getOrNull(index + 1)?.timeMs ?: ends[index],
+                    focused = focused,
+                    anchor = anchor,
+                    blur = blur && follow,
+                    oneByOne = wordSync && line.isWordSynced,
+                    live = live,
                     style = style,
-                    dimColor = dimColor,
-                    litColor = litColor,
-                    wordSync = wordSync,
-                    onClick = {
-                        userScrollUntil = 0L
-                        PlayerController.seekTo(line.timeMs)
-                        PlayerController.play()
-                    },
+                    measurer = measurer,
                 )
             }
+            item(key = "bottom") { Spacer(Modifier.height(70.dp)) }
             item(key = "credit") {
                 Text(
                     "Lyrics from ${lyrics.source}",
                     style = ConvxType.Caption,
                     color = ConvxColors.TertiaryLabel,
-                    modifier = Modifier.padding(top = 24.dp),
+                    modifier = Modifier.padding(horizontal = 39.dp),
                 )
             }
+            item(key = "extra") { Spacer(Modifier.height(500.dp)) }
+        }
+    }
+}
+
+/** The phone's primaryLyricLineIndex: the last line already started. */
+private fun anchorIndex(lines: List<LyricLine>, positionMs: Long): Int {
+    val latest = lines.indexOfLast { it.timeMs <= positionMs }
+    if (latest < 0) return -1
+    val time = lines[latest].timeMs
+    return lines.indexOfFirst { it.timeMs == time }
+}
+
+/** Where a line stops being sung: its last word, else the next line, else five seconds on. */
+private fun lineEnd(lines: List<LyricLine>, index: Int): Long {
+    val line = lines[index]
+    if (line.isWordSynced) return line.endMs
+    return lines.getOrNull(index + 1)?.timeMs ?: (line.timeMs + 5_000)
+}
+
+/** The phone's followLyricLine: centre the line, jumping first if it is off screen. */
+private suspend fun LazyListState.followLyricLine(itemIndex: Int) {
+    if (itemIndex !in 0 until layoutInfo.totalItemsCount) return
+    var item = layoutInfo.visibleItemsInfo.firstOrNull { it.index == itemIndex }
+    if (item == null) {
+        val viewport = layoutInfo.viewportEndOffset - layoutInfo.viewportStartOffset
+        scrollToItem(itemIndex, -viewport / 2)
+        withFrameNanos { }
+        item = layoutInfo.visibleItemsInfo.firstOrNull { it.index == itemIndex } ?: return
+    }
+    val distance = item.offset + item.size / 2f - (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2f
+    if (abs(distance) <= 1f) return
+    animateScrollBy(distance, LyricScrollSpec)
+}
+
+@Composable
+private fun FlamingoLine(
+    line: LyricLine,
+    index: Int,
+    nextTimeMs: Long,
+    focused: State<Set<Int>>,
+    anchor: State<Int>,
+    blur: Boolean,
+    oneByOne: Boolean,
+    live: LongState,
+    style: TextStyle,
+    measurer: TextMeasurer,
+) {
+    val isCurrent by remember(index) { derivedStateOf { index in focused.value } }
+    val otherSide = line.alignment == LyricAlignment.End
+    val viewAlign = if (otherSide) Alignment.End else Alignment.Start
+    val origin = TransformOrigin(if (otherSide) 1f else 0f, 0.5f)
+    val scale by animateFloatAsState(
+        if (isCurrent) 1.005f else 1f,
+        if (isCurrent) TweenSpec(270, 110, YosEasing) else TweenSpec(300, 45, YosEasing),
+    )
+    val seek: () -> Unit = {
+        PlayerController.seekTo(line.timeMs)
+        PlayerController.play()
+    }
+
+    // Flamingo's LyricCard.
+    Column(
+        Modifier
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+                transformOrigin = origin
+            }
+            .fillMaxWidth()
+            .padding(start = if (otherSide) 28.dp else 0.dp, end = if (otherSide) 0.dp else 28.dp)
+            .padding(vertical = 9.dp),
+        horizontalAlignment = viewAlign,
+    ) {
+        if (line.isGap) {
+            Interlude(line, nextTimeMs, { isCurrent }, live, otherSide)
+        } else {
+            LineBody(line, index, isCurrent, anchor, blur, oneByOne, live, style, measurer, otherSide, viewAlign, seek)
         }
     }
 }
 
 @Composable
-private fun LyricLineItem(
+private fun LineBody(
     line: LyricLine,
-    isActive: Boolean,
-    distance: Int,
-    blurred: Boolean,
-    position: State<Long>,
+    index: Int,
+    isCurrent: Boolean,
+    anchor: State<Int>,
+    blur: Boolean,
+    oneByOne: Boolean,
+    live: LongState,
     style: TextStyle,
-    dimColor: Color,
-    litColor: Color,
-    wordSync: Boolean,
-    onClick: () -> Unit,
+    measurer: TextMeasurer,
+    otherSide: Boolean,
+    viewAlign: Alignment.Horizontal,
+    seek: () -> Unit,
 ) {
-    val blur by animateDpAsState(if (blurred && !isActive) (distance.coerceAtMost(4) * 1.4f).dp else 0.dp, tween(500))
-    val scale by animateFloatAsState(if (isActive) 1f else 0.96f, tween(450))
-    val align = if (line.alignment == LyricAlignment.End) TextAlign.End else TextAlign.Start
+    // Lines away from the current one soften with distance; off on the phone by default.
+    val blurTarget = if (!blur || isCurrent) 0.dp else (abs(index - anchor.value) * 2.5f).coerceAtMost(8f).dp
+    val blurRadius by animateDpAsState(blurTarget, snap(if (index == anchor.value - 1) 260 else 0))
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
+    // The glass strip under the current line; on a desktop, a fainter one under the pointer.
+    val chrome by animateFloatAsState(
+        when {
+            isCurrent -> 1f
+            hovered -> 0.5f
+            else -> 0f
+        },
+        tween(240, easing = YosEasing),
+    )
+    val lineAlpha by animateFloatAsState(
+        if (oneByOne || isCurrent) 1f else 0.14f,
+        TweenSpec(350, if (isCurrent) 145 else 80, YosEasing),
+    )
+    val lineStyle = if (otherSide) style.copy(textAlign = TextAlign.End) else style
 
-    Box(
+    Column(
         Modifier
-            .fillMaxWidth()
-            .padding(vertical = (style.fontSize.value * 0.32f).dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (hovered) Color.White.copy(alpha = 0.06f) else Color.Transparent)
-            .hoverable(interaction)
-            .pressable(onClick, interaction = interaction, pressScale = 0.99f)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .then(if (blurRadius > 0.dp) Modifier.blur(blurRadius, BlurredEdgeTreatment.Unbounded) else Modifier)
+            .fillMaxWidth(),
+        horizontalAlignment = viewAlign,
     ) {
-        Column(
-            Modifier
-                .fillMaxWidth()
+        LineText(
+            line = line,
+            style = lineStyle,
+            current = isCurrent,
+            oneByOne = oneByOne,
+            live = live,
+            measurer = measurer,
+            modifier = Modifier
                 .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(if (align == TextAlign.End) 1f else 0f, 0.5f)
+                    alpha = lineAlpha
+                    compositingStrategy = CompositingStrategy.ModulateAlpha
                 }
-                .then(if (blur > 0.dp) Modifier.blur(blur) else Modifier),
-            horizontalAlignment = if (align == TextAlign.End) Alignment.End else Alignment.Start,
-        ) {
-            if (line.isGap) {
-                InterludeDots(isActive, style, dimColor, litColor)
-            } else {
-                SweptText(line, isActive, position, style, align, dimColor, litColor, wordSync)
-                line.background?.let { bg ->
-                    SweptText(
-                        bg,
-                        isActive,
-                        position,
-                        style.copy(fontSize = style.fontSize * 0.62f, lineHeight = style.lineHeight * 0.66f),
-                        align,
-                        dimColor,
-                        litColor.copy(alpha = 0.85f),
-                        wordSync,
-                    )
-                }
-            }
+                .padding(vertical = 4.dp)
+                .padding(horizontal = 20.dp)
+                .drawBehind { drawLineChrome(chrome) }
+                .hoverable(interaction)
+                .pointerHoverIcon(PointerIcon.Hand)
+                .clickable(interaction, indication = null, onClick = seek)
+                .padding(horizontal = 10.dp, vertical = 5.dp),
+        )
+        line.background?.let { bg ->
+            LineText(
+                line = bg,
+                style = lineStyle.copy(fontSize = lineStyle.fontSize * 0.62f, lineHeight = lineStyle.lineHeight * 0.62f),
+                current = isCurrent,
+                oneByOne = oneByOne && bg.isWordSynced,
+                live = live,
+                measurer = measurer,
+                modifier = Modifier
+                    .graphicsLayer { alpha = lineAlpha * 0.85f }
+                    .padding(horizontal = 30.dp)
+                    .padding(bottom = 4.dp),
+            )
         }
     }
+}
+
+/** Flamingo's current-line strip: a faint vertical wash, a hairline rim and a lit bottom edge. */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawLineChrome(intensity: Float) {
+    if (intensity <= 0.001f) return
+    val radius = CornerRadius(size.height / 2f)
+    val accent = Color(0xFFF2F2F2)
+    drawRoundRect(
+        brush = Brush.verticalGradient(
+            listOf(
+                Color.White.copy(alpha = 0.025f * intensity),
+                accent.copy(alpha = 0.075f * intensity),
+                accent.copy(alpha = 0.035f * intensity),
+            ),
+        ),
+        cornerRadius = radius,
+    )
+    drawRoundRect(
+        brush = Brush.verticalGradient(
+            listOf(
+                Color.White.copy(alpha = 0.30f * intensity),
+                accent.copy(alpha = 0.11f * intensity),
+                Color.White.copy(alpha = 0.04f * intensity),
+            ),
+        ),
+        cornerRadius = radius,
+        style = Stroke(width = 1.dp.toPx()),
+    )
+    drawLine(
+        brush = Brush.horizontalGradient(
+            listOf(
+                Color.Transparent,
+                Color.White.copy(alpha = 0.38f * intensity),
+                accent.copy(alpha = 0.22f * intensity),
+                Color.Transparent,
+            ),
+        ),
+        start = Offset(12.dp.toPx(), size.height - 1.dp.toPx()),
+        end = Offset(size.width - 12.dp.toPx(), size.height - 1.dp.toPx()),
+        strokeWidth = 1.5.dp.toPx(),
+        cap = StrokeCap.Round,
+    )
+}
+
+/** The measured line, handed from layout to draw. */
+private class LineLayout {
+    var result: TextLayoutResult? = null
 }
 
 /**
- * One line of text. Inactive: dim. Active without word timing: lit. Active with word
- * timing: dim underneath with the lit copy wiped in behind the sung characters, the
- * wipe edge feathered. The wipe reads [position] at draw time, so it costs no
- * recompositions.
+ * One piece of a sung line with its own timing. Most are single letters, as on the phone;
+ * a word in a script whose letters join or stack (Arabic, Devanagari, Thai…) stays whole so
+ * it keeps its shape, and fills as one piece instead.
  */
+private class Piece(
+    val layout: TextLayoutResult,
+    val topLeft: Offset,
+    /** When the piece starts and how long it takes to fill. */
+    val startMs: Float,
+    val spanMs: Float,
+    /** The word it belongs to, which lifts as a whole. */
+    val wordStartMs: Float,
+    val wordSpanMs: Float,
+    /** Letters in the piece, so the fill edge feathers by a letter's width either way. */
+    val letters: Int,
+    val rightToLeft: Boolean,
+)
+
 @Composable
-private fun SweptText(
+private fun LineText(
     line: LyricLine,
-    isActive: Boolean,
-    position: State<Long>,
     style: TextStyle,
-    align: TextAlign,
-    dimColor: Color,
-    litColor: Color,
-    wordSync: Boolean,
+    current: Boolean,
+    oneByOne: Boolean,
+    live: LongState,
+    measurer: TextMeasurer,
+    modifier: Modifier,
 ) {
-    val swept = wordSync && line.isWordSynced
-    val color by animateColorAsState(if (isActive && !swept) litColor else dimColor, tween(350))
-    if (!isActive || !swept) {
-        Text(line.text, style = style, color = color, textAlign = align)
-        return
+    val holder = remember(line, style) { LineLayout() }
+    // Sung all the way through: stays lit, lifted (Flamingo's showHighLight).
+    val sungThrough by remember(line, oneByOne) {
+        derivedStateOf { oneByOne && line.words.isNotEmpty() && live.longValue >= line.words.last().endMs }
     }
-    var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
-    Box {
-        Text(line.text, style = style, color = dimColor, textAlign = align, onTextLayout = { layout = it })
-        Text(
-            line.text,
-            style = style,
-            color = litColor,
-            textAlign = align,
-            modifier = Modifier
-                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-                .drawWithContent {
-                    drawContent()
-                    val result = layout ?: return@drawWithContent
-                    val sung = sungChars(line, position.value + LeadMs / 2)
-                    val feather = 18.dp.toPx()
-                    for (l in 0 until result.lineCount) {
-                        val top = result.getLineTop(l)
-                        val height = result.getLineBottom(l) - top
-                        val start = result.getLineStart(l)
-                        val end = result.getLineEnd(l)
-                        when {
-                            sung >= end -> Unit
-                            sung <= start -> drawRect(Color.Black, Offset(0f, top), Size(size.width, height), blendMode = BlendMode.DstOut)
-                            else -> {
-                                val i = sung.toInt().coerceIn(start, end - 1)
-                                val x0 = result.getHorizontalPosition(i, true)
-                                val x1 = if (i + 1 < end) result.getHorizontalPosition(i + 1, true) else result.getLineRight(l)
-                                val x = x0 + (x1 - x0) * (sung - i)
-                                drawRect(
-                                    brush = Brush.horizontalGradient(
-                                        0f to Color.Transparent,
-                                        1f to Color.Black,
-                                        startX = x - feather / 2,
-                                        endX = x + feather / 2,
-                                    ),
-                                    topLeft = Offset(0f, top),
-                                    size = Size(size.width, height),
-                                    blendMode = BlendMode.DstOut,
+    Spacer(
+        modifier
+            .layout { measurable, constraints ->
+                val result = measurer.measure(
+                    text = line.text,
+                    style = style,
+                    constraints = Constraints(maxWidth = constraints.maxWidth),
+                    layoutDirection = layoutDirection,
+                )
+                holder.result = result
+                val placeable = measurable.measure(Constraints.fixed(result.size.width, result.size.height))
+                layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+            }
+            .drawWithCache {
+                val result = holder.result ?: return@drawWithCache onDrawBehind { }
+                val lift = style.fontSize.toPx() * LiftPerFontPx
+                when {
+                    !oneByOne -> onDrawBehind { drawText(result, color = Focused) }
+                    !current && sungThrough -> onDrawBehind { drawText(result, color = Focused, topLeft = Offset(0f, -lift)) }
+                    !current -> onDrawBehind { drawText(result, color = Unfocused) }
+                    else -> {
+                        val pieces = buildPieces(line, result, style, measurer)
+                        val glowBase = 3.dp.toPx()
+                        val glowGrow = 3.6.dp.toPx()
+                        onDrawBehind {
+                            val now = live.longValue.toFloat()
+                            for (p in pieces) {
+                                // Letters filled, in this piece: below 0 waiting, above letters done.
+                                val filled = (now - p.startMs) / p.spanMs * p.letters
+                                val progress = filled / p.letters
+                                val wordProgress = ((now - p.wordStartMs) / p.wordSpanMs).coerceIn(0f, 1f)
+                                val rise = lift * EaseInOutQuad.transform(wordProgress)
+                                val glow = if (progress in 0f..1f) {
+                                    Shadow(
+                                        color = Focused.copy(alpha = (0.18f + 0.4f * progress).coerceAtMost(0.62f)),
+                                        offset = Offset.Zero,
+                                        blurRadius = glowBase + glowGrow * progress,
+                                    )
+                                } else {
+                                    null
+                                }
+                                drawText(
+                                    textLayoutResult = p.layout,
+                                    brush = fillBrush(filled, p),
+                                    topLeft = Offset(p.topLeft.x, p.topLeft.y - rise),
+                                    shadow = glow,
                                 )
                             }
                         }
                     }
-                },
-        )
+                }
+            },
+    )
+}
+
+/**
+ * Flamingo's per-letter brush: lit up to the fill edge, waiting colour after it, the edge
+ * feathered a third of a letter either way. A whole word spreads the same edge across
+ * itself, right to left for a right-to-left script.
+ */
+private fun fillBrush(filled: Float, piece: Piece): Brush {
+    val n = piece.letters.toFloat()
+    val before = if (filled <= -0.5f) Unfocused else Focused
+    val after = if (filled >= n) Focused else Unfocused
+    val edge = filled / n
+    val feather = Feather / n
+    val stops = arrayOf(
+        0f to before,
+        (edge - feather).coerceIn(0f, 1f) to before,
+        (edge + feather).coerceIn(0f, 1f) to after,
+    )
+    val width = piece.layout.size.width.toFloat()
+    return if (piece.rightToLeft) {
+        Brush.horizontalGradient(*stops, startX = width, endX = 0f)
+    } else {
+        Brush.horizontalGradient(*stops, startX = 0f, endX = width)
     }
 }
 
-/** How many characters of [line]'s text have been sung at [positionMs]. */
-private fun sungChars(line: LyricLine, positionMs: Long): Float {
+/**
+ * Splits the line the way Flamingo times it: each word runs from the end of the one before
+ * (the line's start for the first) to its own end, its letters sharing that time evenly, and
+ * the spaces after a word belong to it.
+ */
+private fun buildPieces(line: LyricLine, result: TextLayoutResult, style: TextStyle, measurer: TextMeasurer): List<Piece> {
+    val text = line.text
     val spans = line.wordSpans
-    var sung = 0f
-    for ((index, word) in line.words.withIndex()) {
-        val span = spans.getOrNull(index) ?: break
-        when {
-            positionMs >= word.endMs -> sung = (span.last + 1).toFloat()
-            positionMs > word.startMs -> return span.first + word.charsSungAt(positionMs)
-            else -> return sung
+    val charStyle = style.copy(textAlign = TextAlign.Unspecified)
+    val maxWidth = result.layoutInput.constraints.maxWidth
+    val pieces = ArrayList<Piece>(text.length)
+    for (i in line.words.indices) {
+        val from = if (i == 0) 0 else spans[i].first
+        val to = (spans.getOrNull(i + 1)?.first ?: text.length).coerceAtMost(text.length)
+        if (to <= from) continue
+        val wordStart = (if (i == 0) minOf(line.timeMs, line.words[0].startMs) else line.words[i - 1].endMs).toFloat()
+        val wordSpan = (line.words[i].endMs - wordStart).coerceAtLeast(1f)
+        val perLetter = (wordSpan / (to - from)).coerceAtLeast(1f)
+        val piece = text.substring(from, to)
+        if (piece.keepsWhole()) {
+            // The word as one shape, sitting where its letters sit in the line.
+            val inked = (from until to).filter { !text[it].isWhitespace() }
+            if (inked.isEmpty()) continue
+            val boxes = inked.map { result.getBoundingBox(it) }
+            val word = text.substring(inked.first(), inked.last() + 1)
+            pieces += Piece(
+                layout = measurer.measure(word, charStyle, constraints = Constraints(maxWidth = maxWidth)),
+                topLeft = Offset(boxes.minOf { it.left }, boxes.first().top),
+                startMs = wordStart,
+                spanMs = wordSpan,
+                wordStartMs = wordStart,
+                wordSpanMs = wordSpan,
+                letters = word.length,
+                rightToLeft = word.isRightToLeft(),
+            )
+        } else {
+            for (j in from until to) {
+                val c = text[j]
+                if (c.isWhitespace()) continue
+                pieces += Piece(
+                    layout = measurer.measure(c.toString(), charStyle, constraints = Constraints(maxWidth = maxWidth)),
+                    topLeft = result.getBoundingBox(j).topLeft,
+                    startMs = wordStart + perLetter * (j - from),
+                    spanMs = perLetter,
+                    wordStartMs = wordStart,
+                    wordSpanMs = wordSpan,
+                    letters = 1,
+                    rightToLeft = false,
+                )
+            }
         }
     }
-    // Every word sung: light the trailing punctuation too.
-    return if (line.words.isNotEmpty() && positionMs >= line.words.last().endMs) line.text.length.toFloat() else sung
+    return pieces
 }
 
+private val JoiningScripts = setOf(
+    Character.UnicodeScript.ARABIC, Character.UnicodeScript.SYRIAC, Character.UnicodeScript.THAANA,
+    Character.UnicodeScript.NKO, Character.UnicodeScript.MONGOLIAN, Character.UnicodeScript.HEBREW,
+    Character.UnicodeScript.DEVANAGARI, Character.UnicodeScript.BENGALI, Character.UnicodeScript.GURMUKHI,
+    Character.UnicodeScript.GUJARATI, Character.UnicodeScript.ORIYA, Character.UnicodeScript.TAMIL,
+    Character.UnicodeScript.TELUGU, Character.UnicodeScript.KANNADA, Character.UnicodeScript.MALAYALAM,
+    Character.UnicodeScript.SINHALA, Character.UnicodeScript.THAI, Character.UnicodeScript.LAO,
+    Character.UnicodeScript.TIBETAN, Character.UnicodeScript.MYANMAR, Character.UnicodeScript.KHMER,
+)
+
+/** Letters that only look right drawn together: joined or stacked scripts, marks, emoji. */
+private fun String.keepsWhole(): Boolean = any { c ->
+    c.isSurrogate() ||
+        Character.getType(c).let { it == Character.NON_SPACING_MARK.toInt() || it == Character.COMBINING_SPACING_MARK.toInt() || it == Character.ENCLOSING_MARK.toInt() } ||
+        Character.UnicodeScript.of(c.code) in JoiningScripts
+}
+
+private fun String.isRightToLeft(): Boolean {
+    for (c in this) {
+        when (Character.getDirectionality(c)) {
+            Character.DIRECTIONALITY_RIGHT_TO_LEFT, Character.DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC -> return true
+            Character.DIRECTIONALITY_LEFT_TO_RIGHT -> return false
+        }
+    }
+    return false
+}
+
+/** Flamingo's instrumental break: three dots that fill in turn, breathing, on the line's card. */
 @Composable
-private fun InterludeDots(active: Boolean, style: TextStyle, dimColor: Color, litColor: Color) {
-    val transition = rememberInfiniteTransition()
-    val pulse by transition.animateFloat(0.85f, 1.15f, infiniteRepeatable(tween(900), RepeatMode.Reverse))
-    val dot = (style.fontSize.value * 0.32f).dp
-    Row(
-        Modifier.padding(vertical = 6.dp).graphicsLayer {
-            val s = if (active) pulse else 1f
-            scaleX = s
-            scaleY = s
-            transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f)
-        },
-        horizontalArrangement = Arrangement.spacedBy(dot * 0.8f),
+private fun Interlude(line: LyricLine, nextTimeMs: Long, isCurrent: () -> Boolean, live: LongState, otherSide: Boolean) {
+    val percent by remember(line, nextTimeMs) {
+        derivedStateOf {
+            val span = (nextTimeMs - line.timeMs).coerceAtLeast(1L).toFloat()
+            ((live.longValue - line.timeMs).coerceAtLeast(0L) / span).coerceAtMost(1f)
+        }
+    }
+    val show by remember(line) { derivedStateOf { isCurrent() && percent > 0f } }
+    val origin = TransformOrigin(if (otherSide) 1f else 0f, 0.25f)
+    AnimatedVisibility(
+        show,
+        enter = fadeIn(TweenSpec(550, 300, YosEasing)) + scaleIn(TweenSpec(550, 300, YosEasing), initialScale = 0.85f, transformOrigin = origin),
+        exit = fadeOut() + scaleOut(TweenSpec(340, easing = YosEasing), targetScale = 0.85f, transformOrigin = origin),
     ) {
-        repeat(3) {
-            Box(Modifier.size(dot).clip(CircleShape).background(if (active) litColor.copy(alpha = 0.9f) else dimColor))
+        Column(Modifier.padding(horizontal = 20.dp).padding(top = 8.dp, bottom = 10.dp)) {
+            CountdownDots { percent }
         }
     }
 }
 
 @Composable
-private fun PlainLyrics(lyrics: Lyrics, style: TextStyle, horizontalPadding: Dp, dimColor: Color) {
+private fun CountdownDots(progress: () -> Float) {
+    val transition = rememberInfiniteTransition()
+    val scale by transition.animateFloat(0.95f, 1.12f, infiniteRepeatable(tween(1800, easing = YosEasing), RepeatMode.Reverse))
+    Row(
+        Modifier
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+                alpha = 0.8f
+            }
+            .padding(horizontal = 5.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        for (i in 1..3) {
+            val third = 1f / 3f
+            val mine = (progress() - (i - 1) * third) / third
+            val alpha = 0.2f + (0.8f * mine).coerceIn(0f, 0.8f)
+            Box(Modifier.size(11.dp).background(Color(0xFFF2F2F2).copy(alpha = alpha), CircleShape))
+        }
+    }
+}
+
+/** Lyrics with no timing: every line lit, read at your own pace, as Flamingo shows them. */
+@Composable
+private fun PlainLyrics(lyrics: Lyrics, style: TextStyle, horizontalPadding: Dp) {
     Column(
         Modifier
             .fillMaxSize()
+            .fadingEdge(64.dp)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = horizontalPadding, vertical = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(horizontal = horizontalPadding)
+            .padding(top = 64.dp, bottom = 120.dp),
     ) {
-        Text(
-            "These lyrics aren't synced to the song.",
-            style = ConvxType.Subhead,
-            color = ConvxColors.SecondaryLabel,
-        )
         lyrics.lines.forEach { line ->
-            Text(line.text, style = style.copy(fontSize = style.fontSize * 0.8f, lineHeight = style.lineHeight * 0.82f), color = Color.White.copy(alpha = 0.85f))
+            Text(
+                line.text,
+                style = style,
+                color = Focused,
+                modifier = Modifier.padding(horizontal = 30.dp, vertical = 13.dp),
+            )
         }
-        Text("Lyrics from ${lyrics.source}", style = ConvxType.Caption, color = ConvxColors.TertiaryLabel)
+        Text(
+            "Lyrics from ${lyrics.source}",
+            style = ConvxType.Caption,
+            color = ConvxColors.TertiaryLabel,
+            modifier = Modifier.padding(horizontal = 30.dp, vertical = 16.dp),
+        )
     }
 }

@@ -248,9 +248,6 @@ fun FullPlayer(modifier: Modifier = Modifier) {
                                     song,
                                     Modifier.fillMaxSize().widthIn(max = 900.dp),
                                     style = ConvxType.Lyrics,
-                                    immersive = true,
-                                    horizontalPadding = 8.dp,
-                                    dimColor = Color.White.copy(alpha = 0.32f),
                                 )
                                 FullPlayerMode.Queue -> QueueList(state, Modifier.fillMaxSize().padding(vertical = 12.dp), onDark = true)
                                 FullPlayerMode.Artwork -> Spacer(Modifier.fillMaxSize())
