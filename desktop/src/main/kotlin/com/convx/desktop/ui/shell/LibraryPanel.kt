@@ -161,9 +161,9 @@ private fun LibraryData.entries(): List<LibraryEntry> {
     val byAlbum = HashMap<String, Long>()
     val byArtist = HashMap<String, Long>()
     history.forEach { event ->
-        bySong.merge(event.song.id, event.at, ::maxOf)
-        event.song.album?.id?.let { byAlbum.merge(it, event.at, ::maxOf) }
-        event.song.artists.forEach { artist -> artist.id?.let { byArtist.merge(it, event.at, ::maxOf) } }
+        bySong.merge(event.song.id, event.at) { a, b -> maxOf(a, b) }
+        event.song.album?.id?.let { byAlbum.merge(it, event.at) { a, b -> maxOf(a, b) } }
+        event.song.artists.forEach { artist -> artist.id?.let { byArtist.merge(it, event.at) { a, b -> maxOf(a, b) } } }
     }
     fun lastOf(songs: List<Song>) = songs.maxOfOrNull { bySong[it.id] ?: 0L } ?: 0L
     return buildList {

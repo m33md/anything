@@ -58,6 +58,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.times
 import com.convx.desktop.data.Library
 import com.convx.desktop.ui.components.ConvxIcon
 import com.convx.desktop.ui.components.Tooltip
