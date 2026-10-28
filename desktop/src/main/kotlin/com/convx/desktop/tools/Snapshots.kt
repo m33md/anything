@@ -22,6 +22,9 @@ import com.convx.desktop.data.toSong
 import com.convx.desktop.player.PlayerController
 import com.convx.desktop.ui.shell.AppShell
 import com.convx.desktop.ui.shell.ExploreAnchor
+import com.convx.desktop.ui.screens.settings.SettingsHubs
+import com.convx.desktop.ui.screens.settings.SettingsNav
+import com.convx.desktop.ui.screens.settings.SettingsPage
 import com.convx.desktop.ui.shell.FullPlayerMode
 import com.convx.desktop.ui.shell.Navigator
 import com.convx.desktop.ui.shell.Screen
@@ -127,6 +130,12 @@ fun main(args: Array<String>) {
         artist?.let { shoot("05-artist") { navigator.navigate(Screen.Artist(it.id)) } }
         playlist?.let { shoot("06-playlist") { navigator.navigate(Screen.Playlist(it.id)) } }
         shoot("07-settings", seconds = 4) { navigator.navigate(Screen.Settings) }
+        shoot("07b-settings-accounts", seconds = 2) { SettingsNav.openHub(SettingsHubs.accounts.id) }
+        shoot("07c-settings-discord", seconds = 3) {
+            AppSettings.update { it.copy(discordPresence = true, discordAdvanced = true) }
+            SettingsNav.push(SettingsPage.Discord)
+        }
+        AppSettings.update { it.copy(discordPresence = false) }
         shoot("08-explore", seconds = 12) { navigator.navigate(Screen.Explore) }
         shoot("08a-explore-strip", seconds = 3) { UiState.openSection(Section.Explore, navigator) }
         shoot("08b-explore-jump", seconds = 3) { UiState.exploreJump = ExploreAnchor.Moods }

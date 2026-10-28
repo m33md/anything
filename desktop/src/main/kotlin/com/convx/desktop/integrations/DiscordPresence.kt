@@ -8,6 +8,7 @@ package com.convx.desktop.integrations
 import com.convx.desktop.core.AppScope
 import com.convx.desktop.core.Log
 import com.convx.desktop.data.AppSettings
+import com.convx.desktop.data.Settings
 import com.convx.desktop.data.Song
 import com.convx.desktop.player.PlayerController
 import com.convx.desktop.ui.components.artworkUrl
@@ -77,7 +78,44 @@ object DiscordPresence {
     private var pipe: Pipe? = null
 
     /** What Discord is showing now, so an unchanged state isn't sent again. */
-    private data class Shown(val songId: String?, val startMs: Long, val details: Boolean)
+    private data class Shown(val songId: String?, val startMs: Long, val look: Look?)
+
+    /** The parts of the status Settings can change. */
+    data class Look(
+        val useDetails: Boolean,
+        val type: String,
+        val button1: String?,
+        val button2: String?,
+    ) {
+        /** Discord's activity type: Listening shows the time bar; Playing, Watching and Competing change the verb. */
+        val typeCode: Int get() = when (type) {
+            "playing" -> 0
+            "watching" -> 3
+            "competing" -> 5
+            else -> 2
+        }
+
+        companion object {
+            const val DefaultButton1 = "Listen on Convx"
+            const val DefaultButton2 = "Visit Convx"
+
+            fun of(settings: Settings): Look {
+                val advanced = settings.discordAdvanced
+                return Look(
+                    useDetails = settings.discordUseDetails,
+                    type = if (advanced) settings.discordActivityType else "listening",
+                    button1 = if (!advanced) DefaultButton1 else settings.discordButton1Text.ifBlank { DefaultButton1 }.takeIf { settings.discordButton1 },
+                    button2 = if (!advanced) DefaultButton2 else settings.discordButton2Text.ifBlank { DefaultButton2 }.takeIf { settings.discordButton2 },
+                )
+            }
+        }
+    }
+
+    /** The phone's button variables (DiscordRPC.resolveVariables). */
+    fun resolveVariables(text: String, song: Song): String = text
+        .replace("{song_name}", song.title)
+        .replace("{artist_name}", song.artistText)
+        .replace("{album_name}", song.album?.name.orEmpty())
 
     private var shown: Shown? = null
     private var lastSendAt = 0L
@@ -143,38 +181,38 @@ object DiscordPresence {
         val song = player.current
         val want = if (song != null && player.isPlaying && !player.isLoading) {
             val position = PlayerController.position.value
-            Shown(song.id, now - position, settings.discordUseDetails)
+            Shown(song.id, now - position, Look.of(settings))
         } else {
             null
         }
         val same = when {
             want == null -> shown?.songId == null && shown != null
-            else -> shown?.let { it.songId == want.songId && it.details == want.details && abs(it.startMs - want.startMs) < 2_500 } == true
+            else -> shown?.let { it.songId == want.songId && it.look == want.look && abs(it.startMs - want.startMs) < 2_500 } == true
         }
         if (same) return
         // Discord takes five updates in twenty seconds; space them so a burst of skips settles.
         if (now - lastSendAt < 4_000) return
 
-        val activity = if (want != null && song != null) {
+        val activity = if (want?.look != null && song != null) {
             val durationMs = player.durationMs.takeIf { it > 0 } ?: ((song.duration ?: 0) * 1000L)
-            activity(song, want.startMs, durationMs, want.details)
+            activity(song, want.startMs, durationMs, want.look)
         } else {
             null
         }
         lastSendAt = now
         // Turned down once, it is tried again plainly at the next tick; twice, it waits for a change.
-        if (setActivity(connected, activity)) shown = want ?: Shown(null, 0, false)
+        if (setActivity(connected, activity)) shown = want ?: Shown(null, 0, null)
     }
 
-    private fun activity(song: Song, startMs: Long, durationMs: Long, useDetails: Boolean): JsonObject = buildJsonObject {
-        // Listening, which shows the time bar.
-        put("type", 2)
+    private fun activity(song: Song, startMs: Long, durationMs: Long, look: Look): JsonObject = buildJsonObject {
+        // Listening unless advanced mode picked another verb; plain Discord builds only know Playing.
+        if (!plainActivity || look.typeCode == 0) put("type", look.typeCode) else put("type", 2)
         put("details", fit(song.title))
         put("state", fit(song.artistText.ifBlank { "Unknown artist" }))
         if (!plainActivity) {
             put("details_url", SongUrl + song.id)
             // Which line the member list shows after "Listening to": the artists, or the song.
-            put("status_display_type", if (useDetails) 2 else 1)
+            put("status_display_type", if (look.useDetails) 2 else 1)
         }
         putJsonObject("timestamps") {
             put("start", startMs)
@@ -184,17 +222,26 @@ object DiscordPresence {
             artworkUrl(song.thumbnail, 512)?.let { put("large_image", it) }
             put("large_text", fit(song.album?.name ?: song.title))
         }
-        putJsonArray("buttons") {
-            addJsonObject {
-                put("label", "Listen on Convx")
-                put("url", SongUrl + song.id)
-            }
-            addJsonObject {
-                put("label", "Visit Convx")
-                put("url", ProjectUrl)
+        if (look.button1 != null || look.button2 != null) {
+            putJsonArray("buttons") {
+                look.button1?.let { label ->
+                    addJsonObject {
+                        put("label", button(resolveVariables(label, song)))
+                        put("url", SongUrl + song.id)
+                    }
+                }
+                look.button2?.let { label ->
+                    addJsonObject {
+                        put("label", button(resolveVariables(label, song)))
+                        put("url", ProjectUrl)
+                    }
+                }
             }
         }
     }
+
+    /** Discord cuts button labels at 32 characters and refuses empty ones. */
+    private fun button(text: String): String = text.trim().ifEmpty { "Convx" }.take(32)
 
     /** Discord wants 2 to 128 characters in each line. */
     private fun fit(text: String): String = text.take(128).padEnd(2, '⠀')

@@ -127,6 +127,16 @@ data class Settings(
     val discordPresence: Boolean = false,
     /** Discord's member list shows the song after "Listening to" instead of the artists. */
     val discordUseDetails: Boolean = false,
+    /** The phone's advanced mode: the verb and the two buttons below are only used while it's on. */
+    val discordAdvanced: Boolean = false,
+    /** listening, playing, watching or competing. */
+    val discordActivityType: String = "listening",
+    val discordButton1: Boolean = true,
+    /** Blank for "Listen on Convx"; {song_name}, {artist_name} and {album_name} are filled in. */
+    val discordButton1Text: String = "",
+    val discordButton2: Boolean = true,
+    /** Blank for "Visit Convx". */
+    val discordButton2Text: String = "",
     /** YouTube's guest session id; kept so recommendations stay consistent between launches. */
     val visitorData: String? = null,
     val lastQueue: List<Song> = emptyList(),

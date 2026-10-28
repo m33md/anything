@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.convx.desktop.ui.components.LocalPageInsets
+import com.convx.desktop.ui.screens.settings.SettingsScreen
 import com.convx.desktop.ui.shell.Screen
 import com.convx.desktop.ui.shell.TrackTopBar
 import kotlinx.coroutines.flow.distinctUntilChanged
