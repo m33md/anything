@@ -126,3 +126,12 @@ tasks.register<JavaExec>("snapshots") {
     args(layout.buildDirectory.dir("snapshots").get().asFile.absolutePath)
     jvmArgs("-Xmx2g", "-Dfile.encoding=UTF-8")
 }
+
+// Resolves, downloads and decodes a few songs without a sound card, to check playback on CI.
+tasks.register<JavaExec>("playbackCheck") {
+    group = "verification"
+    description = "Plays a few songs through the stream resolver, cache and decoder."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("com.convx.desktop.tools.PlaybackCheckKt")
+    jvmArgs("-Xmx1g", "-Dfile.encoding=UTF-8")
+}

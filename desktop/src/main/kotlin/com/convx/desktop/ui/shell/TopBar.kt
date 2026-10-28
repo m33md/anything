@@ -25,6 +25,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -89,6 +90,17 @@ private fun SearchField(modifier: Modifier = Modifier) {
     val focused by interaction.collectIsFocusedAsState()
     val hovered by interaction.collectIsHoveredAsState()
     val query = navigator.searchQuery
+    val screen = navigator.current.screen
+
+    // Leaving search hands the keyboard back to the app (Space plays again), and coming
+    // back to an old results page shows what it was a search for.
+    LaunchedEffect(screen) {
+        when (screen) {
+            is Screen.SearchResults -> navigator.searchQuery = screen.query
+            Screen.Search -> Unit
+            else -> focusManager.clearFocus()
+        }
+    }
 
     fun submit() {
         val q = navigator.searchQuery.trim()

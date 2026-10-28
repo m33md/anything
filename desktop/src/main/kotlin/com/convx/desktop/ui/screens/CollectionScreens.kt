@@ -179,6 +179,9 @@ fun LazyListScope.songTable(
     trailing: ((Int) -> String?)? = null,
     menuExtra: (@Composable (index: Int, song: Song, dismiss: () -> Unit) -> Unit)? = null,
 ) {
+    // Playlists of uploads and videos often carry no albums at all; don't show an empty column.
+    @Suppress("NAME_SHADOWING")
+    val showAlbum = showAlbum && songs.any { it.album != null }
     item(key = "$keyPrefix-header") {
         SongTableHeader(showAlbum = showAlbum, trailingLabel = trailingLabel, modifier = Modifier.padding(horizontal = Gutter))
     }

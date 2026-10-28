@@ -46,6 +46,11 @@ jobs:
       - name: Compile
         run: ./gradlew --no-daemon compileKotlin
 
+      - name: Playback check
+        continue-on-error: true
+        timeout-minutes: 5
+        run: ./gradlew --no-daemon -q playbackCheck
+
       - name: Screenshots
         id: snapshots
         continue-on-error: true

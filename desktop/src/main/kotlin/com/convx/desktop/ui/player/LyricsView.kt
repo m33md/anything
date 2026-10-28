@@ -169,6 +169,15 @@ private fun SyncedLyrics(
             contentPadding = PaddingValues(start = horizontalPadding, end = horizontalPadding, top = topPad, bottom = maxHeight * 0.6f),
             modifier = Modifier
                 .fillMaxSize()
+                // Lines fade out at the edges instead of being cut by them.
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    drawContent()
+                    drawRect(
+                        Brush.verticalGradient(0f to Color.Transparent, 0.08f to Color.Black, 0.84f to Color.Black, 1f to Color.Transparent),
+                        blendMode = BlendMode.DstIn,
+                    )
+                }
                 .hoverable(interaction)
                 .pointerInput(Unit) {
                     awaitPointerEventScope {

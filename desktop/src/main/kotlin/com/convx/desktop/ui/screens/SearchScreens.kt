@@ -303,27 +303,41 @@ fun SearchResultsScreen(query: String) {
                         .map { it.copy(items = it.items.filtered(settings)) }
                         .filter { it.items.isNotEmpty() }
                     if (sections.isEmpty()) item { MessageState("No results for \"$query\"", "Check the spelling, or try fewer words.", icon = "search") }
-                    sections.forEachIndexed { index, section ->
-                        if (index == 0 && section.items.size <= 3) {
-                            item(key = "top:${section.title}") { TopResult(section.title, section.items.first(), sections.getOrNull(1)?.items) }
+                    // Spotify's opening: the best match as a big card, songs beside it. The songs
+                    // come from the rest of the top section and then the first all-songs section.
+                    val top = sections.firstOrNull()
+                    val songSection = sections.drop(1).firstOrNull { section -> section.items.all { it is SongItem } }
+                    if (top != null) {
+                        val beside = (top.items.drop(1) + songSection?.items.orEmpty())
+                            .filterIsInstance<SongItem>()
+                            .distinctBy { it.id }
+                            .take(4)
+                        item(key = "top:${top.title}") { TopResult(top.title, top.items.first(), beside) }
+                        val rest = top.items.drop(1).filter { it !is SongItem }
+                        if (rest.isNotEmpty()) {
+                            item(key = "top-rest") {
+                                ItemShelf("More like this", rest)
+                                Spacer(Modifier.height(20.dp))
+                            }
+                        }
+                    }
+                    sections.drop(1).filter { it !== songSection }.forEachIndexed { index, section ->
+                        val songs = section.items.filterIsInstance<SongItem>()
+                        if (songs.size == section.items.size) {
+                            item(key = "h:$index:${section.title}") {
+                                SectionHeader(section.title, Modifier.padding(horizontal = Gutter, vertical = 8.dp))
+                            }
+                            itemsIndexed(songs, key = { i, s -> "s:$index:$i:${s.id}" }) { _, s ->
+                                val song = s.toSong()
+                                Box(Modifier.padding(horizontal = Gutter - 12.dp)) {
+                                    SongRow(song, { PlayerController.startRadio(song, s.endpoint) })
+                                }
+                            }
+                            item(key = "sp:$index") { Spacer(Modifier.height(20.dp)) }
                         } else {
-                            val songs = section.items.filterIsInstance<SongItem>()
-                            if (songs.size == section.items.size) {
-                                item(key = "h:$index:${section.title}") {
-                                    SectionHeader(section.title, Modifier.padding(horizontal = Gutter, vertical = 8.dp))
-                                }
-                                itemsIndexed(songs, key = { i, s -> "s:$index:$i:${s.id}" }) { _, s ->
-                                    val song = s.toSong()
-                                    Box(Modifier.padding(horizontal = Gutter - 12.dp)) {
-                                        SongRow(song, { PlayerController.startRadio(song, s.endpoint) })
-                                    }
-                                }
-                                item(key = "sp:$index") { Spacer(Modifier.height(20.dp)) }
-                            } else {
-                                item(key = "sh:$index:${section.title}") {
-                                    ItemShelf(section.title, section.items)
-                                    Spacer(Modifier.height(20.dp))
-                                }
+                            item(key = "sh:$index:${section.title}") {
+                                ItemShelf(section.title, section.items)
+                                Spacer(Modifier.height(20.dp))
                             }
                         }
                     }
@@ -374,9 +388,8 @@ fun SearchResultsScreen(query: String) {
 
 /** Spotify's "Top result" card beside the first few songs. */
 @Composable
-private fun TopResult(title: String, item: YTItem, songsBeside: List<YTItem>?) {
+private fun TopResult(title: String, item: YTItem, songs: List<SongItem>) {
     val navigator = LocalNavigator.current
-    val songs = songsBeside?.filterIsInstance<SongItem>()?.take(4).orEmpty()
     BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = Gutter, vertical = 8.dp)) {
         val wide = maxWidth > 760.dp
         val card = @Composable { modifier: Modifier ->
@@ -425,9 +438,9 @@ private fun TopResult(title: String, item: YTItem, songsBeside: List<YTItem>?) {
                 Column(Modifier.weight(0.58f)) {
                     Text("Songs", style = ConvxType.Title2)
                     Spacer(Modifier.height(10.dp))
-                    val mapped = songs.map { it.toSong() }
-                    mapped.forEachIndexed { i, song ->
-                        SongRow(song, { PlayerController.playSongs(mapped, i, "Search") }, showAlbum = false)
+                    songs.forEach { item ->
+                        val song = item.toSong()
+                        SongRow(song, { PlayerController.startRadio(song, item.endpoint) }, showAlbum = false)
                     }
                 }
             }

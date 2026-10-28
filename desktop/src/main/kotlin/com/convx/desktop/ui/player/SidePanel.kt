@@ -340,7 +340,8 @@ fun QueueRow(
                 }
             }
             Column(Modifier.padding(start = 12.dp).weight(1f)) {
-                Text(song.title, style = ConvxType.Body, color = if (isCurrent) accent else Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                // White on the artwork-tinted panels; the equalizer on the cover already marks it.
+                Text(song.title, style = if (isCurrent) ConvxType.BodyStrong else ConvxType.Body, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(song.artistText, style = ConvxType.Subhead, color = ConvxColors.SecondaryLabel, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             if (hovered && removable) {
