@@ -326,6 +326,9 @@ fun ExploreScreen() {
         row += chartShelves.size
         if (moods.isNotEmpty()) put(ExploreAnchor.Moods, row)
     }
+    LaunchedEffect(anchors.keys) {
+        if (anchors.isNotEmpty()) UiState.exploreAnchors = anchors.keys
+    }
     val listState = rememberLazyListState()
     // While the strip's jump scrolls, the chip that was picked stays lit; scrolling by hand
     // lights the shelf at the top (the first one while the title is still showing).

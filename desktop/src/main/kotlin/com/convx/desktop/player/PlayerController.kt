@@ -7,6 +7,7 @@ package com.convx.desktop.player
 
 import com.convx.desktop.core.Log
 import com.convx.desktop.data.AppSettings
+import com.convx.desktop.integrations.spotify.SpotifyMatcher
 import com.convx.desktop.data.Library
 import com.convx.desktop.data.RepeatMode
 import com.convx.desktop.data.Song
@@ -115,7 +116,12 @@ object PlayerController : AudioEngine.Listener {
     }
 
     /** Plays [song] and fills the queue with YouTube Music's radio for it. */
-    fun startRadio(song: Song, endpoint: WatchEndpoint? = null, title: String? = "Radio") = scope.launch {
+    fun startRadio(seed: Song, endpoint: WatchEndpoint? = null, title: String? = "Radio") = scope.launch {
+        // YouTube Music's radio needs its own id for a Spotify song.
+        val song = SpotifyMatcher.resolve(seed) ?: run {
+            _state.update { it.copy(error = "Couldn't find \"${seed.title}\" on YouTube Music") }
+            return@launch
+        }
         radioContinuation = null
         unshuffled = null
         val watch = endpoint ?: WatchEndpoint(videoId = song.id, playlistId = "RDAMVM${song.id}")
@@ -417,7 +423,7 @@ object PlayerController : AudioEngine.Listener {
     }
 
     private fun loadCurrent(startMs: Long, playWhenReady: Boolean, forceRefresh: Boolean = false) {
-        val song = _state.value.current ?: return
+        val queued = _state.value.current ?: return
         if (!forceRefresh) retriedCurrent = false
         loadJob?.cancel()
         engine.stop()
@@ -428,12 +434,29 @@ object PlayerController : AudioEngine.Listener {
                 isLoading = true,
                 isPlaying = playWhenReady,
                 error = null,
-                durationMs = (song.duration ?: 0) * 1000L,
+                durationMs = (queued.duration ?: 0) * 1000L,
                 stream = null,
             )
         }
         loadJob = scope.launch {
             val quality = AppSettings.value.audioQuality
+            // A Spotify song is found on YouTube Music first, then takes its place in the queue.
+            val song = if (SpotifyMatcher.isSpotify(queued)) {
+                val matched = SpotifyMatcher.resolve(queued) ?: run {
+                    failCurrent("Couldn't find \"${queued.title}\" on YouTube Music")
+                    return@launch
+                }
+                if (_state.value.current?.id != queued.id) return@launch
+                _state.update { s ->
+                    s.copy(
+                        queue = s.queue.toMutableList().also { it[s.index] = matched },
+                        durationMs = (matched.duration ?: 0) * 1000L,
+                    )
+                }
+                matched
+            } else {
+                queued
+            }
             val stream = StreamResolver.resolve(song.id, quality, forceRefresh).getOrElse { error ->
                 Log.e(Tag, "Couldn't resolve ${song.id}", error)
                 failCurrent(error.message ?: "This song can't be played right now")
@@ -468,8 +491,9 @@ object PlayerController : AudioEngine.Listener {
         val next = s.queue.getOrNull(s.index + 1) ?: return
         prefetchJob = scope.launch {
             delay(3_000)
-            if (AudioCache.isCached(next.id)) return@launch
-            StreamResolver.resolve(next.id, AppSettings.value.audioQuality).onSuccess { AudioCache.prefetch(it) }
+            val id = SpotifyMatcher.resolve(next)?.id ?: return@launch
+            if (AudioCache.isCached(id)) return@launch
+            StreamResolver.resolve(id, AppSettings.value.audioQuality).onSuccess { AudioCache.prefetch(it) }
         }
     }
 

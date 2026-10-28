@@ -167,12 +167,16 @@ fun SectionStrip(motion: StripMotion, open: Section?, startInset: Dp, modifier: 
         val centerX = lerp(button.center.x, openCenterX, t)
         val centerY = lerp(button.center.y, openCenterY, t)
         val contentAlpha = ((motion.body.value - 0.35f) / 0.65f).coerceIn(0f, 1f)
+        // The width's swell mid-flight would reach over Your Library; keep it to the page's side.
+        val minLeft = px(startInset) + px(StripMargin)
+        val maxRight = windowWidth - px(StripMargin)
+        val left = (centerX - width / 2f).let { if (width <= maxRight - minLeft) it.coerceIn(minLeft, maxRight - width) else it }
 
         val glow = rememberInteractiveHighlight()
         val shape = NavContinuousCapsule
         Box(
             Modifier
-                .offset { IntOffset((centerX - width / 2f).roundToInt(), (centerY - height / 2f).roundToInt()) }
+                .offset { IntOffset(left.roundToInt(), (centerY - height / 2f).roundToInt()) }
                 .size(with(density) { width.toDp() }, with(density) { height.toDp() })
                 .graphicsLayer(elasticStretch(glow))
                 // Out of sight behind its button until it starts to leave it.
@@ -298,7 +302,8 @@ private fun rememberStripEntries(section: Section): List<StripEntry> {
                 }
             }
         }
-        Section.Explore -> ExploreAnchor.entries.map { anchor ->
+        // A shelf that didn't come back (Charts isn't offered everywhere) gets no chip.
+        Section.Explore -> ExploreAnchor.entries.filter { UiState.exploreAnchors?.contains(it) != false }.map { anchor ->
             StripEntry(anchor.name, anchor.label, anchor.icon, UiState.exploreInView == anchor) {
                 if (navigator.current.screen != Screen.Explore) navigator.switchTo(Screen.Explore)
                 UiState.exploreJump = anchor

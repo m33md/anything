@@ -42,6 +42,7 @@ import com.convx.desktop.core.applyLocale
 import com.convx.desktop.data.AppSettings
 import com.convx.desktop.data.AudioQuality
 import com.convx.desktop.integrations.DiscordPresence
+import com.convx.desktop.integrations.spotify.SpotifyAccount
 import com.convx.desktop.player.AudioCache
 import com.convx.desktop.ui.components.AppMenu
 import com.convx.desktop.ui.components.Artwork
@@ -94,6 +95,8 @@ fun SettingsScreen() {
 
         item {
             SettingsGroup("Accounts") {
+                SpotifyRow()
+                Divider()
                 DiscordRow(settings.discordPresence)
                 if (settings.discordPresence) {
                     Divider()
@@ -245,6 +248,51 @@ private fun DiscordRow(enabled: Boolean) {
 }
 
 private val DiscordBlurple = Color(0xFF5865F2)
+
+/**
+ * Spotify, linked through its sign-in page in your browser. What it brings: your playlists and
+ * Liked Songs in Your Library, played from YouTube Music.
+ */
+@Composable
+private fun SpotifyRow() {
+    val state by SpotifyAccount.state.collectAsState()
+    val signedIn = state as? SpotifyAccount.State.SignedIn
+    val subtitle = when (val s = state) {
+        is SpotifyAccount.State.SignedIn -> "Connected as ${s.profile?.name ?: "you"}. Your playlists and Liked Songs are in Your Library; they play from YouTube Music."
+        SpotifyAccount.State.SigningIn -> "Finish signing in to Spotify in your browser, then come back here."
+        is SpotifyAccount.State.Failed -> s.message
+        SpotifyAccount.State.SignedOut -> "See your Spotify playlists and Liked Songs in Your Library. You sign in on Spotify's own page in your browser."
+    }
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val photo = signedIn?.profile?.image
+        if (photo != null) {
+            Artwork(photo, Modifier.size(40.dp), size = 128, shape = CircleShape, placeholderIcon = "spotify", iconSize = 20.dp)
+        } else {
+            Box(Modifier.size(40.dp).clip(CircleShape).background(Color.Black), contentAlignment = Alignment.Center) {
+                ConvxIcon("spotify", tint = SpotifyGreen, size = 40.dp)
+            }
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f).padding(end = 16.dp)) {
+            Text("Spotify", style = ConvxType.Body)
+            Spacer(Modifier.height(2.dp))
+            Text(subtitle, style = ConvxType.Subhead, color = if (state is SpotifyAccount.State.Failed) ConvxColors.AccentRed else ConvxColors.SecondaryLabel)
+        }
+        when (state) {
+            is SpotifyAccount.State.SignedIn -> PillButton("Disconnect", { SpotifyAccount.signOut() })
+            SpotifyAccount.State.SigningIn -> PillButton("Cancel", { SpotifyAccount.cancelSignIn() })
+            else -> PillButton("Connect", {
+                SpotifyAccount.signIn { uri ->
+                    runCatching { java.awt.Desktop.getDesktop().browse(uri) }
+                        .onFailure { Overlays.toast("Couldn't open your browser", "error") }
+                }
+            }, accent = SpotifyGreen)
+        }
+    }
+}
 
 @Composable
 private fun SettingsGroup(title: String, content: @Composable () -> Unit) {

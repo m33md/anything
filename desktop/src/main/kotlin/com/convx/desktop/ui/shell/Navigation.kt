@@ -28,6 +28,8 @@ sealed interface Screen {
     data class Artist(val browseId: String) : Screen
     data class Playlist(val id: String) : Screen
     data class LocalPlaylist(val id: String) : Screen
+    data class SpotifyPlaylist(val id: String) : Screen
+    data object SpotifyLiked : Screen
     data class Browse(val browseId: String, val params: String? = null, val title: String? = null) : Screen
     data class ArtistItems(val browseId: String, val params: String?, val title: String) : Screen
 }

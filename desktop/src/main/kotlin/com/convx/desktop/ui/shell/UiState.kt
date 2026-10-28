@@ -100,6 +100,9 @@ object UiState {
     var exploreJump by mutableStateOf<ExploreAnchor?>(null)
     var exploreInView by mutableStateOf<ExploreAnchor?>(null)
 
+    /** The anchors Explore has content for; null until it has loaded, when all are offered. */
+    var exploreAnchors by mutableStateOf<Set<ExploreAnchor>?>(null)
+
     /** The top bar's buttons: go to the section, or fold and unfold its strip when already there. */
     fun openSection(section: Section, navigator: Navigator) {
         val here = navigator.current.screen.section()

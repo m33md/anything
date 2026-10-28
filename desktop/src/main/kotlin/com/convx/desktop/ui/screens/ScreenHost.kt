@@ -48,6 +48,8 @@ fun ScreenHost(screen: Screen) {
         is Screen.Artist -> ArtistScreen(screen.browseId)
         is Screen.Playlist -> PlaylistScreen(screen.id)
         is Screen.LocalPlaylist -> LocalPlaylistScreen(screen.id)
+        is Screen.SpotifyPlaylist -> SpotifyPlaylistScreen(screen.id)
+        Screen.SpotifyLiked -> SpotifyLikedScreen()
         is Screen.Browse -> BrowseScreen(screen.browseId, screen.params, screen.title)
         is Screen.ArtistItems -> ArtistItemsScreen(screen.browseId, screen.params, screen.title)
     }

@@ -78,6 +78,11 @@ import com.convx.desktop.data.Library
 import com.convx.desktop.data.LibraryData
 import com.convx.desktop.data.Song
 import com.convx.desktop.data.toSong
+import com.convx.desktop.integrations.spotify.SpotifyAccount
+import com.convx.desktop.integrations.spotify.SpotifyApi
+import com.convx.desktop.integrations.spotify.SpotifyMatcher
+import com.convx.desktop.integrations.spotify.SpotifyPlaylist
+import com.convx.desktop.ui.screens.SpotifyGreen
 import com.convx.desktop.player.PlayerController
 import com.convx.desktop.ui.components.AppMenu
 import com.convx.desktop.ui.components.Artwork
@@ -123,7 +128,19 @@ val SideBarCollapsedContentInset: Dp = SideBarMargin + SideBarCollapsedWidth + 8
 private val RowHeight = 60.dp
 private val ArtSize = 46.dp
 
-private enum class Kind(val label: String) { Liked("Playlist"), LocalPlaylist("Playlist"), Playlist("Playlist"), Album("Album"), Artist("Artist") }
+private enum class Kind(val label: String) {
+    Liked("Playlist"),
+    LocalPlaylist("Playlist"),
+    Playlist("Playlist"),
+    Album("Album"),
+    Artist("Artist"),
+    SpotifyLiked("Spotify"),
+    SpotifyPlaylist("Spotify"),
+    ;
+
+    val spotify: Boolean get() = this == SpotifyLiked || this == SpotifyPlaylist
+    val playlist: Boolean get() = this == Liked || this == LocalPlaylist || this == Playlist || spotify
+}
 
 private enum class LibraryFilter(val label: String) { Playlists("Playlists"), Albums("Albums"), Artists("Artists") }
 
@@ -152,7 +169,32 @@ private data class LibraryEntry(
     val added: Long,
     val recent: Long,
 ) {
-    val subtitle: String get() = if (kind == Kind.Artist) "Artist" else listOf(kind.label, owner).filter { it.isNotBlank() }.joinToString(" • ")
+    val subtitle: String get() = when {
+        kind == Kind.Artist -> "Artist"
+        // Spotify's lists carry its mark in front instead of a word.
+        kind.spotify -> listOf("Playlist", owner).filter { it.isNotBlank() }.joinToString(" • ")
+        else -> listOf(kind.label, owner).filter { it.isNotBlank() }.joinToString(" • ")
+    }
+}
+
+/** Your Spotify Liked Songs and playlists, listed after the app's own, as Spotify lists them. */
+private fun spotifyEntries(playlists: List<SpotifyPlaylist>, likedCount: Int?): List<LibraryEntry> = buildList {
+    add(
+        LibraryEntry(
+            key = "spotify-liked", kind = Kind.SpotifyLiked, id = "spotify-liked", title = "Liked Songs",
+            owner = likedCount?.let { if (it == 1) "1 song" else "$it songs" }.orEmpty(),
+            thumbnail = null, mosaic = emptyList(), screen = Screen.SpotifyLiked, added = 0L, recent = 0L,
+        ),
+    )
+    playlists.forEachIndexed { index, p ->
+        // Spotify's own order is most recently played first; keep it under "Recents".
+        add(
+            LibraryEntry(
+                "spotify:${p.id}", Kind.SpotifyPlaylist, p.id, p.name, p.owner, p.image, emptyList(),
+                Screen.SpotifyPlaylist(p.id), added = -index.toLong(), recent = -index.toLong(),
+            ),
+        )
+    }
 }
 
 /** Everything in the library as one list; [recent] is the last time anything in it played. */
@@ -217,12 +259,26 @@ fun LibraryPanel(collapsed: Boolean, modifier: Modifier = Modifier) {
     var query by rememberSaveable { mutableStateOf("") }
     val sort = LibrarySort.of(settings.librarySort)
     val pins = settings.pinnedLibrary
-    val all = remember(library) { library.entries() }
+    val spotify by SpotifyAccount.state.collectAsState()
+    var spotifyLists by remember { mutableStateOf<List<SpotifyPlaylist>?>(null) }
+    var spotifyLiked by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(spotify is SpotifyAccount.State.SignedIn) {
+        if (spotify !is SpotifyAccount.State.SignedIn) {
+            spotifyLists = null
+            spotifyLiked = null
+            return@LaunchedEffect
+        }
+        spotifyLists = SpotifyApi.playlists().getOrNull()
+        spotifyLiked = SpotifyApi.likedSongs().getOrNull()?.size
+    }
+    val all = remember(library, spotifyLists, spotifyLiked) {
+        library.entries() + (spotifyLists?.let { spotifyEntries(it, spotifyLiked) } ?: emptyList())
+    }
     val shown = remember(all, filter, query, sort, pins) {
         val matching = all.filter { entry ->
             val kindOk = when (filter) {
                 null -> true
-                LibraryFilter.Playlists -> entry.kind == Kind.Liked || entry.kind == Kind.LocalPlaylist || entry.kind == Kind.Playlist
+                LibraryFilter.Playlists -> entry.kind.playlist
                 LibraryFilter.Albums -> entry.kind == Kind.Album
                 LibraryFilter.Artists -> entry.kind == Kind.Artist
             }
@@ -580,6 +636,10 @@ private fun LibraryRow(
                                 ConvxIcon("ic_push_pin", tint = accent, size = 13.dp, modifier = Modifier.graphicsLayer { rotationZ = 45f })
                                 Spacer(Modifier.width(4.dp))
                             }
+                            if (entry.kind.spotify) {
+                                ConvxIcon("spotify", tint = SpotifyGreen, size = 13.dp)
+                                Spacer(Modifier.width(5.dp))
+                            }
                             Text(
                                 entry.subtitle,
                                 style = TextStyle(fontFamily = ConvxFonts.SfPro, fontSize = 13.sp, lineHeight = 17.sp),
@@ -607,6 +667,8 @@ private fun EntryArt(entry: LibraryEntry, size: Dp) {
     when (entry.kind) {
         Kind.Liked -> GradientTile("favorite", size, listOf(Color(0xFFFA2D48), Color(0xFF8E2DE2)), shape)
         Kind.LocalPlaylist -> MosaicArt(entry.mosaic, size, shape)
+        // Spotify's own Liked Songs tile.
+        Kind.SpotifyLiked -> GradientTile("favorite", size, listOf(Color(0xFF450AF5), Color(0xFF8E8EE5)), shape)
         else -> Artwork(entry.thumbnail, Modifier.size(size), size = 160, shape = shape, iconSize = size * 0.4f)
     }
 }
@@ -632,6 +694,12 @@ private fun EntryMenu(entry: LibraryEntry, pinned: Boolean, dismiss: () -> Unit)
                 else PlayerController.playSongs(songs, 0, entry.title, shuffle = shuffle)
             }
             Kind.Artist -> navigator.navigate(entry.screen)
+            Kind.SpotifyLiked, Kind.SpotifyPlaylist -> AppScope.launch {
+                val tracks = if (entry.kind == Kind.SpotifyLiked) SpotifyApi.likedSongs() else SpotifyApi.playlistTracks(entry.id)
+                val songs = tracks.getOrNull().orEmpty().map(SpotifyMatcher::toSong)
+                if (songs.isEmpty()) Overlays.toast("Couldn't load songs from Spotify", "error")
+                else PlayerController.playSongs(songs, 0, entry.title, shuffle = shuffle)
+            }
         }
     }
     if (entry.kind != Kind.Artist) {
@@ -671,7 +739,7 @@ private fun EntryMenu(entry: LibraryEntry, pinned: Boolean, dismiss: () -> Unit)
             dismiss()
             Library.state.value.artists.firstOrNull { it.id == entry.id }?.let { Library.toggleArtist(it) }
         }
-        Kind.Liked -> Unit
+        Kind.Liked, Kind.SpotifyLiked, Kind.SpotifyPlaylist -> Unit
     }
 }
 
