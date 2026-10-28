@@ -60,6 +60,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -109,6 +110,7 @@ import com.convx.music.lyrics.bitchord.LyricAlignment
 import com.convx.music.lyrics.bitchord.LyricLine
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlin.math.abs
 import kotlin.math.max
 
@@ -280,6 +282,8 @@ private fun lineEnd(lines: List<LyricLine>, index: Int): Long {
 
 /** The phone's followLyricLine: centre the line, jumping first if it is off screen. */
 private suspend fun LazyListState.followLyricLine(itemIndex: Int) {
+    // On open this runs before the list's first layout, when it has no items yet.
+    snapshotFlow { layoutInfo.totalItemsCount }.first { it > 0 }
     if (itemIndex !in 0 until layoutInfo.totalItemsCount) return
     var item = layoutInfo.visibleItemsInfo.firstOrNull { it.index == itemIndex }
     if (item == null) {

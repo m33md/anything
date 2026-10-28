@@ -6,7 +6,12 @@
 package com.convx.desktop.tools
 
 import androidx.compose.runtime.snapshots.Snapshot
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.ImageComposeScene
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.PointerButton
+import androidx.compose.ui.input.pointer.PointerButtons
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.unit.Density
 import com.convx.desktop.core.Log
 import com.convx.desktop.core.initYouTube
@@ -36,6 +41,7 @@ import kotlin.system.exitProcess
  * Renders the main screens to PNG files without a window, with live YouTube Music data,
  * so the look can be checked on a build machine. Usage: `Snapshots <output dir>`.
  */
+@OptIn(ExperimentalComposeUiApi::class)
 fun main(args: Array<String>) {
     val out = File(args.firstOrNull() ?: "build/snapshots").apply { mkdirs() }
     runBlocking(Dispatchers.IO) { initYouTube() }
@@ -112,6 +118,13 @@ fun main(args: Array<String>) {
             shoot("17-sidebar-collapsed", seconds = 4) {
                 AppSettings.update { it.copy(sidebarCollapsed = true) }
                 navigator.navigate(Screen.Home)
+            }
+            // Right-click the now playing pill: the song menu, glass over the page.
+            shoot("18-song-menu", seconds = 3) {
+                val at = Offset(760f, 856f)
+                scene.sendPointerEvent(PointerEventType.Move, at)
+                scene.sendPointerEvent(PointerEventType.Press, at, buttons = PointerButtons(isSecondaryPressed = true), button = PointerButton.Secondary)
+                scene.sendPointerEvent(PointerEventType.Release, at, buttons = PointerButtons(), button = PointerButton.Secondary)
             }
             AppSettings.update { it.copy(sidebarCollapsed = false) }
         }

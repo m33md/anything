@@ -58,6 +58,7 @@ import com.convx.desktop.ui.glass.GlassShapes
 import com.convx.desktop.ui.glass.GlassTokens
 import com.convx.desktop.ui.glass.InteractiveHighlight
 import com.convx.desktop.ui.glass.additiveChrome
+import com.convx.desktop.ui.glass.rememberSymbolBounce
 import com.convx.desktop.ui.glass.liquidGlass
 import com.convx.desktop.ui.shell.FullPlayerMode
 import com.convx.desktop.ui.shell.UiState
@@ -174,12 +175,13 @@ fun NowPlayingPill(modifier: Modifier = Modifier) {
                 controlSize,
                 iconSize,
                 if (liked) LocalAccent.current else TransportTint,
+                bounce = true,
             ) { Library.toggleLike(song) }
-            GlassGlyph("flamingo_lyrics", "Lyrics", controlSize, iconSize * 1.18f, TransportTint) {
+            GlassGlyph("flamingo_lyrics", "Lyrics", controlSize, iconSize * 1.18f, TransportTint, bounce = true) {
                 UiState.fullPlayerMode = FullPlayerMode.Lyrics
                 UiState.fullPlayer = true
             }
-            GlassGlyph("flamingo_queue", "Queue", controlSize, iconSize, TransportTint) {
+            GlassGlyph("flamingo_queue", "Queue", controlSize, iconSize, TransportTint, bounce = true) {
                 UiState.fullPlayerMode = FullPlayerMode.Queue
                 UiState.fullPlayer = true
             }
@@ -221,10 +223,12 @@ fun GlassGlyph(
     iconSize: Dp,
     tint: Color,
     enabled: Boolean = true,
+    bounce: Boolean = false,
     onClick: () -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
+    val symbolBounce = rememberSymbolBounce()
     Tooltip(tooltip) {
         Box(
             Modifier
@@ -232,14 +236,17 @@ fun GlassGlyph(
                 .clip(CircleShape)
                 .background(Color.White.copy(alpha = if (hovered && enabled) 0.10f else 0f))
                 .hoverable(interaction)
-                .pressable(onClick, enabled = enabled, interaction = interaction, pressScale = 0.86f),
+                .pressable({
+                    if (bounce) symbolBounce.play()
+                    onClick()
+                }, enabled = enabled, interaction = interaction, pressScale = 0.86f),
             contentAlignment = Alignment.Center,
         ) {
             ConvxIcon(
                 icon,
                 tint = if (enabled) tint else tint.copy(alpha = tint.alpha * 0.45f),
                 size = iconSize,
-                modifier = Modifier.additiveChrome(),
+                modifier = symbolBounce.modifier.additiveChrome(),
             )
         }
     }

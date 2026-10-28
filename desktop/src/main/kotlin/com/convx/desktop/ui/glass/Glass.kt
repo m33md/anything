@@ -140,6 +140,16 @@ fun glassSaturation(vibrancy: Float): Float = 1f + 0.5f * vibrancy.coerceIn(0f, 
 val LocalAppBackdrop = staticCompositionLocalOf<Backdrop?> { null }
 
 /**
+ * What menus refract. Menus open in their own layer above everything, so unlike glass in the
+ * chrome they may sample the pages they open over; null where that would show the wrong thing
+ * (over the full player, whose own background is not in the recording).
+ */
+val LocalMenuBackdrop = staticCompositionLocalOf<Backdrop?> { null }
+
+/** The phone's menu material: its glass with a charcoal tint at 82% and a softer blur. */
+val MenuGlass = GlassConfig.Default.copy(surfaceTint = Color(0xFF1C1C1E), surfaceOpacity = 0.82f, blurRadius = 8f)
+
+/**
  * A liquid glass surface over [backdrop], the phone's Modifier.liquidGlass. Callers clip
  * to [shape] first and add their own elevation shadow, as the phone's call sites do.
  *

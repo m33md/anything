@@ -22,6 +22,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -34,6 +35,10 @@ import androidx.compose.ui.unit.dp
 import com.convx.desktop.data.Library
 import com.convx.desktop.data.Song
 import com.convx.desktop.player.PlayerController
+import com.convx.desktop.ui.glass.InteractiveHighlight
+import com.convx.desktop.ui.glass.LocalMenuBackdrop
+import com.convx.desktop.ui.glass.MenuGlass
+import com.convx.desktop.ui.glass.liquidGlass
 import com.convx.desktop.ui.shell.LocalNavigator
 import com.convx.desktop.ui.shell.Screen
 import com.convx.desktop.ui.theme.ConvxColors
@@ -60,22 +65,37 @@ fun MenuAnchor.openAtProvider(): (Offset) -> Unit {
 
 @Composable
 fun AppMenu(anchor: MenuAnchor, content: @Composable () -> Unit) {
+    // The phone's menus are liquid glass over the page, lit where the pointer is.
+    val backdrop = LocalMenuBackdrop.current
+    val scope = rememberCoroutineScope()
+    val glow = remember(scope) { InteractiveHighlight(scope, radiusScale = 0.6f, sheenAlpha = 0.06f, spotAlpha = 0.32f) }
+    val glass = if (backdrop != null) {
+        Modifier
+            .liquidGlass(MenuShape, MenuGlass, highlightAlpha = 0.20f, outerShadow = false, backdrop = backdrop)
+            .then(glow.modifier)
+            .then(glow.gestureModifier)
+    } else {
+        Modifier
+    }
     // A zero-size box at the click point gives the popup something to hang from.
     Box(Modifier.offset(anchor.offset.x, anchor.offset.y).size(0.dp)) {
         DropdownMenu(
             expanded = anchor.expanded,
             onDismissRequest = { anchor.expanded = false },
-            modifier = Modifier.widthIn(min = 220.dp).heightIn(max = 560.dp),
-            shape = RoundedCornerShape(12.dp),
-            containerColor = Color(0xFF2C2C2E),
+            modifier = glass.widthIn(min = 220.dp).heightIn(max = 560.dp),
+            shape = MenuShape,
+            containerColor = if (backdrop != null) Color.Transparent else Color(0xFF2C2C2E),
             tonalElevation = 0.dp,
             shadowElevation = 16.dp,
-            border = BorderStroke(0.5.dp, ConvxColors.Separator),
+            border = if (backdrop != null) null else BorderStroke(0.5.dp, ConvxColors.Separator),
         ) {
             content()
         }
     }
 }
+
+/** The phone's menus round off at 32 on a 270-wide panel; a desktop menu is smaller. */
+private val MenuShape = RoundedCornerShape(20.dp)
 
 @Composable
 fun MenuItem(text: String, icon: String? = null, enabled: Boolean = true, destructive: Boolean = false, onClick: () -> Unit) {

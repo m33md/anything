@@ -52,6 +52,7 @@ import com.convx.desktop.ui.components.Playback
 import com.convx.desktop.ui.components.artworkUrl
 import com.convx.desktop.ui.components.rememberMeshColors
 import com.convx.desktop.ui.glass.LocalAppBackdrop
+import com.convx.desktop.ui.glass.LocalMenuBackdrop
 import com.convx.desktop.ui.player.FullPlayer
 import com.convx.desktop.ui.player.MeshBackground
 import com.convx.desktop.ui.player.NowPlayingPill
@@ -112,7 +113,7 @@ fun AppShell(navigator: Navigator) {
     )
 
     ConvxTheme(accent) {
-        CompositionLocalProvider(LocalNavigator provides navigator, LocalPlayback provides playback) {
+        CompositionLocalProvider(LocalNavigator provides navigator, LocalPlayback provides playback, LocalMenuBackdrop provides appBackdrop) {
             BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)) {
                 val collapsed = settings.sidebarCollapsed || maxWidth < AutoCollapseWidth
                 val topNavigation = screen is Screen.Artist && !UiState.topNavMenuOpen
@@ -208,7 +209,8 @@ fun AppShell(navigator: Navigator) {
                     enter = slideInVertically { it / 6 } + fadeIn(tween(220)) + scaleIn(initialScale = 0.98f),
                     exit = slideOutVertically { it / 6 } + fadeOut(tween(180)) + scaleOut(targetScale = 0.98f),
                 ) {
-                    FullPlayer()
+                    // Menus over the player would refract the pages hidden under it.
+                    CompositionLocalProvider(LocalMenuBackdrop provides null) { FullPlayer() }
                 }
 
                 OverlayHost()

@@ -67,6 +67,8 @@ import com.convx.desktop.ui.glass.GlassTokens
 import com.convx.desktop.ui.glass.InteractiveHighlight
 import com.convx.desktop.ui.glass.glassPuck
 import com.convx.desktop.ui.glass.liquidGlass
+import com.convx.desktop.ui.glass.onSelected
+import com.convx.desktop.ui.glass.rememberSymbolBounce
 import com.convx.desktop.ui.theme.ConvxFonts
 import com.convx.desktop.ui.theme.ConvxType
 import com.convx.desktop.ui.theme.LocalAccent
@@ -273,8 +275,9 @@ private fun SideNavTabs(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = if (collapsed) Arrangement.Center else Arrangement.Start,
                 ) {
+                    val bounce = rememberSymbolBounce().onSelected(selected)
                     Box(Modifier.size(SideRowLeadingSlot), contentAlignment = Alignment.Center) {
-                        ConvxIcon(tab.icon, tint = accent, size = SideRowIconSize, contentDescription = tab.label)
+                        ConvxIcon(tab.icon, tint = accent, size = SideRowIconSize, contentDescription = tab.label, modifier = bounce.modifier)
                     }
                     if (!collapsed) {
                         Spacer(Modifier.width(12.dp))
