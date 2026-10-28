@@ -66,11 +66,11 @@ class AudioEngine(private val listener: Listener) {
     }
 
     fun play() {
-        session?.setPlaying(true)
+        session?.setPlayback(true)
     }
 
     fun pause() {
-        session?.setPlaying(false)
+        session?.setPlayback(false)
     }
 
     fun seek(positionMs: Long) {
@@ -110,7 +110,7 @@ class AudioEngine(private val listener: Listener) {
             return if (durationMs > 0) pos.coerceAtMost(durationMs) else pos
         }
 
-        fun setPlaying(value: Boolean) {
+        fun setPlayback(value: Boolean) {
             playing = value
             line?.let { if (value) it.start() else it.stop() }
             synchronized(signal) { signal.notifyAll() }

@@ -116,3 +116,13 @@ compose.desktop {
         }
     }
 }
+
+// Renders the main screens to build/snapshots with live data, to check the look on CI.
+tasks.register<JavaExec>("snapshots") {
+    group = "verification"
+    description = "Renders the main screens to PNG files in build/snapshots."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("com.convx.desktop.tools.SnapshotsKt")
+    args(layout.buildDirectory.dir("snapshots").get().asFile.absolutePath)
+    jvmArgs("-Xmx2g", "-Dfile.encoding=UTF-8")
+}

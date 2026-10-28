@@ -289,12 +289,16 @@ object PlayerController : AudioEngine.Listener {
     fun dismissError() = scope.launch { _state.update { it.copy(error = null) } }
 
     /** Restores the last session's queue, paused, at the saved position. */
-    fun restore() = scope.launch {
+    fun restore() {
         val settings = AppSettings.value
-        if (settings.lastQueue.isEmpty()) return@launch
-        val index = settings.lastIndex.coerceIn(settings.lastQueue.indices)
-        _state.update { it.copy(queue = settings.lastQueue, index = index) }
-        _position.value = settings.lastPositionMs
+        cue(settings.lastQueue, settings.lastIndex, settings.lastPositionMs)
+    }
+
+    /** Shows [songs] as the queue, paused at [positionMs], without loading any audio yet. */
+    fun cue(songs: List<Song>, index: Int, positionMs: Long = 0) = scope.launch {
+        if (songs.isEmpty()) return@launch
+        _state.update { it.copy(queue = songs, index = index.coerceIn(songs.indices)) }
+        _position.value = positionMs
     }
 
     fun shutdown() {
