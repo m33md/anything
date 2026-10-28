@@ -64,15 +64,14 @@ fun main(args: Array<String>) {
     val navigator = Navigator()
     val scene = ImageComposeScene(1440, 900, Density(1f)) { AppShell(navigator) }
 
-    fun shoot(name: String, seconds: Int = 10, millis: Long = seconds * 1000L, setup: () -> Unit = {}) {
-        setup()
-        val end = System.nanoTime() + millis * 1_000_000L
-        var image = scene.render(System.nanoTime())
-        while (System.nanoTime() < end) {
-            Snapshot.sendApplyNotifications()
-            Thread.sleep(40)
-            image = scene.render(System.nanoTime())
-        }
+    // Frame times only ever move forward, whether a frame came from the wall clock or a film.
+    var clock = System.nanoTime()
+    fun render(at: Long = System.nanoTime()): org.jetbrains.skia.Image {
+        clock = maxOf(at, clock + 1)
+        return scene.render(clock)
+    }
+
+    fun save(name: String, image: org.jetbrains.skia.Image) {
         val png = image.encodeToData(EncodedImageFormat.PNG)?.bytes
         if (png == null) {
             Log.w("Snapshots", "Couldn't encode $name")
@@ -82,11 +81,46 @@ fun main(args: Array<String>) {
         Log.i("Snapshots", "Wrote $name.png")
     }
 
+    fun shoot(name: String, seconds: Int = 10, setup: () -> Unit = {}) {
+        setup()
+        val end = System.nanoTime() + seconds * 1_000_000_000L
+        var image = render()
+        while (System.nanoTime() < end) {
+            Snapshot.sendApplyNotifications()
+            Thread.sleep(40)
+            image = render()
+        }
+        save(name, image)
+    }
+
+    // An animation caught at fixed points of its own time, at 60 frames a second, so a slow
+    // first frame on the build machine doesn't decide what gets captured.
+    fun film(name: String, atMs: List<Long>, setup: () -> Unit) {
+        setup()
+        Snapshot.sendApplyNotifications()
+        val start = maxOf(System.nanoTime(), clock + 1)
+        render(start)
+        var elapsed = 0L
+        for (at in atMs) {
+            var image = render(start + elapsed * 1_000_000L)
+            while (elapsed < at) {
+                elapsed += 16
+                Snapshot.sendApplyNotifications()
+                image = render(start + elapsed * 1_000_000L)
+            }
+            save("$name-${at}ms", image)
+        }
+        // Let the wall clock catch up, so the next shot's frames don't go back in time.
+        while (System.nanoTime() < clock) Thread.sleep(5)
+    }
+
     runCatching {
         shoot("01-home", seconds = 20)
-        // Home's strip mid-unfold, then settled with the feed's mood chips.
-        shoot("01a-home-strip-unfolding", millis = 160) { UiState.openSection(Section.Home, navigator) }
+        // Home's strip unfolding out of its button, then settled with the feed's mood chips.
+        film("01a-home-strip", listOf(60L, 140L, 240L, 470L)) { UiState.openSection(Section.Home, navigator) }
         shoot("01b-home-strip", seconds = 3)
+        film("01c-home-strip-folding", listOf(120L, 300L)) { UiState.openSection(Section.Home, navigator) }
+        shoot("01d-home", seconds = 2)
         shoot("02-search") { navigator.navigate(Screen.Search) }
         shoot("03-search-results") { navigator.navigate(Screen.SearchResults("the weeknd")) }
         album?.let { shoot("04-album") { navigator.navigate(Screen.Album(it.browseId)) } }
@@ -103,7 +137,7 @@ fun main(args: Array<String>) {
             }
             artist?.let {
                 shoot("10-artist-playing", seconds = 6) { navigator.navigate(Screen.Artist(it.id)) }
-                shoot("11-library-strip-unfolding", millis = 200) { UiState.openSection(Section.Library, navigator) }
+                film("11-library-strip", listOf(100L, 220L)) { UiState.openSection(Section.Library, navigator) }
             }
             shoot("12-full-player-lyrics", seconds = 12) {
                 UiState.fullPlayerMode = FullPlayerMode.Lyrics

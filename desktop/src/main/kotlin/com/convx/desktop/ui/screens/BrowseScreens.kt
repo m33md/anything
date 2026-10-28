@@ -327,15 +327,26 @@ fun ExploreScreen() {
         if (moods.isNotEmpty()) put(ExploreAnchor.Moods, row)
     }
     val listState = rememberLazyListState()
+    // While the strip's jump scrolls, the chip that was picked stays lit; scrolling by hand
+    // lights the shelf at the top (the first one while the title is still showing).
+    var jumping by remember { mutableStateOf(false) }
     val jump = UiState.exploreJump
     LaunchedEffect(jump, anchors) {
-        val row = anchors[jump ?: return@LaunchedEffect] ?: return@LaunchedEffect
+        val target = jump ?: return@LaunchedEffect
+        val row = anchors[target] ?: return@LaunchedEffect
         UiState.exploreJump = null
-        listState.animateScrollToItem(row)
+        UiState.exploreInView = target
+        jumping = true
+        try {
+            listState.animateScrollToItem(row)
+        } finally {
+            jumping = false
+        }
     }
     LaunchedEffect(listState, anchors) {
         snapshotFlow { listState.firstVisibleItemIndex }.collect { first ->
-            UiState.exploreInView = anchors.entries.filter { it.value <= first }.maxByOrNull { it.value }?.key
+            if (jumping) return@collect
+            UiState.exploreInView = anchors.entries.filter { it.value <= maxOf(first, 1) }.maxByOrNull { it.value }?.key
         }
     }
 

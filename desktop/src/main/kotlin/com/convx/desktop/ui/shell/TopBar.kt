@@ -208,12 +208,16 @@ private fun SearchField(width: Dp, exploreLit: Boolean, onExplore: () -> Unit) {
     val searching = screen == Screen.Search || screen is Screen.SearchResults
     var focused by remember { mutableStateOf(false) }
 
-    // An old results page shows what it was a search for; leaving search clears the field.
+    // An old results page shows what it was a search for. A page opened from the results keeps
+    // the search, so going back finds it; going to Home, Explore or Library ends it.
     LaunchedEffect(screen) {
-        when (screen) {
-            is Screen.SearchResults -> navigator.searchQuery = screen.query
-            Screen.Search -> Unit
-            else -> if (!focused) navigator.searchQuery = ""
+        when {
+            screen is Screen.SearchResults -> navigator.searchQuery = screen.query
+            screen == Screen.Search -> Unit
+            screen.section() != null || screen == Screen.Settings -> {
+                navigator.searchQuery = ""
+                if (focused) focusManager.clearFocus()
+            }
         }
     }
 
