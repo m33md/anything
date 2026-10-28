@@ -94,3 +94,18 @@ jobs:
           name: Convx-windows-portable
           path: desktop/build/Convx-portable-windows.zip
           if-no-files-found: error
+
+      # Same rolling pre-release as desktop-release.yml, refreshed after every build.
+      - name: Publish download links
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release delete desktop-latest --cleanup-tag --yes || true
+          gh release create desktop-latest --target "$GITHUB_SHA" --prerelease \
+            --title "Convx for Windows" \
+            --notes "Download the .msi below and double-click it. If Windows says it protected your PC, click More info, then Run anyway." \
+            build/compose/binaries/main/msi/*.msi \
+            build/compose/binaries/main/exe/*.exe \
+            build/Convx-portable-windows.zip
