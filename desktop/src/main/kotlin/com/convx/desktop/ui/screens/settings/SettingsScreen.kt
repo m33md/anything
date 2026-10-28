@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import com.convx.desktop.integrations.spotify.SpotifyAccount
 import com.convx.desktop.ui.components.Artwork
 import com.convx.desktop.ui.components.ConvxIcon
+import com.convx.desktop.ui.glass.GlassCircleButton
 import com.convx.desktop.ui.components.LocalPageInsets
 import com.convx.desktop.ui.shapes.ContinuousCapsule
 import com.convx.desktop.ui.shapes.ContinuousRoundedRectangle
@@ -72,17 +73,19 @@ class SettingsHub(val id: String, val title: String, val icon: String, val tint:
 enum class SettingsPage(val title: String, val hub: String) {
     Spotify("Spotify", "accounts"),
     Discord("Discord", "accounts"),
+    LiquidGlass("Liquid Glass", "appearance"),
 }
 
 object SettingsHubs {
     val player = SettingsHub("player", "Player & Lyrics", "play", SystemColors.Pink)
     val playback = SettingsHub("playback", "Playback & Audio", "equalizer", SystemColors.Red)
+    val appearance = SettingsHub("appearance", "Appearance", "palette", SystemColors.Purple)
     val library = SettingsHub("library", "Library & Content", "music_note", SystemColors.Orange)
     val accounts = SettingsHub("accounts", "Accounts & Services", "account", SystemColors.Green)
     val privacy = SettingsHub("privacy", "Privacy & Storage", "security", SystemColors.Blue)
     val help = SettingsHub("help", "Help & About", "info", SystemColors.Gray)
 
-    val all = listOf(player, playback, library, accounts, privacy, help)
+    val all = listOf(player, playback, appearance, library, accounts, privacy, help)
 
     fun byId(id: String) = all.firstOrNull { it.id == id } ?: player
 }
@@ -177,7 +180,7 @@ private fun RootList(state: LazyListState, sidebar: Boolean) {
     var query by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
     val navigator = LocalNavigator.current
     val rootGroups = listOf(
-        listOf(SettingsHubs.player, SettingsHubs.playback),
+        listOf(SettingsHubs.player, SettingsHubs.playback, SettingsHubs.appearance),
         listOf(SettingsHubs.library, SettingsHubs.accounts),
         listOf(SettingsHubs.privacy),
         listOf(SettingsHubs.help),
@@ -300,6 +303,7 @@ private val searchEntries: List<SearchEntry> by lazy {
         SearchEntry("Word-by-word lyrics", "Light up each word as it's sung", h.player, keywords = "karaoke synced lyrics"),
         SearchEntry("Audio quality", "High or low", h.playback, keywords = "bitrate stream data"),
         SearchEntry("Autoplay similar songs", "Keep going when the queue ends", h.playback, keywords = "radio autoplay queue"),
+        SearchEntry("Liquid Glass", "Blur, lens and highlights", h.appearance, SettingsPage.LiquidGlass, "glass blur lens refraction vibrancy chromatic aberration rim"),
         SearchEntry("Content country", "Charts and recommendations", h.library, keywords = "region location"),
         SearchEntry("Content language", "The language YouTube Music answers in", h.library, keywords = "locale"),
         SearchEntry("Hide explicit content", null, h.library, keywords = "explicit filter"),
@@ -380,7 +384,7 @@ private fun DetailPane(sidebar: Boolean) {
                         page?.title ?: hub.title,
                         style = ConvxType.LargeTitle,
                         color = ConvxColors.Label,
-                        modifier = Modifier.padding(start = 4.dp, top = if (backLabel != null && (page != null || !sidebar)) 6.dp else 4.dp, bottom = 20.dp),
+                        modifier = Modifier.padding(start = 4.dp, top = if (backLabel != null && (page != null || !sidebar)) 14.dp else 4.dp, bottom = 20.dp),
                     )
                 }
             }
@@ -401,16 +405,11 @@ private fun pop(): ContentTransform =
     (slideInHorizontally(tween(320)) { -it / 4 } + fadeIn(tween(200))) togetherWith
         (slideOutHorizontally(tween(320)) { it } + fadeOut(tween(160)))
 
-/** iOS's back button: a chevron and the previous page's name in the accent colour. */
+/** The phone's back button: a drop of glass with a chevron, naming where it goes on hover. */
 @Composable
 private fun BackButton(label: String, onClick: () -> Unit) {
-    Row(
-        Modifier.clip(ContinuousCapsule).rowPress(onClick).padding(start = 2.dp, end = 10.dp, top = 6.dp, bottom = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        ConvxIcon("chevron_leftpx", tint = LocalAccent.current, size = 18.dp)
-        Spacer(Modifier.width(2.dp))
-        Text(label, style = ConvxType.Body, color = LocalAccent.current, maxLines = 1)
+    GlassCircleButton(onClick, Modifier.padding(start = 2.dp, top = 4.dp), size = 40.dp, tooltip = label) {
+        ConvxIcon("chevron_leftpx", size = 20.dp)
     }
 }
 
@@ -419,6 +418,7 @@ private fun HubContent(hub: SettingsHub) {
     when (hub.id) {
         "player" -> PlayerHub()
         "playback" -> PlaybackHub()
+        "appearance" -> AppearanceHub()
         "library" -> LibraryHub()
         "accounts" -> AccountsHub()
         "privacy" -> PrivacyHub()
@@ -431,6 +431,7 @@ private fun PageContent(page: SettingsPage) {
     when (page) {
         SettingsPage.Spotify -> SpotifySettings()
         SettingsPage.Discord -> DiscordSettings()
+        SettingsPage.LiquidGlass -> LiquidGlassSettings()
     }
 }
 

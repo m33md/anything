@@ -77,6 +77,10 @@ object VectorIcons {
     }
 
     private fun parseColor(value: String?): Color? {
+        // Resource colours only appear on glyphs the tint recolours anyway.
+        if (value != null && (value.startsWith("@") || value.startsWith("?"))) {
+            return if (value.endsWith("transparent")) null else Color.White
+        }
         val hex = value?.removePrefix("#") ?: return null
         val argb = when (hex.length) {
             8 -> hex.toLongOrNull(16)

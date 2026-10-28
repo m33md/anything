@@ -62,6 +62,7 @@ import com.convx.desktop.ui.glass.BarMotion
 import com.convx.desktop.ui.glass.GlassConfig
 import com.convx.desktop.ui.glass.GlassShapes
 import com.convx.desktop.ui.glass.GlassTokens
+import com.convx.desktop.ui.glass.LocalGlassConfig
 import com.convx.desktop.ui.glass.additiveChrome
 import com.convx.desktop.ui.glass.chromeShadow
 import com.convx.desktop.ui.glass.elasticStretch
@@ -234,7 +235,7 @@ private fun StripChips(entries: List<StripEntry>, folded: Boolean, onContentWidt
                     .offset { IntOffset(puckX.value.roundToInt(), 0) }
                     .width(with(density) { puckW.value.toDp() })
                     .height(ChipHeight)
-                    .glassPuck(GlassShapes.Capsule, blurRadius = GlassConfig.Default.blurRadius.dp, wash = PuckWash),
+                    .glassPuck(GlassShapes.Capsule, blurRadius = LocalGlassConfig.current.blurRadius.dp, wash = PuckWash),
             )
         }
         Row(Modifier.onSizeChanged { onContentWidth(it.width) }, verticalAlignment = Alignment.CenterVertically) {

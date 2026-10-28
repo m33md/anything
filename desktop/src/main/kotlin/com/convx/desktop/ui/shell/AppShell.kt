@@ -36,6 +36,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.convx.desktop.ui.glass.of
+import com.convx.desktop.ui.glass.LocalGlassConfig
+import com.convx.desktop.ui.glass.GlassConfig
 import com.convx.desktop.data.AppSettings
 import com.convx.desktop.lyrics.LyricsService
 import com.convx.desktop.player.PlayerController
@@ -108,7 +111,13 @@ fun AppShell(navigator: Navigator) {
 
     // Convx red on black, always: the app keeps its identity whatever is playing.
     ConvxTheme(ConvxColors.AccentRed) {
-        CompositionLocalProvider(LocalNavigator provides navigator, LocalPlayback provides playback, LocalMenuBackdrop provides appBackdrop) {
+        val glass = remember(settings.glass) { GlassConfig.of(settings.glass) }
+        CompositionLocalProvider(
+            LocalNavigator provides navigator,
+            LocalPlayback provides playback,
+            LocalMenuBackdrop provides appBackdrop,
+            LocalGlassConfig provides glass,
+        ) {
             BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)) {
                 val collapsed = settings.sidebarCollapsed || maxWidth < AutoCollapseWidth
                 // A spring overshoots past its target; an inset below zero would be negative padding.

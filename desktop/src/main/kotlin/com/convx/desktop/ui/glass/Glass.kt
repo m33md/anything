@@ -119,6 +119,21 @@ data class GlassConfig(
     }
 }
 
+/** The glass the user tuned in Settings → Appearance → Liquid Glass; every glass surface reads it. */
+val LocalGlassConfig = androidx.compose.runtime.compositionLocalOf { GlassConfig.Default }
+
+/** The tuned glass, from its saved dials. */
+fun GlassConfig.Companion.of(settings: com.convx.desktop.data.GlassSettings): GlassConfig = GlassConfig(
+    vibrancy = settings.vibrancy,
+    blurRadius = settings.blurRadius,
+    lensHeight = settings.lensHeight,
+    lensAmount = settings.lensAmount,
+    chromaticAberration = settings.chromaticAberration,
+    depthEffect = settings.depthEffect,
+    surfaceOpacity = settings.surfaceOpacity,
+    highlightOpacity = settings.highlightOpacity,
+)
+
 /** Lens height and amount at a setting of 1. */
 const val LensMaxDp = 48f
 
@@ -159,7 +174,7 @@ val MenuGlass = GlassConfig.Default.copy(surfaceTint = Color(0xFF1C1C1E), surfac
 @Composable
 fun Modifier.liquidGlass(
     shape: CornerBasedShape,
-    config: GlassConfig = GlassConfig.Default,
+    config: GlassConfig = LocalGlassConfig.current,
     highlightAlpha: Float = EdgeHighlightAlpha,
     applyEdgeEffects: Boolean = true,
     outerShadow: Boolean = true,

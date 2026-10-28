@@ -95,6 +95,28 @@ enum class RepeatMode { OFF, ALL, ONE }
 
 enum class AudioQuality { AUTO, HIGH, LOW }
 
+/**
+ * The phone's Liquid Glass dials (GlassEffectSettings), with its defaults. Colours stay fixed:
+ * Convx is red on black, so only how the glass bends, blurs and catches light can change.
+ */
+@Serializable
+data class GlassSettings(
+    /** dp of blur under the glass. */
+    val blurRadius: Float = 3f,
+    /** 0..2; 1 leaves colours as they are, 2 is the phone's richer default. */
+    val vibrancy: Float = 2f,
+    /** 0..1 of the lens' 48 dp: how far in from the edge the glass bends light. */
+    val lensHeight: Float = 0.60f,
+    /** 0..1 of 48 dp: how strongly it bends it. */
+    val lensAmount: Float = 0.69f,
+    val chromaticAberration: Boolean = false,
+    val depthEffect: Boolean = false,
+    /** How much of the dark tint the glass carries. */
+    val surfaceOpacity: Float = 0.50f,
+    /** The light rim along the glass' edge. */
+    val highlightOpacity: Float = 0.33f,
+)
+
 @Serializable
 data class Settings(
     val volume: Float = 0.8f,
@@ -137,6 +159,7 @@ data class Settings(
     val discordButton2: Boolean = true,
     /** Blank for "Visit Convx". */
     val discordButton2Text: String = "",
+    val glass: GlassSettings = GlassSettings(),
     /** YouTube's guest session id; kept so recommendations stay consistent between launches. */
     val visitorData: String? = null,
     val lastQueue: List<Song> = emptyList(),

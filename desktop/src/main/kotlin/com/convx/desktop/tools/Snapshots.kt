@@ -136,6 +136,7 @@ fun main(args: Array<String>) {
             SettingsNav.push(SettingsPage.Discord)
         }
         AppSettings.update { it.copy(discordPresence = false) }
+        shoot("07d-settings-glass", seconds = 3) { SettingsNav.push(SettingsPage.LiquidGlass) }
         shoot("08-explore", seconds = 12) { navigator.navigate(Screen.Explore) }
         shoot("08a-explore-strip", seconds = 3) { UiState.openSection(Section.Explore, navigator) }
         shoot("08b-explore-jump", seconds = 3) { UiState.exploreJump = ExploreAnchor.Moods }

@@ -309,3 +309,35 @@ fun InfoNote(text: String, modifier: Modifier = Modifier) {
         Text(text, style = ConvxType.Subhead, color = ConvxColors.SecondaryLabel)
     }
 }
+
+/**
+ * A dial: its name and value on one line and the phone's glass slider under it, as the phone's
+ * Liquid Glass page lays out "Blur strength".
+ */
+@Composable
+fun SliderRow(
+    title: String,
+    valueLabel: String,
+    value: Float,
+    valueRange: ClosedFloatingPointRange<Float>,
+    subtitle: String? = null,
+    enabled: Boolean = true,
+    onChange: (Float) -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 6.dp)
+            .then(if (enabled) Modifier else Modifier.alpha(0.45f)),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(title, style = ConvxType.Body, color = ConvxColors.Label, modifier = Modifier.weight(1f))
+            Text(valueLabel, style = ConvxType.Body, color = ConvxColors.SecondaryLabel)
+        }
+        if (subtitle != null) {
+            Text(subtitle, style = ConvxType.Subhead, color = ConvxColors.SecondaryLabel)
+        }
+        Spacer(Modifier.height(6.dp))
+        com.convx.desktop.ui.glass.GlassSlider(value.coerceIn(valueRange), onChange, valueRange = valueRange, enabled = enabled)
+    }
+}
