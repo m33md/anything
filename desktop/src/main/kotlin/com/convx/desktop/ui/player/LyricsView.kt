@@ -287,8 +287,9 @@ private suspend fun LazyListState.followLyricLine(itemIndex: Int) {
     if (itemIndex !in 0 until layoutInfo.totalItemsCount) return
     var item = layoutInfo.visibleItemsInfo.firstOrNull { it.index == itemIndex }
     if (item == null) {
-        val viewport = layoutInfo.viewportEndOffset - layoutInfo.viewportStartOffset
-        scrollToItem(itemIndex, -viewport / 2)
+        // The list's top padding is half its height, so an item scrolled to the top of the
+        // content sits on the centre line, its top edge there; the animation then centres it.
+        scrollToItem(itemIndex)
         withFrameNanos { }
         item = layoutInfo.visibleItemsInfo.firstOrNull { it.index == itemIndex } ?: return
     }

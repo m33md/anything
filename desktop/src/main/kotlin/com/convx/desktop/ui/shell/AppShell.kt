@@ -178,8 +178,14 @@ fun AppShell(navigator: Navigator) {
                             .padding(start = navStart.coerceAtLeast(0.dp), top = 12.dp),
                     )
 
-                    // Centred in the content beside the side bar, not in the window.
-                    BoxWithConstraints(Modifier.fillMaxSize().padding(start = startInset)) {
+                    // Centred in the content beside the side bar, not in the window; the side bar
+                    // opened over an artist page pushes it along too.
+                    val overlaidInset by animateDpAsState(
+                        if (screen is Screen.Artist && !topNavigation) SideBarContentInset else 0.dp,
+                        spring(0.9f, 400f),
+                    )
+                    val pillStart = if (screen is Screen.Artist) overlaidInset.coerceAtLeast(0.dp) else startInset
+                    BoxWithConstraints(Modifier.fillMaxSize().padding(start = pillStart)) {
                         val pillWidth = (maxWidth * NowPlayingPillWidthFraction).coerceAtMost(1040.dp)
                         AnimatedContent(
                             targetState = if (searching) 1 else if (player.current != null) 2 else 0,
