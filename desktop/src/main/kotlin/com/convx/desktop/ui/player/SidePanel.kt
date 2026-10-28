@@ -190,12 +190,7 @@ private fun NowPlayingPanel(state: PlayerState) {
         }
         state.stream?.let { stream ->
             Spacer(Modifier.height(10.dp))
-            Text(
-                stream.badge,
-                style = ConvxType.Footnote,
-                color = ConvxColors.SecondaryLabel,
-                modifier = Modifier.clip(RoundedCornerShape(5.dp)).background(Color.White.copy(alpha = 0.08f)).padding(horizontal = 7.dp, vertical = 3.dp),
-            )
+            QualityBadge(stream.badge, stream.detail, ConvxColors.SecondaryLabel)
         }
         song.album?.let { album ->
             Spacer(Modifier.height(18.dp))

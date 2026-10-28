@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.convx.desktop.core.formatDuration
 import com.convx.desktop.data.AppSettings
 import com.convx.desktop.data.Library
@@ -51,6 +52,7 @@ import com.convx.desktop.ui.components.IconButton
 import com.convx.desktop.ui.components.LinkText
 import com.convx.desktop.ui.components.PlayButton
 import com.convx.desktop.ui.components.SongMenuContent
+import com.convx.desktop.ui.components.Tooltip
 import com.convx.desktop.ui.components.onSecondaryClick
 import com.convx.desktop.ui.components.openAtProvider
 import com.convx.desktop.ui.components.pressable
@@ -261,6 +263,7 @@ fun ProgressRow(
     modifier: Modifier = Modifier,
     labelColor: Color = ConvxColors.SecondaryLabel,
     labelsBelow: Boolean = false,
+    showQuality: Boolean = false,
 ) {
     val position = rememberSmoothPosition()
     val seconds by remember { derivedStateOf { position.value / 1000 } }
@@ -280,10 +283,16 @@ fun ProgressRow(
     if (labelsBelow) {
         Column(modifier.fillMaxWidth()) {
             bar(Modifier.fillMaxWidth())
-            Row(Modifier.fillMaxWidth()) {
-                Text(elapsed, style = ConvxType.Caption, color = labelColor)
-                Spacer(Modifier.weight(1f))
-                Text("-" + formatDuration((duration - seconds * 1000).coerceAtLeast(0)), style = ConvxType.Caption, color = labelColor)
+            // The phone keeps the quality badge centred between the two times.
+            Box(Modifier.fillMaxWidth().padding(top = 2.dp)) {
+                Text(elapsed, style = ConvxType.Caption, color = labelColor, modifier = Modifier.align(Alignment.CenterStart))
+                if (showQuality) state.stream?.let { QualityBadge(it.badge, it.detail, labelColor, Modifier.align(Alignment.Center)) }
+                Text(
+                    "-" + formatDuration((duration - seconds * 1000).coerceAtLeast(0)),
+                    style = ConvxType.Caption,
+                    color = labelColor,
+                    modifier = Modifier.align(Alignment.CenterEnd),
+                )
             }
         }
     } else {
@@ -293,6 +302,26 @@ fun ProgressRow(
             bar(Modifier.weight(1f))
             Spacer(Modifier.width(8.dp))
             Text(formatDuration(duration), style = ConvxType.Caption, color = labelColor, modifier = Modifier.width(44.dp))
+        }
+    }
+}
+
+/** The phone's AudioQualityBadge: 11sp on a 15% wash with 5dp corners; hover shows the detail. */
+@Composable
+fun QualityBadge(label: String, detail: String, tint: Color, modifier: Modifier = Modifier) {
+    Box(modifier) {
+        Tooltip(detail) {
+            Text(
+                label,
+                style = ConvxType.Caption.copy(fontSize = 11.sp, lineHeight = 14.sp),
+                color = tint,
+                maxLines = 1,
+                modifier = Modifier
+                    .shadow(2.dp, RoundedCornerShape(5.dp), ambientColor = Color.Black.copy(alpha = 0.14f), spotColor = Color.Black.copy(alpha = 0.18f))
+                    .clip(RoundedCornerShape(5.dp))
+                    .background(tint.copy(alpha = 0.15f))
+                    .padding(horizontal = 8.dp, vertical = 1.dp),
+            )
         }
     }
 }

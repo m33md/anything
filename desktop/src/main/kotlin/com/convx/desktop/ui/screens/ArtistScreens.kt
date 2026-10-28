@@ -294,6 +294,8 @@ private fun ArtistHeroImage(url: String?, pageColor: Color, modifier: Modifier =
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color(0xFF3A3A3C), 1f to pageColor)))
             }
             Box(Modifier.matchParentSize().background(Brush.verticalGradient(colorStops = heroWash(pageColor))))
+            // The phone's photo spans the screen; beside the name it also melts sideways into the page.
+            Box(Modifier.matchParentSize().background(Brush.horizontalGradient(colorStops = sideWash(pageColor))))
         }
     }
 }
@@ -303,6 +305,14 @@ private fun heroWash(pageColor: Color): Array<Pair<Float, Color>> {
     return Array(steps + 1) { i ->
         val position = i / steps.toFloat()
         position to pageColor.copy(alpha = smoothstep(307f / 393f, 1.21f, position * HeroExtent))
+    }
+}
+
+private fun sideWash(pageColor: Color): Array<Pair<Float, Color>> {
+    val steps = 16
+    return Array(steps + 1) { i ->
+        val position = i / steps.toFloat()
+        position to pageColor.copy(alpha = smoothstep(0.62f, 1f, position))
     }
 }
 

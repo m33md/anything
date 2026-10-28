@@ -47,13 +47,26 @@ data class ResolvedStream(
 
     val container: String get() = if (mimeType.contains("webm")) "webm" else "m4a"
 
-    /** "OPUS • 160kbps • 48.0kHz", the phone's quality-badge wording. */
+    /** "Opus", "AAC": the codec as the phone's badge names it. */
+    private val codecName: String
+        get() = when {
+            codec.contains("opus", ignoreCase = true) -> "Opus"
+            codec.contains("mp4a", ignoreCase = true) || codec.contains("aac", ignoreCase = true) -> "AAC"
+            codec.contains("vorbis", ignoreCase = true) -> "Vorbis"
+            else -> codec.uppercase()
+        }
+
+    /** "Opus 160 kbps": the phone's badge between the elapsed and remaining times. */
     val badge: String
+        get() = if (bitrate > 0) "$codecName ${bitrate / 1000} kbps" else codecName
+
+    /** "Opus · 160 kbps · 48 kHz": the detail line of the phone's quality card. */
+    val detail: String
         get() = buildList {
-            add(codec.uppercase().replace("MP4A", "AAC"))
-            if (bitrate > 0) add("${bitrate / 1000}kbps")
-            sampleRate?.let { add("%.1fkHz".format(it / 1000f)) }
-        }.joinToString(" • ")
+            add(codecName)
+            if (bitrate > 0) add("${bitrate / 1000} kbps")
+            sampleRate?.let { add(if (it % 1000 == 0) "${it / 1000} kHz" else "%.1f kHz".format(it / 1000f)) }
+        }.joinToString(" · ")
 }
 
 /**

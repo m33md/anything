@@ -51,6 +51,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.convx.desktop.data.AppSettings
 import com.convx.desktop.data.Library
 import com.convx.desktop.ui.components.AppMenu
@@ -205,8 +206,10 @@ fun FullPlayer(modifier: Modifier = Modifier) {
                                 val liked = library.liked.any { it.song.id == song.id }
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Column(Modifier.weight(1f)) {
-                                        Text(song.title, style = ConvxType.Title2, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        ArtistLinks(song, ConvxType.Headline.copy(color = Color.White.copy(alpha = 0.65f), fontWeight = androidx.compose.ui.text.font.FontWeight.Normal))
+                                        // The phone sets title and artist at one size, semibold over regular.
+                                        val line = ConvxType.Headline.copy(fontSize = 21.sp, lineHeight = 27.sp)
+                                        Text(song.title, style = line, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        ArtistLinks(song, line.copy(color = Color.White.copy(alpha = 0.6f), fontWeight = androidx.compose.ui.text.font.FontWeight.Normal))
                                     }
                                     IconButton(
                                         if (liked) "favorite" else "favorite_border",
@@ -224,16 +227,12 @@ fun FullPlayer(modifier: Modifier = Modifier) {
                                 }
                             }
                             Spacer(Modifier.height(14.dp))
-                            ProgressRow(state, settings.wavyProgress, labelColor = Color.White.copy(alpha = 0.6f), labelsBelow = true)
+                            ProgressRow(state, settings.wavyProgress, labelColor = Color.White.copy(alpha = 0.6f), labelsBelow = true, showQuality = true)
                             Spacer(Modifier.height(8.dp))
                             TransportControls(state, compact = false, modifier = Modifier.align(Alignment.CenterHorizontally))
                             Spacer(Modifier.height(10.dp))
                             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                                 VolumeControl(state, sliderWidth = 220.dp)
-                            }
-                            state.stream?.let { stream ->
-                                Spacer(Modifier.height(10.dp))
-                                Text(stream.badge, style = ConvxType.Footnote, color = Color.White.copy(alpha = 0.5f), modifier = Modifier.align(Alignment.CenterHorizontally))
                             }
                         }
                     }
