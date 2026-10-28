@@ -102,10 +102,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          gh release delete desktop-latest --cleanup-tag --yes || true
-          gh release create desktop-latest --target "$GITHUB_SHA" --prerelease \
-            --title "Convx for Windows" \
-            --notes "Download the .msi below and double-click it. If Windows says it protected your PC, click More info, then Run anyway." \
+          bash ../.github/scripts/publish-desktop-release.sh "$GITHUB_SHA" \
             build/compose/binaries/main/msi/*.msi \
             build/compose/binaries/main/exe/*.exe \
             build/Convx-portable-windows.zip

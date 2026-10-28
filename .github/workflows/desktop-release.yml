@@ -18,6 +18,10 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
     steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: .github/scripts
+
       - name: Download the newest Windows build
         run: |
           run=$(gh run list -b convx-desktop -w "Desktop build" -s success -L 1 --json databaseId -q '.[0].databaseId')
@@ -27,9 +31,4 @@ jobs:
           ls -la out
 
       - name: Publish
-        run: |
-          gh release delete desktop-latest --cleanup-tag --yes || true
-          gh release create desktop-latest --target "$SHA" --prerelease \
-            --title "Convx for Windows" \
-            --notes "Download the .msi below and double-click it. If Windows says it protected your PC, click More info, then Run anyway." \
-            out/msi/*.msi out/exe/*.exe out/*.zip
+        run: bash .github/scripts/publish-desktop-release.sh "$SHA" out/msi/*.msi out/exe/*.exe out/*.zip
