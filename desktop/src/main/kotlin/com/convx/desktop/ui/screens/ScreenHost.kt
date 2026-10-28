@@ -1,0 +1,94 @@
+/**
+ * Convx Project (C) 2026
+ * Licensed under GPL-3.0 | See git history for contributors
+ */
+
+package com.convx.desktop.ui.screens
+
+import androidx.compose.foundation.VerticalScrollbar
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollbarAdapter
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import com.convx.desktop.ui.shell.Screen
+import com.convx.desktop.ui.shell.TopBarHeight
+import com.convx.desktop.ui.shell.TrackTopBar
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
+
+@Composable
+fun ScreenHost(screen: Screen) {
+    when (screen) {
+        Screen.Home -> HomeScreen()
+        Screen.Search -> SearchScreen()
+        is Screen.SearchResults -> SearchResultsScreen(screen.query)
+        Screen.Library -> LibraryScreen()
+        Screen.Liked -> LikedScreen()
+        Screen.History -> HistoryScreen()
+        Screen.TopSongs -> TopSongsScreen()
+        Screen.Settings -> SettingsScreen()
+        is Screen.Album -> AlbumScreen(screen.browseId)
+        is Screen.Artist -> ArtistScreen(screen.browseId)
+        is Screen.Playlist -> PlaylistScreen(screen.id)
+        is Screen.LocalPlaylist -> LocalPlaylistScreen(screen.id)
+        is Screen.Browse -> BrowseScreen(screen.browseId, screen.params, screen.title)
+        is Screen.ArtistItems -> ArtistItemsScreen(screen.browseId, screen.params, screen.title)
+    }
+}
+
+/**
+ * A scrolling page under the top bar, with a scrollbar and the top bar fading in
+ * as the page scrolls. [background] draws behind the list (hero gradients).
+ */
+@Composable
+fun PageList(
+    state: LazyListState = rememberLazyListState(),
+    tint: Color = Color(0xFF161618),
+    topPadding: Dp = TopBarHeight + 8.dp,
+    background: (@Composable BoxScope.() -> Unit)? = null,
+    onNearEnd: (() -> Unit)? = null,
+    content: LazyListScope.() -> Unit,
+) {
+    TrackTopBar(state, tint)
+    if (onNearEnd != null) {
+        val callback = rememberUpdatedState(onNearEnd)
+        LaunchedEffect(state) {
+            snapshotFlow {
+                val info = state.layoutInfo
+                val last = info.visibleItemsInfo.lastOrNull()?.index ?: 0
+                // Keyed by item count, so a page that grows but is still near its end asks again.
+                if (info.totalItemsCount > 0 && last >= info.totalItemsCount - 4) info.totalItemsCount else -1
+            }.distinctUntilChanged().filter { it >= 0 }.collect { callback.value() }
+        }
+    }
+    Box(Modifier.fillMaxSize()) {
+        background?.invoke(this)
+        LazyColumn(
+            state = state,
+            contentPadding = PaddingValues(top = topPadding, bottom = 40.dp),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            content()
+        }
+        VerticalScrollbar(
+            rememberScrollbarAdapter(state),
+            Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(top = TopBarHeight, bottom = 8.dp, end = 2.dp),
+        )
+    }
+}
