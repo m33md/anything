@@ -41,8 +41,10 @@ import com.convx.desktop.core.AppInfo
 import com.convx.desktop.core.applyLocale
 import com.convx.desktop.data.AppSettings
 import com.convx.desktop.data.AudioQuality
+import com.convx.desktop.integrations.DiscordPresence
 import com.convx.desktop.player.AudioCache
 import com.convx.desktop.ui.components.AppMenu
+import com.convx.desktop.ui.components.Artwork
 import com.convx.desktop.ui.components.ConvxIcon
 import com.convx.desktop.ui.components.Divider
 import com.convx.desktop.ui.components.Gutter
@@ -89,6 +91,18 @@ fun SettingsScreen() {
 
     PageList {
         item { Text("Settings", style = ConvxType.LargeTitle, modifier = Modifier.padding(horizontal = Gutter, vertical = 8.dp)) }
+
+        item {
+            SettingsGroup("Accounts") {
+                DiscordRow(settings.discordPresence)
+                if (settings.discordPresence) {
+                    Divider()
+                    ToggleRow("Use details instead of state", "Show the song title after \"Listening to\" instead of the artist names.", settings.discordUseDetails) { v ->
+                        AppSettings.update { it.copy(discordUseDetails = v) }
+                    }
+                }
+            }
+        }
 
         item {
             SettingsGroup("Appearance") {
@@ -186,6 +200,51 @@ fun SettingsScreen() {
         }
     }
 }
+
+/**
+ * Discord's "Listening to", like the phone's Discord row. The phone signs in with a token; here
+ * the Discord app on the PC does the talking, so connecting is one click.
+ */
+@Composable
+private fun DiscordRow(enabled: Boolean) {
+    val status by DiscordPresence.status.collectAsState()
+    val user by DiscordPresence.user.collectAsState()
+    val subtitle = when {
+        !enabled -> "Show what you're listening to on your Discord profile. Uses the Discord app on this PC, so there's nothing to sign in to."
+        status == DiscordPresence.Status.Connected -> "Connected as ${user?.name ?: "you"}. Your profile shows what's playing while music plays."
+        status == DiscordPresence.Status.NotRunning -> "Waiting for Discord. Open the Discord app on this PC and Convx connects by itself."
+        else -> "Connecting to Discord…"
+    }
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val avatar = user?.avatar
+        if (enabled && status == DiscordPresence.Status.Connected && avatar != null) {
+            Artwork(avatar, Modifier.size(40.dp), size = 128, shape = CircleShape, placeholderIcon = "discord", iconSize = 20.dp)
+        } else {
+            Box(Modifier.size(40.dp).clip(CircleShape).background(DiscordBlurple), contentAlignment = Alignment.Center) {
+                ConvxIcon("discord", tint = Color.White, size = 22.dp)
+            }
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f).padding(end = 16.dp)) {
+            Text("Discord", style = ConvxType.Body)
+            Spacer(Modifier.height(2.dp))
+            Text(subtitle, style = ConvxType.Subhead, color = ConvxColors.SecondaryLabel)
+        }
+        if (enabled) {
+            PillButton("Disconnect", { AppSettings.update { it.copy(discordPresence = false) } })
+        } else {
+            PillButton("Connect", {
+                AppSettings.update { it.copy(discordPresence = true) }
+                DiscordPresence.reconnectNow()
+            }, filled = true, accent = DiscordBlurple)
+        }
+    }
+}
+
+private val DiscordBlurple = Color(0xFF5865F2)
 
 @Composable
 private fun SettingsGroup(title: String, content: @Composable () -> Unit) {

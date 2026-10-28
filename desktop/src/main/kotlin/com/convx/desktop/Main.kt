@@ -32,6 +32,7 @@ import com.convx.desktop.core.Log
 import com.convx.desktop.core.initYouTube
 import com.convx.desktop.data.AppSettings
 import com.convx.desktop.data.Library
+import com.convx.desktop.integrations.DiscordPresence
 import com.convx.desktop.player.AudioCache
 import com.convx.desktop.player.AudioEngine
 import com.convx.desktop.player.PlayerController
@@ -67,6 +68,7 @@ fun main() {
         AudioEngine.warmUp()
     }
     PlayerController.restore()
+    DiscordPresence.start()
 
     val icon = Thread.currentThread().contextClassLoader.getResourceAsStream("convx.png")
         ?.use { BitmapPainter(Image.makeFromEncoded(it.readBytes()).toComposeImageBitmap()) }
@@ -81,6 +83,7 @@ fun main() {
         val navigator = remember { Navigator() }
 
         fun quit() {
+            DiscordPresence.shutdown()
             PlayerController.shutdown()
             Library.flush()
             AppSettings.flush()

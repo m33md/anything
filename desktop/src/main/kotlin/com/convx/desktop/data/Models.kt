@@ -123,6 +123,10 @@ data class Settings(
     val country: String = "",
     val language: String = "",
     val cookie: String? = null,
+    /** "Listening to" on Discord, through the Discord app on this PC. Off until connected in Settings. */
+    val discordPresence: Boolean = false,
+    /** Discord's member list shows the song after "Listening to" instead of the artists. */
+    val discordUseDetails: Boolean = false,
     /** YouTube's guest session id; kept so recommendations stay consistent between launches. */
     val visitorData: String? = null,
     val lastQueue: List<Song> = emptyList(),
