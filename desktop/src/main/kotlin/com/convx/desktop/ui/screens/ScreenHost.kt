@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.convx.desktop.ui.components.LocalPageInsets
 import com.convx.desktop.ui.shell.Screen
 import com.convx.desktop.ui.shell.TopBarHeight
 import com.convx.desktop.ui.shell.TrackTopBar
@@ -38,6 +39,7 @@ fun ScreenHost(screen: Screen) {
         Screen.Home -> HomeScreen()
         Screen.Search -> SearchScreen()
         is Screen.SearchResults -> SearchResultsScreen(screen.query)
+        Screen.Explore -> ExploreScreen()
         Screen.Library -> LibraryScreen()
         Screen.Liked -> LikedScreen()
         Screen.History -> HistoryScreen()
@@ -77,18 +79,20 @@ fun PageList(
             }.distinctUntilChanged().filter { it >= 0 }.collect { callback.value() }
         }
     }
+    val insets = LocalPageInsets.current
     Box(Modifier.fillMaxSize()) {
         background?.invoke(this)
+        // The list spans the whole window and scrolls under the glass; its padding keeps rows clear of it.
         LazyColumn(
             state = state,
-            contentPadding = PaddingValues(top = topPadding, bottom = 40.dp),
+            contentPadding = PaddingValues(start = insets.start, top = topPadding, bottom = insets.bottom + 40.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
             content()
         }
         VerticalScrollbar(
             rememberScrollbarAdapter(state),
-            Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(top = TopBarHeight, bottom = 8.dp, end = 2.dp),
+            Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(top = TopBarHeight, bottom = insets.bottom + 8.dp, end = 2.dp),
         )
     }
 }

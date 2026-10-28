@@ -569,11 +569,13 @@ fun Shelf(
                 },
             )
             Spacer(Modifier.height(8.dp))
+            // Runs out under the side bar, so cards scroll beneath its glass.
+            val bleed = LocalPageInsets.current.start
             LazyRow(
                 state = state,
-                contentPadding = PaddingValues(horizontal = Gutter - 10.dp),
+                contentPadding = PaddingValues(start = bleed + Gutter - 10.dp, end = Gutter - 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(spacing),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.bleedStart(bleed).fillMaxWidth(),
             ) {
                 content()
             }

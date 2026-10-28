@@ -51,6 +51,8 @@ import com.convx.desktop.data.toSong
 import com.convx.desktop.player.PlayerController
 import com.convx.desktop.ui.components.Chip
 import com.convx.desktop.ui.components.Gutter
+import com.convx.desktop.ui.components.LocalPageInsets
+import com.convx.desktop.ui.components.bleedStart
 import com.convx.desktop.ui.components.ItemShelf
 import com.convx.desktop.ui.components.LoadingState
 import com.convx.desktop.ui.components.MessageState
@@ -319,12 +321,13 @@ fun MoodGrid(title: String, moods: List<MoodAndGenres.Item>) {
     Column(Modifier.fillMaxWidth().padding(bottom = 20.dp)) {
         SectionHeader(title, Modifier.padding(horizontal = Gutter))
         Spacer(Modifier.height(10.dp))
+        val bleed = LocalPageInsets.current.start
         LazyHorizontalGrid(
             rows = GridCells.Fixed(3),
-            contentPadding = PaddingValues(horizontal = Gutter),
+            contentPadding = PaddingValues(start = bleed + Gutter, end = Gutter),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier.fillMaxWidth().height(60.dp * 3 + 20.dp),
+            modifier = Modifier.bleedStart(bleed).fillMaxWidth().height(60.dp * 3 + 20.dp),
         ) {
             items(moods, key = { it.title }) { mood ->
                 MoodTile(mood) { navigator.navigate(Screen.Browse(mood.endpoint.browseId, mood.endpoint.params, mood.title)) }

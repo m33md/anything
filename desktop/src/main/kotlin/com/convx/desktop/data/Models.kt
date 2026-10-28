@@ -104,7 +104,10 @@ data class Settings(
     /** ARGB; null keeps Convx's red. */
     val accent: Long? = null,
     val audioQuality: AudioQuality = AudioQuality.HIGH,
+    /** Superseded by [ambientWindow]; kept so older settings files still read. */
     val dynamicBackground: Boolean = true,
+    /** Soft colours from the cover behind the pages. Off by default: the phone's pages are black. */
+    val ambientWindow: Boolean = false,
     val wavyProgress: Boolean = true,
     val sidebarCollapsed: Boolean = false,
     val rightPanel: String? = "nowPlaying",

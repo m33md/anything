@@ -1,0 +1,343 @@
+/**
+ * Convx Project (C) 2026
+ * Licensed under GPL-3.0 | See git history for contributors
+ */
+
+package com.convx.desktop.ui.glass
+
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.shape.CornerBasedShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.isSpecified
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.dp
+import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.BackdropEffectScope
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.colorControls
+import com.kyant.backdrop.effects.lens
+import com.kyant.backdrop.highlight.Highlight
+import com.kyant.backdrop.highlight.HighlightStyle
+import com.kyant.backdrop.shadow.Shadow
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.sin
+
+/*
+ * The phone's liquid glass (ui/component/GlassEffect.kt and theme/GlassTintTokens.kt),
+ * dark appearance, with the values the phone resolves from its preference defaults
+ * (AppGlassConfig.kt). Every surface runs the same effect chain on the same shaders:
+ * saturation, blur, lens refraction, a specular rim, a soft shadow and a dark outer rim.
+ */
+
+/** The phone's GlassTintTokens, dark half: the desktop app is dark only, as the phone is on dark routes. */
+object GlassTokens {
+    /** Glass base in the dark: a white lift, carried at [BaseSurfaceOpacity]. */
+    val BaseColor = Color.White
+    const val BaseSurfaceOpacity = 0.15f
+
+    /** Default surface tint and its opacity slider value (DefaultSurfaceDark, 0.5). */
+    val SurfaceTint = Color(0xFF171717)
+    const val SurfaceOpacity = 0.50f
+
+    /** Specular rim (DefaultHighlightDark at its 0.33 opacity setting). */
+    val Highlight = Color(0xFFE8E8E8)
+    const val HighlightOpacity = 0.33f
+
+    /** Pluck (rim) alphas when a surface takes the default rim strength. */
+    const val PluckAlphaNeutral = 0.30f
+    const val PluckAlphaHero = 0.48f
+
+    /** The nav puck's wash (DefaultPuckDark) and its rest opacity. */
+    val Puck = Color(0xFF2E2E2E)
+    const val PuckOpacity = 0.80f
+
+    /** Glyph and label tiers on glass. */
+    const val IconDimOpacity = 0.85f
+    const val TitleDimOpacity = 0.92f
+    const val UnselectedTabLabelOpacity = 0.75f
+    const val SecondaryLabelAlpha = 0.60f
+    val Icon = Color(0xFFEBEBF5).copy(alpha = IconDimOpacity)
+    val Title = Color.White.copy(alpha = TitleDimOpacity)
+
+    /** iOS systemGray: unselected side tab labels. */
+    val InactiveTab = Color(0xFF8E8E93)
+}
+
+/** The phone's GlassEffectConfig with its preference defaults. */
+@Immutable
+data class GlassConfig(
+    val vibrancy: Float = 2.0f,
+    /** dp. */
+    val blurRadius: Float = 3f,
+    /** 0..1 of [LensMaxDp]. */
+    val lensHeight: Float = 0.60f,
+    /** 0..1 of [LensMaxDp]. */
+    val lensAmount: Float = 0.69f,
+    val chromaticAberration: Boolean = false,
+    val depthEffect: Boolean = false,
+    val surfaceTint: Color = GlassTokens.SurfaceTint,
+    val surfaceOpacity: Float = GlassTokens.SurfaceOpacity,
+    val highlightColor: Color = GlassTokens.Highlight,
+    val highlightOpacity: Float = GlassTokens.HighlightOpacity,
+) {
+    /** The side panel's own tuning: lighter glass, a 75% black tint. */
+    fun forSidePanel(): GlassConfig = copy(
+        vibrancy = 1.2f,
+        blurRadius = 2f,
+        lensHeight = 0.4f,
+        lensAmount = 0.6f,
+        surfaceTint = Color.Black,
+        surfaceOpacity = 0.75f,
+    )
+
+    companion object {
+        val Default = GlassConfig()
+        val SidePanel = Default.forSidePanel()
+    }
+}
+
+/** Lens height and amount at a setting of 1. */
+const val LensMaxDp = 48f
+
+/** Width and default strength of the light rim; the 45° light is the phone's frozen angle. */
+val EdgeHighlightWidth = 0.8.dp
+const val EdgeHighlightAlpha = 0.55f
+const val HighlightAngle = 45f
+
+/** The dark outer rim that keeps glass edges visible on busy content. */
+private val DarkRimWidth = 1.6.dp
+private const val DarkRimAlpha = 0.32f
+
+private const val GlassFadeMillis = 280
+
+/** Maps the 0..2 vibrancy setting to a saturation multiplier. */
+fun glassSaturation(vibrancy: Float): Float = 1f + 0.5f * vibrancy.coerceIn(0f, 2f)
+
+/** What glass refracts: the app's content, recorded by the shell. Null draws a plain tinted surface. */
+val LocalAppBackdrop = staticCompositionLocalOf<Backdrop?> { null }
+
+/**
+ * A liquid glass surface over [backdrop], the phone's Modifier.liquidGlass. Callers clip
+ * to [shape] first and add their own elevation shadow, as the phone's call sites do.
+ *
+ * [highlightAlpha] is the component's rim strength; [hero] marks glass over artwork-tinted
+ * pages, which takes the stronger default rim.
+ */
+@Composable
+fun Modifier.liquidGlass(
+    shape: CornerBasedShape,
+    config: GlassConfig = GlassConfig.Default,
+    highlightAlpha: Float = EdgeHighlightAlpha,
+    applyEdgeEffects: Boolean = true,
+    outerShadow: Boolean = true,
+    hero: Boolean = false,
+    backdrop: Backdrop? = LocalAppBackdrop.current,
+): Modifier {
+    val tintAlpha = (config.surfaceTint.alpha * config.surfaceOpacity).coerceIn(0f, 1f)
+    // A configured tint carries the chosen opacity on its own; the base lift only shows without one.
+    val baseAlpha = if (config.surfaceTint.isSpecified) 0f else GlassTokens.BaseSurfaceOpacity
+    val fade = tween<Color>(GlassFadeMillis)
+    val base by animateColorAsState(GlassTokens.BaseColor.copy(alpha = baseAlpha), fade)
+    val tint by animateColorAsState(config.surfaceTint.copy(alpha = tintAlpha), fade)
+
+    if (backdrop == null) {
+        return this.drawWithCache {
+            onDrawWithContent {
+                drawRect(base)
+                drawRect(tint)
+                drawContent()
+            }
+        }
+    }
+
+    val density = LocalDensity.current
+    val blurPx = with(density) { config.blurRadius.dp.toPx() }
+    val saturation = glassSaturation(config.vibrancy)
+    val lensHeightPx = with(density) { (config.lensHeight * LensMaxDp).dp.toPx() }
+    val lensAmountPx = with(density) { (config.lensAmount * LensMaxDp).dp.toPx() }
+
+    val effects: BackdropEffectScope.() -> Unit = remember(
+        saturation, blurPx, lensHeightPx, lensAmountPx, applyEdgeEffects, config.depthEffect, config.chromaticAberration,
+    ) {
+        {
+            if (saturation != 1f) colorControls(saturation = saturation)
+            if (blurPx > 0f) blur(blurPx)
+            if (applyEdgeEffects && (lensHeightPx > 0f || lensAmountPx > 0f)) {
+                lens(
+                    refractionHeight = lensHeightPx,
+                    refractionAmount = lensAmountPx,
+                    depthEffect = config.depthEffect,
+                    chromaticAberration = config.chromaticAberration,
+                )
+            }
+        }
+    }
+
+    val baseHighlightAlpha = when {
+        highlightAlpha != EdgeHighlightAlpha -> highlightAlpha
+        hero -> GlassTokens.PluckAlphaHero
+        else -> GlassTokens.PluckAlphaNeutral
+    }
+    val rimAlpha = (baseHighlightAlpha * (config.highlightOpacity / EdgeHighlightAlpha)).coerceIn(0f, 1f)
+    val rim by animateColorAsState(config.highlightColor.copy(alpha = rimAlpha), fade)
+    val highlight: (() -> Highlight?)? = remember(applyEdgeEffects) {
+        if (applyEdgeEffects) {
+            {
+                Highlight(
+                    width = EdgeHighlightWidth,
+                    style = HighlightStyle.Default(color = rim, angle = HighlightAngle),
+                )
+            }
+        } else {
+            null
+        }
+    }
+    val shadow: (() -> Shadow?)? = remember(applyEdgeEffects, outerShadow) {
+        if (applyEdgeEffects && outerShadow) ({ Shadow.Default }) else null
+    }
+    // Read in the draw phase, so the light/dark fade never recomposes or rebuilds the effects.
+    val surface: DrawScope.() -> Unit = remember {
+        {
+            if (base.alpha > 0f) drawRect(base)
+            if (tint.alpha > 0f) drawRect(tint)
+        }
+    }
+    val shapeBlock: () -> Shape = remember(shape) { { shape } }
+    val darkRimAlpha = (DarkRimAlpha * (config.highlightOpacity / EdgeHighlightAlpha)).coerceIn(0f, 1f)
+
+    return this
+        .drawBackdrop(
+            backdrop = backdrop,
+            shape = shapeBlock,
+            effects = effects,
+            highlight = highlight,
+            shadow = shadow,
+            onDrawSurface = surface,
+        )
+        .then(
+            if (applyEdgeEffects && darkRimAlpha > 0f) {
+                Modifier.outerDarkRim(shape, DarkRimWidth, darkRimAlpha, HighlightAngle)
+            } else {
+                Modifier
+            },
+        )
+}
+
+/**
+ * A plain glass puck: the phone side bar's selection capsule, cut from the panel's own
+ * frost with a strong lens and dispersion, a soft shadow and the puck wash, no rim.
+ */
+@Composable
+fun Modifier.glassPuck(
+    shape: CornerBasedShape,
+    blurRadius: Dp,
+    wash: Color = GlassTokens.Puck.copy(alpha = GlassTokens.PuckOpacity),
+    shadowAlpha: Float = 0.35f,
+    backdrop: Backdrop? = LocalAppBackdrop.current,
+): Modifier {
+    if (backdrop == null) return this.drawWithCache { onDrawWithContent { drawOutline(shape.createOutline(size, layoutDirection, this), wash); drawContent() } }
+    val density = LocalDensity.current
+    val blurPx = with(density) { blurRadius.toPx() }
+    val heightPx = with(density) { 32.dp.toPx() }
+    val amountPx = with(density) { 28.dp.toPx() }
+    val effects: BackdropEffectScope.() -> Unit = remember(blurPx, heightPx, amountPx) {
+        {
+            blur(blurPx)
+            lens(heightPx, amountPx, chromaticAberration = true)
+        }
+    }
+    val shapeBlock: () -> Shape = remember(shape) { { shape } }
+    return drawBackdrop(
+        backdrop = backdrop,
+        shape = shapeBlock,
+        effects = effects,
+        highlight = { null },
+        shadow = { Shadow(alpha = shadowAlpha) },
+        onDrawSurface = { drawRect(wash) },
+    )
+}
+
+/**
+ * Dark counterpart to the specular rim (the phone's ModifierExt.outerDarkRim): a thin black
+ * outline on the surface's own edge, unclipped so half sits outside, drawn once per diagonal
+ * axis so each side swells and slims instead of a flat line.
+ */
+fun Modifier.outerDarkRim(
+    shape: Shape,
+    width: Dp = DarkRimWidth,
+    alpha: Float = DarkRimAlpha,
+    angle: Float = HighlightAngle,
+): Modifier = drawWithCache {
+    val outline = shape.createOutline(size, layoutDirection, this)
+    val stroke = Stroke(width = width.toPx())
+    val center = Offset(size.width / 2f, size.height / 2f)
+    fun flankBrush(axisDeg: Float): Brush {
+        val a = axisDeg * (PI / 180f).toFloat()
+        val dir = Offset(cos(a), sin(a))
+        val reach = dir * (abs(dir.x) * size.width + abs(dir.y) * size.height) / 2f
+        return Brush.linearGradient(
+            0f to Color.Black.copy(alpha = alpha),
+            0.5f to Color.Transparent,
+            1f to Color.Black.copy(alpha = alpha),
+            start = center - reach,
+            end = center + reach,
+        )
+    }
+    val first = flankBrush(angle)
+    val second = flankBrush(angle + 90f)
+    onDrawWithContent {
+        drawContent()
+        drawOutline(outline, first, style = stroke)
+        drawOutline(outline, second, style = stroke)
+    }
+}
+
+/**
+ * Glyphs on dark glass are composited additively, as the phone's flamingoChrome: the label
+ * lifts what is behind it, so it reads as part of the material rather than ink on top.
+ */
+fun Modifier.additiveChrome(enabled: Boolean = true, strength: Float = 1f, passes: Int = 1, bleed: Dp = 0.dp): Modifier =
+    if (!enabled) this else drawWithCache {
+        val layer = obtainGraphicsLayer().apply {
+            blendMode = BlendMode.Plus
+            alpha = strength
+        }
+        val pad = bleed.toPx()
+        val layerSize = IntSize(
+            (size.width + 2 * pad).toInt().coerceAtLeast(1),
+            (size.height + 2 * pad).toInt().coerceAtLeast(1),
+        )
+        onDrawWithContent {
+            layer.record(layerSize) { translate(pad, pad) { this@onDrawWithContent.drawContent() } }
+            translate(-pad, -pad) { repeat(passes) { drawLayer(layer) } }
+        }
+    }
+
+/** Shared shapes: the side panel's corner and the capsule every pill and row uses. */
+object GlassShapes {
+    val Panel = RoundedCornerShape(20.dp)
+    val Capsule = RoundedCornerShape(percent = 50)
+}

@@ -31,6 +31,9 @@ enum class SidePanel(val key: String) {
     }
 }
 
+/** The library page's filter; the side bar's Library rows open it on one. */
+enum class LibraryTab(val label: String) { All("All"), Playlists("Playlists"), Albums("Albums"), Artists("Artists") }
+
 /** What the full-screen player shows beside the artwork. */
 enum class FullPlayerMode { Lyrics, Queue, Artwork }
 
@@ -52,6 +55,22 @@ object UiState {
 
     fun typingFocusChanged(field: Any, focused: Boolean) {
         if (focused) typingIn = field else if (typingIn == field) typingIn = null
+    }
+
+    var libraryTab by mutableStateOf(LibraryTab.All)
+
+    /**
+     * On the artist page the side bar folds into a pill at the top, as on the phone, and the
+     * page takes the whole width; the pill's menu button opens the side bar over it.
+     */
+    var topNavMenuOpen by mutableStateOf(false)
+
+    fun toggleSideBar() {
+        if (topNavMenuOpen) {
+            topNavMenuOpen = false
+            return
+        }
+        AppSettings.update { it.copy(sidebarCollapsed = !it.sidebarCollapsed) }
     }
 
     /** 0 = top bar transparent over a page's hero, 1 = solid. */

@@ -19,7 +19,6 @@ import com.convx.desktop.ui.shell.AppShell
 import com.convx.desktop.ui.shell.FullPlayerMode
 import com.convx.desktop.ui.shell.Navigator
 import com.convx.desktop.ui.shell.Screen
-import com.convx.desktop.ui.shell.SidePanel
 import com.convx.desktop.ui.shell.UiState
 import com.music.innertube.SearchFilter
 import com.music.innertube.YouTube
@@ -53,7 +52,7 @@ fun main(args: Array<String>) {
     val playlist = runBlocking(Dispatchers.IO) { first("today's top hits", SearchFilter.FILTER_FEATURED_PLAYLIST) }
         .filterIsInstance<PlaylistItem>().firstOrNull()
 
-    AppSettings.update { it.copy(rightPanel = null) }
+    AppSettings.update { it.copy(rightPanel = null, sidebarCollapsed = false) }
     val navigator = Navigator()
     val scene = ImageComposeScene(1440, 900, Density(1f)) { AppShell(navigator) }
 
@@ -83,32 +82,38 @@ fun main(args: Array<String>) {
         artist?.let { shoot("05-artist") { navigator.navigate(Screen.Artist(it.id)) } }
         playlist?.let { shoot("06-playlist") { navigator.navigate(Screen.Playlist(it.id)) } }
         shoot("07-settings", seconds = 4) { navigator.navigate(Screen.Settings) }
+        shoot("08-explore", seconds = 12) { navigator.navigate(Screen.Explore) }
         if (songs.isNotEmpty()) {
-            shoot("08-now-playing-panel") {
+            shoot("09-home-playing") {
                 PlayerController.cue(songs, 0, positionMs = 62_000)
-                AppSettings.update { it.copy(rightPanel = SidePanel.NowPlaying.key) }
                 navigator.navigate(Screen.Home)
             }
-            shoot("09-lyrics-panel") { AppSettings.update { it.copy(rightPanel = SidePanel.Lyrics.key) } }
-            shoot("10-queue-panel", seconds = 4) { AppSettings.update { it.copy(rightPanel = SidePanel.Queue.key) } }
-            shoot("11-full-player-lyrics", seconds = 12) {
+            artist?.let {
+                shoot("10-artist-playing", seconds = 6) { navigator.navigate(Screen.Artist(it.id)) }
+                shoot("11-artist-sidebar-open", seconds = 3) { UiState.topNavMenuOpen = true }
+            }
+            shoot("12-full-player-lyrics", seconds = 12) {
                 UiState.fullPlayerMode = FullPlayerMode.Lyrics
                 UiState.fullPlayer = true
             }
-            shoot("12-full-player-queue", seconds = 4) { UiState.fullPlayerMode = FullPlayerMode.Queue }
+            shoot("13-full-player-queue", seconds = 4) { UiState.fullPlayerMode = FullPlayerMode.Queue }
 
-            // A lived-in library, for the sidebar, the library page and the song-list pages.
+            // A lived-in library, for the side bar, the library page and the song-list pages.
             UiState.fullPlayer = false
-            AppSettings.update { it.copy(rightPanel = null) }
             songs.take(6).forEach { Library.toggleLike(it) }
             songs.take(4).forEach { Library.recordPlay(it) }
             album?.let { Library.toggleAlbum(it.toSaved()) }
             artist?.let { Library.toggleArtist(it.toSaved()) }
             playlist?.let { Library.togglePlaylist(it.toSaved()) }
             val mix = Library.createPlaylist("Late night drive", songs.take(8))
-            shoot("13-library", seconds = 8) { navigator.navigate(Screen.Library) }
-            shoot("14-liked", seconds = 6) { navigator.navigate(Screen.Liked) }
-            shoot("15-local-playlist", seconds = 6) { navigator.navigate(Screen.LocalPlaylist(mix)) }
+            shoot("14-library", seconds = 8) { navigator.navigate(Screen.Library) }
+            shoot("15-liked", seconds = 6) { navigator.navigate(Screen.Liked) }
+            shoot("16-local-playlist", seconds = 6) { navigator.navigate(Screen.LocalPlaylist(mix)) }
+            shoot("17-sidebar-collapsed", seconds = 4) {
+                AppSettings.update { it.copy(sidebarCollapsed = true) }
+                navigator.navigate(Screen.Home)
+            }
+            AppSettings.update { it.copy(sidebarCollapsed = false) }
         }
     }.onFailure { Log.e("Snapshots", "Rendering failed", it) }
 

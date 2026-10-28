@@ -58,10 +58,12 @@ import com.convx.desktop.ui.components.MessageState
 import com.convx.desktop.ui.components.PlayButton
 import com.convx.desktop.ui.components.SongShelf
 import com.convx.desktop.ui.components.pressable
-import com.convx.desktop.ui.shell.GradientTile
+import com.convx.desktop.ui.components.GradientTile
+import com.convx.desktop.ui.shell.LibraryTab
 import com.convx.desktop.ui.shell.LocalNavigator
-import com.convx.desktop.ui.shell.MosaicArt
+import com.convx.desktop.ui.components.MosaicArt
 import com.convx.desktop.ui.shell.Screen
+import com.convx.desktop.ui.shell.UiState
 import com.convx.desktop.ui.theme.ConvxColors
 import com.convx.desktop.ui.theme.ConvxShapes
 import com.convx.desktop.ui.theme.ConvxType
@@ -167,21 +169,19 @@ fun BrowseScreen(browseId: String, params: String?, title: String?) {
     }
 }
 
-private enum class LibraryTab(val label: String) { All("All"), Playlists("Playlists"), Albums("Albums"), Artists("Artists") }
-
 /** Your Library as a full page of cards, like the phone's library grid. */
 @Composable
 fun LibraryScreen() {
     val navigator = LocalNavigator.current
     val library by Library.state.collectAsState()
-    var tab by rememberSaveable { mutableStateOf(LibraryTab.All) }
+    val tab = UiState.libraryTab
     PageList {
         item(key = "title") {
             Text("Your Library", style = ConvxType.LargeTitle, modifier = Modifier.padding(horizontal = Gutter, vertical = 8.dp))
         }
         item(key = "tabs") {
             LazyRow(contentPadding = PaddingValues(horizontal = Gutter, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(LibraryTab.entries) { t -> Chip(t.label, tab == t, { tab = t }) }
+                items(LibraryTab.entries) { t -> Chip(t.label, tab == t, { UiState.libraryTab = t }) }
             }
         }
         item(key = "grid") {
@@ -303,6 +303,63 @@ private fun SavedCard(
                 textAlign = if (round) TextAlign.Center else TextAlign.Start,
                 modifier = Modifier.fillMaxWidth(),
             )
+        }
+    }
+}
+
+/**
+ * The phone's Explore tab: new releases, the charts and the mood and genre tiles. Reads
+ * the same cached pages as Home, so switching between them doesn't refetch.
+ */
+@Composable
+fun ExploreScreen() {
+    val navigator = LocalNavigator.current
+    val settings by AppSettings.state.collectAsState()
+    val explore = rememberPage("explore") { YouTube.explore().getOrThrow() }
+    val charts = rememberPage("charts") { YouTube.getChartsPage().getOrThrow() }
+    PageList {
+        item(key = "title") {
+            Text("Explore", style = ConvxType.LargeTitle, modifier = Modifier.padding(horizontal = Gutter, vertical = 8.dp))
+        }
+        val releases = explore.value?.newReleaseAlbums.orEmpty().filtered(settings)
+        if (releases.isNotEmpty()) {
+            item(key = "new_releases") {
+                ItemShelf("New Releases", releases, onTitleClick = { navigator.navigate(Screen.Browse("FEmusic_new_releases_albums", null, "New Releases")) })
+                Spacer(Modifier.height(20.dp))
+            }
+        }
+        charts.value?.sections.orEmpty().forEachIndexed { index, section ->
+            val items = section.items.filtered(settings).distinctBy { it.id }
+            if (items.isEmpty()) return@forEachIndexed
+            item(key = "chart-$index-${section.title}") {
+                if (items.isSongShelf()) {
+                    val songs = items.filterIsInstance<SongItem>().map { it.toSong() }
+                    SongShelf(section.title, songs) { i -> PlayerController.playSongs(songs, i, section.title) }
+                } else {
+                    ItemShelf(section.title, items, onTitleClick = { navigator.navigate(Screen.Browse("FEmusic_charts", null, "Charts")) })
+                }
+                Spacer(Modifier.height(20.dp))
+            }
+        }
+        val moods = explore.value?.moodAndGenres.orEmpty().distinctBy { it.title }
+        if (moods.isNotEmpty()) {
+            item(key = "moods") { MoodGrid("Moods & Genres", moods) }
+        }
+        when {
+            explore.value != null || charts.value != null -> Unit
+            explore.error != null -> item {
+                MessageState(
+                    "Couldn't reach YouTube Music",
+                    friendlyError(explore.error),
+                    icon = "offline",
+                    actionText = "Try again",
+                    onAction = {
+                        explore.retry()
+                        charts.retry()
+                    },
+                )
+            }
+            else -> item { LoadingState() }
         }
     }
 }

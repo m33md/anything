@@ -37,6 +37,7 @@ import com.convx.desktop.player.AudioEngine
 import com.convx.desktop.player.PlayerController
 import com.convx.desktop.ui.shell.AppShell
 import com.convx.desktop.ui.shell.Navigator
+import com.convx.desktop.ui.shell.Screen
 import com.convx.desktop.ui.shell.UiState
 import com.sun.jna.Library as JnaLibrary
 import com.sun.jna.Native
@@ -152,6 +153,9 @@ private fun shortcut(event: KeyEvent, navigator: Navigator): Boolean {
         }
         ctrl && (event.key == Key.L || event.key == Key.K) -> {
             UiState.fullPlayer = false
+            // The search field lives in the bottom pill, which only exists on the search pages.
+            val screen = navigator.current.screen
+            if (screen != Screen.Search && screen !is Screen.SearchResults) navigator.openRoot(Screen.Search)
             runCatching { UiState.searchFocus.requestFocus() }
             true
         }

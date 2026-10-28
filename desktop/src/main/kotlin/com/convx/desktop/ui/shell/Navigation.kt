@@ -18,6 +18,7 @@ sealed interface Screen {
     data object Home : Screen
     data object Search : Screen
     data class SearchResults(val query: String) : Screen
+    data object Explore : Screen
     data object Library : Screen
     data object Liked : Screen
     data object History : Screen

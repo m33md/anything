@@ -7,6 +7,9 @@ package com.convx.desktop.ui.shell
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -20,14 +23,11 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -42,25 +42,38 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.convx.desktop.data.AppSettings
 import com.convx.desktop.player.PlayerController
+import com.convx.desktop.ui.components.LocalPageInsets
 import com.convx.desktop.ui.components.LocalPlayback
 import com.convx.desktop.ui.components.OverlayHost
 import com.convx.desktop.ui.components.Overlays
+import com.convx.desktop.ui.components.PageInsets
 import com.convx.desktop.ui.components.Playback
 import com.convx.desktop.ui.components.artworkUrl
-import com.convx.desktop.ui.components.panel
 import com.convx.desktop.ui.components.rememberMeshColors
+import com.convx.desktop.ui.glass.LocalAppBackdrop
 import com.convx.desktop.ui.player.FullPlayer
 import com.convx.desktop.ui.player.MeshBackground
-import com.convx.desktop.ui.player.PlayerBar
-import com.convx.desktop.ui.player.RightPanel
+import com.convx.desktop.ui.player.NowPlayingPill
+import com.convx.desktop.ui.player.NowPlayingPillHeight
+import com.convx.desktop.ui.player.NowPlayingPillWidthFraction
 import com.convx.desktop.ui.screens.ScreenHost
 import com.convx.desktop.ui.theme.ConvxColors
 import com.convx.desktop.ui.theme.ConvxTheme
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+
+/** Below this window width the side bar folds to its icon rail on its own. */
+private val AutoCollapseWidth = 1100.dp
+
+/** Space the pages leave under the bottom pill: the pill and its margins. */
+private val BottomChromeInset = NowPlayingPillHeight + 24.dp
 
 /**
- * The window: Spotify's arrangement (library on the left, pages in the middle,
- * now playing on the right, transport along the bottom) over the phone's ambient
- * artwork backdrop.
+ * The window, laid out as the phone lays itself out on a big screen (its tab view): the
+ * pages fill the whole window on true black, and the chrome floats over them as liquid
+ * glass that refracts them: the side bar on the left, the now playing pill at the bottom
+ * (the search field while you search), back and forward at the top. On the artist page
+ * the side bar folds into a pill at the top so the page keeps the whole width.
  */
 @Composable
 fun AppShell(navigator: Navigator) {
@@ -78,41 +91,100 @@ fun AppShell(navigator: Navigator) {
         PlayerController.dismissError()
     }
 
+    val screen = navigator.current.screen
+    LaunchedEffect(screen) { UiState.topNavMenuOpen = false }
+
+    // Everything the glass refracts: the pages over the phone's base fill.
+    val appBackdrop = rememberLayerBackdrop(
+        onDraw = remember {
+            {
+                drawRect(Color.Black)
+                drawContent()
+            }
+        },
+    )
+
     ConvxTheme(accent) {
         CompositionLocalProvider(LocalNavigator provides navigator, LocalPlayback provides playback) {
-            Box(Modifier.fillMaxSize().background(Color.Black)) {
-                if (settings.dynamicBackground) {
-                    val mesh by rememberMeshColors(artworkUrl(player.current?.thumbnail, 226))
-                    MeshBackground(mesh, player.current?.id, scrim = 0.78f)
+            BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)) {
+                val collapsed = settings.sidebarCollapsed || maxWidth < AutoCollapseWidth
+                val topNavigation = screen is Screen.Artist && !UiState.topNavMenuOpen
+                val searching = screen == Screen.Search || screen is Screen.SearchResults
+                val showPill = player.current != null || searching
+                // A spring overshoots past its target; an inset below zero would be negative padding.
+                val startInsetRaw by animateDpAsState(
+                    when {
+                        screen is Screen.Artist -> 0.dp
+                        collapsed -> SideBarCollapsedContentInset
+                        else -> SideBarContentInset
+                    },
+                    spring(0.9f, 400f),
+                )
+                val startInset = startInsetRaw.coerceAtLeast(0.dp)
+                val insets = PageInsets(start = startInset, bottom = if (showPill) BottomChromeInset else 0.dp)
+
+                // The pages, recorded as the backdrop every glass surface samples.
+                Box(Modifier.fillMaxSize().layerBackdrop(appBackdrop)) {
+                    if (settings.ambientWindow) {
+                        val mesh by rememberMeshColors(artworkUrl(player.current?.thumbnail, 226))
+                        MeshBackground(mesh, player.current?.id, scrim = 0.78f)
+                    }
+                    CompositionLocalProvider(LocalPageInsets provides insets) {
+                        Pages(navigator)
+                    }
                 }
-                Column(Modifier.fillMaxSize()) {
-                    BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
-                        // Narrow windows fold the library into its icon rail and drop the side panel.
-                        val autoCollapse = maxWidth < 1000.dp
-                        val panel = SidePanel.of(settings.rightPanel).takeIf { maxWidth >= 1100.dp }
-                        Row(Modifier.fillMaxSize().padding(start = 8.dp, end = 8.dp, top = 8.dp)) {
-                            Sidebar(collapsed = settings.sidebarCollapsed || autoCollapse)
-                            Spacer(Modifier.width(8.dp))
-                            ContentPanel(navigator, Modifier.weight(1f).fillMaxHeight())
-                            AnimatedVisibility(
-                                visible = panel != null,
-                                enter = fadeIn() + slideInHorizontally { it / 3 },
-                                exit = fadeOut() + slideOutHorizontally { it / 3 },
-                            ) {
-                                Row {
-                                    Spacer(Modifier.width(8.dp))
-                                    // Keep the last panel on screen while it slides out.
-                                    val shown = remember { mutableListOf<SidePanel>() }
-                                    if (panel != null) {
-                                        shown.clear()
-                                        shown += panel
-                                    }
-                                    shown.firstOrNull()?.let { RightPanel(it) }
-                                }
+
+                // The chrome samples the recording, so it sits outside it.
+                CompositionLocalProvider(LocalAppBackdrop provides appBackdrop) {
+                    AnimatedContent(
+                        targetState = topNavigation,
+                        transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(160)) },
+                        modifier = Modifier.fillMaxSize(),
+                    ) { asPill ->
+                        Box(Modifier.fillMaxSize()) {
+                            if (asPill) {
+                                TabTopPill(Modifier.align(Alignment.TopCenter).padding(top = 12.dp))
+                            } else {
+                                FloatingSideBar(
+                                    collapsed = collapsed && screen !is Screen.Artist,
+                                    modifier = Modifier
+                                        .align(Alignment.CenterStart)
+                                        .padding(start = SideBarMargin, top = SideBarMargin, bottom = SideBarMargin),
+                                )
                             }
                         }
                     }
-                    PlayerBar()
+
+                    NavCapsule(
+                        Modifier
+                            .align(Alignment.TopStart)
+                            .padding(start = if (topNavigation) 16.dp else startInset + 16.dp, top = 12.dp),
+                    )
+
+                    // Centred in the content beside the side bar, not in the window.
+                    BoxWithConstraints(Modifier.fillMaxSize().padding(start = startInset)) {
+                        val pillWidth = (maxWidth * NowPlayingPillWidthFraction).coerceAtMost(1040.dp)
+                        AnimatedContent(
+                            targetState = if (searching) 1 else if (player.current != null) 2 else 0,
+                            transitionSpec = {
+                                // The phone's tabViewSearchPill: in on a bouncy spring, out flat.
+                                (
+                                    slideInVertically(spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium)) { if (targetState == 1) it / 2 else it } +
+                                        fadeIn()
+                                    ) togetherWith (
+                                    slideOutVertically(spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMedium)) { if (targetState == 1) it else it / 2 } +
+                                        fadeOut()
+                                    )
+                            },
+                            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp),
+                        ) { which ->
+                            when (which) {
+                                1 -> SearchPill(Modifier.width(pillWidth))
+                                2 -> NowPlayingPill(Modifier.width(pillWidth))
+                                else -> Unit
+                            }
+                        }
+                    }
                 }
 
                 AnimatedVisibility(
@@ -130,7 +202,7 @@ fun AppShell(navigator: Navigator) {
 }
 
 @Composable
-private fun ContentPanel(navigator: Navigator, modifier: Modifier) {
+private fun Pages(navigator: Navigator) {
     val holder = rememberSaveableStateHolder()
     // Drop saved scroll positions for history entries that can't be reached any more.
     LaunchedEffect(navigator) {
@@ -141,21 +213,14 @@ private fun ContentPanel(navigator: Navigator, modifier: Modifier) {
             }
         }
     }
-    LaunchedEffect(navigator.current.key) {
-        UiState.topBarOpacity = 0f
-        UiState.topBarTint = Color(0xFF161618)
-    }
-    Box(modifier.panel(alpha = 0.6f)) {
-        AnimatedContent(
-            targetState = navigator.current,
-            transitionSpec = { fadeIn(tween(200, delayMillis = 40)) togetherWith fadeOut(tween(120)) },
-            contentKey = { it.key },
-            modifier = Modifier.fillMaxSize(),
-        ) { entry ->
-            holder.SaveableStateProvider(entry.key) {
-                ScreenHost(entry.screen)
-            }
+    AnimatedContent(
+        targetState = navigator.current,
+        transitionSpec = { fadeIn(tween(200, delayMillis = 40)) togetherWith fadeOut(tween(120)) },
+        contentKey = { it.key },
+        modifier = Modifier.fillMaxSize(),
+    ) { entry ->
+        holder.SaveableStateProvider(entry.key) {
+            ScreenHost(entry.screen)
         }
-        TopBar(Modifier.align(Alignment.TopCenter))
     }
 }

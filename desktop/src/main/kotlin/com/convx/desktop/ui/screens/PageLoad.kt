@@ -5,6 +5,8 @@
 
 package com.convx.desktop.ui.screens
 
+import androidx.compose.foundation.layout.padding
+import com.convx.desktop.ui.components.LocalPageInsets
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -85,6 +87,9 @@ fun <T : Any> rememberPage(key: String, load: suspend () -> T): PageLoad<T> {
 @Composable
 fun <T : Any> PageContent(page: PageLoad<T>, modifier: Modifier = Modifier, content: @Composable (T) -> Unit) {
     val value = page.value
+    // Spinners and errors centre in the space the glass leaves, not under it.
+    val insets = LocalPageInsets.current
+    val padded = modifier.padding(start = insets.start, bottom = insets.bottom)
     when {
         value != null -> content(value)
         page.error != null -> MessageState(
@@ -93,9 +98,9 @@ fun <T : Any> PageContent(page: PageLoad<T>, modifier: Modifier = Modifier, cont
             icon = "error",
             actionText = "Try again",
             onAction = { page.retry() },
-            modifier = modifier,
+            modifier = padded,
         )
-        else -> LoadingState(modifier)
+        else -> LoadingState(padded)
     }
 }
 

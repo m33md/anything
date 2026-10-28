@@ -126,8 +126,8 @@ fun SettingsScreen() {
                     }
                 }
                 Divider()
-                ToggleRow("Moving color background", "Fill the window with soft colors from the current cover, like the phone.", settings.dynamicBackground) { v ->
-                    AppSettings.update { it.copy(dynamicBackground = v) }
+                ToggleRow("Moving color background", "Soft colors from the current cover behind every page. The glass picks them up.", settings.ambientWindow) { v ->
+                    AppSettings.update { it.copy(ambientWindow = v) }
                 }
                 Divider()
                 ToggleRow("Wavy progress bar", "The phone's squiggly progress line while music plays.", settings.wavyProgress) { v ->

@@ -81,9 +81,9 @@ import com.convx.desktop.ui.components.rememberHeroColors
 import com.convx.desktop.ui.components.rememberMenuAnchor
 import com.convx.desktop.ui.components.rememberMeshColors
 import com.convx.desktop.ui.player.MeshBackground
-import com.convx.desktop.ui.shell.GradientTile
+import com.convx.desktop.ui.components.GradientTile
 import com.convx.desktop.ui.shell.LocalNavigator
-import com.convx.desktop.ui.shell.MosaicArt
+import com.convx.desktop.ui.components.MosaicArt
 import com.convx.desktop.ui.shell.Screen
 import com.convx.desktop.ui.shell.TopBarHeight
 import com.convx.desktop.ui.theme.ConvxType
