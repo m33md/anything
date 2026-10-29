@@ -152,6 +152,17 @@ fun main(args: Array<String>) {
         com.convx.desktop.ui.components.Overlays.dismissDialog()
         shoot("07k-settings-folders", seconds = 2) { SettingsNav.push(SettingsPage.LocalFolders) }
         shoot("07l-settings-network", seconds = 2) { SettingsNav.push(SettingsPage.Network) }
+        shoot("07lb-settings-backup", seconds = 2) { SettingsNav.push(SettingsPage.Backup) }
+        val csv = java.io.File.createTempFile("Road trip", ".csv").apply {
+            writeText(
+                "Track URI,Track Name,Artist Name(s),Album Name,Duration (ms)\n" +
+                    "spotify:track:1,Bohemian Rhapsody,Queen,A Night at the Opera,354320\n" +
+                    "spotify:track:2,Get Lucky,\"Daft Punk,Pharrell Williams\",Random Access Memories,369626\n",
+            )
+            deleteOnExit()
+        }
+        shoot("07lc-csv-columns", seconds = 2) { com.convx.desktop.ui.screens.settings.csvImportDialog(csv) }
+        com.convx.desktop.ui.components.Overlays.dismissDialog()
         shoot("07m-party", seconds = 4) { navigator.navigate(Screen.Party) }
         // A real party on the phone's server; the free server may take a while to wake.
         shoot("07n-party-in", seconds = 30) { com.convx.desktop.integrations.party.Party.create("Convx CI") }

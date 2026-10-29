@@ -244,7 +244,18 @@ fun PrivacyHub() {
         }
     }
     SectionGap()
-    SettingsSection("Your files", footer = "Your library, settings and sign-ins live in the app data folder. Copy it to keep a backup.") {
+    SettingsSection("Backup") {
+        val backup by com.convx.desktop.integrations.Backup.state.collectAsState()
+        LinkRow(
+            "Backup and restore",
+            "Your library and settings in a file, playlist imports, and backups from your phone",
+            icon = "backup",
+            tint = SystemColors.Blue,
+            value = if (backup is com.convx.desktop.integrations.Backup.State.Working) "Working" else null,
+        ) { SettingsNav.push(SettingsPage.Backup) }
+    }
+    SectionGap()
+    SettingsSection("Your files", footer = "Your library, settings and sign-ins live in the app data folder.") {
         SettingsRow("App data", AppDirs.data.absolutePath) {
             PillButton("Open folder", { openFolder(AppDirs.data) })
         }

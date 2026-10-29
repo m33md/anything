@@ -84,6 +84,7 @@ enum class SettingsPage(val title: String, val hub: String) {
     ListenBrainz("ListenBrainz", "accounts"),
     Network("Network & proxy", "accounts"),
     LocalFolders("Music folders", "library"),
+    Backup("Backup and restore", "privacy"),
 }
 
 object SettingsHubs {
@@ -347,7 +348,10 @@ private val searchEntries: List<SearchEntry> by lazy {
         SearchEntry("Discord", "Listening status on your profile", h.accounts, SettingsPage.Discord, "rich presence rpc status buttons"),
         SearchEntry("Song cache", "Songs kept for instant starts", h.privacy, keywords = "storage clear cache"),
         SearchEntry("Image cache", "Covers and artist photos", h.privacy, keywords = "storage clear cache"),
-        SearchEntry("App data", "Where Convx keeps your library", h.privacy, keywords = "folder backup"),
+        SearchEntry("App data", "Where Convx keeps your library", h.privacy, keywords = "folder"),
+        SearchEntry("Backup and restore", "Save or restore your library and settings", h.privacy, SettingsPage.Backup, "backup restore export phone transfer move"),
+        SearchEntry("Import an M3U playlist", null, h.privacy, SettingsPage.Backup, "m3u m3u8 playlist file import winamp foobar musicbee"),
+        SearchEntry("Import a CSV playlist", "Spreadsheets and Exportify", h.privacy, SettingsPage.Backup, "csv excel exportify tunemymusic itunes txt takeout import"),
         SearchEntry("About", "Version and licence", h.help, keywords = "version license gpl"),
     )
 }
@@ -477,6 +481,7 @@ private fun PageContent(page: SettingsPage) {
         SettingsPage.ListenBrainz -> ListenBrainzSettings()
         SettingsPage.Network -> NetworkSettings()
         SettingsPage.LocalFolders -> LocalFoldersSettings()
+        SettingsPage.Backup -> BackupSettings()
     }
 }
 

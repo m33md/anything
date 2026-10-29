@@ -109,9 +109,16 @@ object Party {
             AppSettings.update { it.copy(partyServer = url.takeIf { u -> u != DefaultServer }.orEmpty()) }
         }
 
-    /** The phone offers its model name; this PC offers its own name, which you can change. */
+    /**
+     * The name others see. The phone offers its model name; a PC's own name is usually something
+     * like DESKTOP-7H2K9QF, so this offers the Windows user name instead.
+     */
     var displayName: String
-        get() = AppSettings.value.partyName.ifBlank { System.getenv("COMPUTERNAME")?.takeIf { it.isNotBlank() } ?: "Convx PC" }
+        get() = AppSettings.value.partyName.ifBlank {
+            System.getProperty("user.name")?.trim()?.takeIf { it.isNotBlank() }?.replaceFirstChar { it.uppercase() }
+                ?: System.getenv("COMPUTERNAME")?.takeIf { it.isNotBlank() }
+                ?: "Convx PC"
+        }
         set(value) {
             AppSettings.update { it.copy(partyName = value.trim()) }
         }

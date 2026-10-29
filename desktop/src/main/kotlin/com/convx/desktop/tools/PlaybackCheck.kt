@@ -40,7 +40,7 @@ fun main(args: Array<String>) {
             "kJQP7kiw5Fk",
         )
     }
-    val dspOk = dspCheck() and libraryCheck() and partyCheck()
+    val dspOk = dspCheck() and libraryCheck() and partyCheck() and backupCheck() and playlistFileCheck()
     partyServerCheck()
     runBlocking(Dispatchers.IO) { initYouTube() }
     var passed = 0
@@ -148,6 +148,163 @@ private fun partyCheck(): Boolean {
     val link = party.parseInvite("convx://party/ab12cd?server=https%3A%2F%2Fexample.com")
     expect("invite link", link?.code == "AB12CD" && link?.server == "https://example.com", "$link")
     expect("typed code", party.parseInvite(" ab-12 cd ")?.code == "AB12CD" && party.parseInvite("hi") == null, "${party.parseInvite(" ab-12 cd ")}")
+    return ok
+}
+
+/**
+ * Builds a small phone backup the way the phone's Room database lays it out (song.db, version 40)
+ * and checks what Backup reads from it: files only the phone has are left out and counted.
+ */
+private fun backupCheck(): Boolean {
+    var ok = true
+    fun expect(name: String, pass: Boolean, detail: String) {
+        if (!pass) ok = false
+        println("${if (pass) "PASS" else "FAIL"} backup $name: $detail")
+    }
+    val dir = java.nio.file.Files.createTempDirectory("convx-backup-check").toFile()
+    try {
+        Class.forName("org.sqlite.JDBC")
+        val db = java.io.File(dir, "song.db")
+        java.sql.DriverManager.getConnection("jdbc:sqlite:${db.absolutePath}").use { connection ->
+            connection.createStatement().use { st ->
+                listOf(
+                    "CREATE TABLE song (id TEXT PRIMARY KEY, title TEXT NOT NULL, duration INTEGER NOT NULL, thumbnailUrl TEXT, albumId TEXT, albumName TEXT, explicit INTEGER NOT NULL, liked INTEGER NOT NULL, likedDate INTEGER, isLocal INTEGER NOT NULL, isVideo INTEGER NOT NULL)",
+                    "CREATE TABLE artist (id TEXT PRIMARY KEY, name TEXT NOT NULL, thumbnailUrl TEXT, bookmarkedAt INTEGER, isLocal INTEGER NOT NULL)",
+                    "CREATE TABLE album (id TEXT PRIMARY KEY, playlistId TEXT, title TEXT NOT NULL, year INTEGER, thumbnailUrl TEXT, bookmarkedAt INTEGER, inLibrary INTEGER, isLocal INTEGER NOT NULL)",
+                    "CREATE TABLE playlist (id TEXT PRIMARY KEY, name TEXT NOT NULL, browseId TEXT, createdAt INTEGER, lastUpdateTime INTEGER, bookmarkedAt INTEGER, thumbnailUrl TEXT, isEditable INTEGER NOT NULL)",
+                    "CREATE TABLE playlist_song_map (id INTEGER PRIMARY KEY, playlistId TEXT NOT NULL, songId TEXT NOT NULL, position INTEGER NOT NULL)",
+                    "CREATE TABLE song_artist_map (songId TEXT NOT NULL, artistId TEXT NOT NULL, position INTEGER NOT NULL)",
+                    "CREATE TABLE album_artist_map (albumId TEXT NOT NULL, artistId TEXT NOT NULL, `order` INTEGER NOT NULL)",
+                    "CREATE TABLE event (id INTEGER PRIMARY KEY, songId TEXT NOT NULL, timestamp INTEGER NOT NULL, playTime INTEGER NOT NULL)",
+                    "INSERT INTO song VALUES ('fJ9rUzIMcZQ', 'Bohemian Rhapsody', 355, 'https://i.ytimg.com/a.jpg', 'MPREb_queen', 'A Night at the Opera', 0, 1, 1700000000000, 0, 0)",
+                    "INSERT INTO song VALUES ('5NV6Rdv1a3I', 'Get Lucky', 369, NULL, NULL, NULL, 0, 1, 1710000000000, 0, 0)",
+                    "INSERT INTO song VALUES ('local-123', 'Demo tape', 120, NULL, NULL, NULL, 0, 1, 1720000000000, 1, 0)",
+                    "INSERT INTO song VALUES ('dQw4w9WgXcQ', 'Never Gonna Give You Up', 213, NULL, NULL, NULL, 0, 0, NULL, 0, 1)",
+                    "INSERT INTO artist VALUES ('UCiMhD4jzUqG-IgPzUmmytRQ', 'Queen', NULL, 1690000000000, 0)",
+                    "INSERT INTO artist VALUES ('UCdaftpunk', 'Daft Punk', NULL, NULL, 0)",
+                    "INSERT INTO artist VALUES ('pharrell-local', 'Pharrell Williams', NULL, NULL, 1)",
+                    "INSERT INTO song_artist_map VALUES ('fJ9rUzIMcZQ', 'UCiMhD4jzUqG-IgPzUmmytRQ', 0)",
+                    "INSERT INTO song_artist_map VALUES ('5NV6Rdv1a3I', 'pharrell-local', 1)",
+                    "INSERT INTO song_artist_map VALUES ('5NV6Rdv1a3I', 'UCdaftpunk', 0)",
+                    "INSERT INTO album VALUES ('MPREb_queen', 'OLAK5uy_queen', 'A Night at the Opera', 1975, NULL, NULL, 1695000000000, 0)",
+                    "INSERT INTO album VALUES ('MPREb_unsaved', NULL, 'Not saved', NULL, NULL, NULL, NULL, 0)",
+                    "INSERT INTO album_artist_map VALUES ('MPREb_queen', 'UCiMhD4jzUqG-IgPzUmmytRQ', 0)",
+                    "INSERT INTO playlist VALUES ('p1', 'Road trip', NULL, 1650000000000, 1660000000000, NULL, NULL, 1)",
+                    "INSERT INTO playlist VALUES ('p2', 'Chill mix', 'VLPLchill', 1655000000000, NULL, 1656000000000, NULL, 0)",
+                    "INSERT INTO playlist_song_map VALUES (1, 'p1', '5NV6Rdv1a3I', 1)",
+                    "INSERT INTO playlist_song_map VALUES (2, 'p1', 'fJ9rUzIMcZQ', 0)",
+                    "INSERT INTO playlist_song_map VALUES (3, 'p1', 'local-123', 2)",
+                    "INSERT INTO event VALUES (1, 'fJ9rUzIMcZQ', 1700000100000, 200000)",
+                    "INSERT INTO event VALUES (2, '5NV6Rdv1a3I', 1700000500000, 300000)",
+                    "INSERT INTO event VALUES (3, 'local-123', 1700000900000, 100000)",
+                ).forEach { st.executeUpdate(it) }
+            }
+        }
+        val backup = java.io.File(dir, "Convx_20261029120000.backup")
+        java.util.zip.ZipOutputStream(backup.outputStream()).use { zip ->
+            zip.putNextEntry(java.util.zip.ZipEntry("settings.preferences_pb"))
+            zip.putNextEntry(java.util.zip.ZipEntry("song.db"))
+            db.inputStream().use { it.copyTo(zip) }
+        }
+        val phone = com.convx.desktop.integrations.Backup.readPhone(backup)
+        expect("liked songs", phone.liked.map { it.song.id } == listOf("5NV6Rdv1a3I", "fJ9rUzIMcZQ"), "${phone.liked.map { it.song.title }}")
+        val lucky = phone.liked.first().song
+        expect("artists in order", lucky.artists.map { it.name } == listOf("Daft Punk", "Pharrell Williams") && lucky.artists[1].id == null, "${lucky.artists}")
+        val queen = phone.liked.last().song
+        expect("album and length", queen.album?.id == "MPREb_queen" && queen.duration == 355 && queen.thumbnail != null, "${queen.album} ${queen.duration}s")
+        val trip = phone.playlists.singleOrNull()
+        expect("playlist", trip?.id == "local-phone-p1" && trip.songs.map { it.title } == listOf("Bohemian Rhapsody", "Get Lucky"), "${trip?.name}: ${trip?.songs?.map { it.title }}")
+        expect("saved playlist", phone.savedPlaylists.map { it.id } == listOf("PLchill"), "${phone.savedPlaylists}")
+        expect("saved album", phone.albums.map { it.browseId } == listOf("MPREb_queen") && phone.albums[0].artists.map { it.name } == listOf("Queen") && phone.albums[0].year == 1975, "${phone.albums}")
+        expect("followed artist", phone.artists.map { it.name } == listOf("Queen"), "${phone.artists.map { it.name }}")
+        expect("history", phone.history.map { it.song.id } == listOf("5NV6Rdv1a3I", "fJ9rUzIMcZQ") && phone.history[0].at == 1700000500000, "${phone.history.map { it.song.title to it.at }}")
+        expect("phone-only files", phone.skippedLocal == 2, "${phone.skippedLocal} left out")
+    } catch (error: Throwable) {
+        expect("read", false, "${error::class.simpleName}: ${error.message}")
+    } finally {
+        dir.deleteRecursively()
+    }
+    return ok
+}
+
+/** The phone's M3U and CSV playlist imports, and what this reads that the phone doesn't. */
+private fun playlistFileCheck(): Boolean {
+    var ok = true
+    fun expect(name: String, pass: Boolean, detail: String) {
+        if (!pass) ok = false
+        println("${if (pass) "PASS" else "FAIL"} playlist file $name: $detail")
+    }
+    val files = com.convx.desktop.integrations.PlaylistFiles
+    val m3u = files.parseM3u(
+        """
+        #EXTM3U
+        #PLAYLIST:Road trip
+        #EXTINF:354,Queen - Bohemian Rhapsody
+        C:\Music\Queen - Bohemian Rhapsody.mp3
+        #EXTINF:-1 tvg-name="a,b",Daft Punk;Pharrell Williams - Get Lucky
+        https://music.youtube.com/watch?v=5NV6Rdv1a3I&si=abc
+        D:\Music\01 - Radiohead - Creep.flac
+        https://radio.example.com/stream
+        #EXTINF:200,Adele - Hello
+        """.trimIndent(),
+        "fallback",
+    )
+    expect("m3u name", m3u.title == "Road trip", m3u.title)
+    expect(
+        "m3u songs",
+        m3u.tracks.map { it.title } == listOf("Bohemian Rhapsody", "Get Lucky", "Creep", "Hello") &&
+            m3u.tracks[0].durationMs == 354_000L && m3u.tracks[0].artists == listOf("Queen") &&
+            m3u.tracks[1].artists == listOf("Daft Punk", "Pharrell Williams") && m3u.tracks[1].videoId == "5NV6Rdv1a3I" &&
+            m3u.tracks[2].artists == listOf("Radiohead"),
+        "${m3u.tracks}",
+    )
+    val exportify = "\uFEFF\"Track URI\",\"Track Name\",\"Artist Name(s)\",\"Album Name\",\"Duration (ms)\"\r\n" +
+        "\"spotify:track:1\",\"Bohemian Rhapsody\",\"Queen\",\"A Night at the Opera\",\"354320\"\r\n" +
+        "\"spotify:track:2\",\"Get Lucky\",\"Daft Punk,Pharrell Williams\",\"Random Access Memories\",\"369626\"\r\n" +
+        "\"spotify:track:3\",\"Say \"\"Hello\"\", again\",\"Someone; Other\",\"X\",\"215000\"\r\n"
+    val text = exportify.removePrefix("\uFEFF")
+    val preview = files.previewCsv(text)
+    expect(
+        "csv columns",
+        preview.hasHeader && preview.titleColumn == 1 && preview.artistColumn == 2 && preview.durationColumn == 4 && preview.urlColumn == -1,
+        "$preview",
+    )
+    val csv = files.parseCsvTracks(text, com.convx.desktop.integrations.PlaylistFiles.CsvMapping(true, preview.artistColumn, preview.titleColumn, preview.urlColumn, preview.durationColumn))
+    expect(
+        "csv songs",
+        csv.map { it.title } == listOf("Bohemian Rhapsody", "Get Lucky", "Say \"Hello\", again") &&
+            csv[1].artists == listOf("Daft Punk", "Pharrell Williams") && csv[2].artists == listOf("Someone", "Other") && csv[0].durationMs == 354_320L,
+        "${csv}",
+    )
+    val plain = files.previewCsv("Queen;Bohemian Rhapsody\nAdele;Hello\n")
+    val plainTracks = files.parseCsvTracks("Queen;Bohemian Rhapsody\nAdele;Hello\n", com.convx.desktop.integrations.PlaylistFiles.CsvMapping(plain.hasHeader, plain.artistColumn, plain.titleColumn))
+    expect("csv without header", !plain.hasHeader && plainTracks.map { it.title } == listOf("Bohemian Rhapsody", "Hello"), "${plainTracks}")
+    // iTunes' "Export Playlist" as text: UTF-16 with a byte order mark, tab separated, seconds.
+    val itunes = java.io.File.createTempFile("convx-itunes", ".txt")
+    try {
+        itunes.writeBytes(byteArrayOf(0xFF.toByte(), 0xFE.toByte()) + "Name\tArtist\tAlbum\tTime\r\nHello\tAdele\t25\t295\r\n".toByteArray(Charsets.UTF_16LE))
+        val itunesText = files.read(itunes)
+        val itunesPreview = files.previewCsv(itunesText)
+        val itunesTracks = files.parseCsvTracks(
+            itunesText,
+            com.convx.desktop.integrations.PlaylistFiles.CsvMapping(itunesPreview.hasHeader, itunesPreview.artistColumn, itunesPreview.titleColumn, itunesPreview.urlColumn, itunesPreview.durationColumn),
+        )
+        expect(
+            "itunes text export",
+            itunesTracks.size == 1 && itunesTracks[0].title == "Hello" && itunesTracks[0].artists == listOf("Adele") && itunesTracks[0].durationMs == 295_000L,
+            "$itunesPreview -> $itunesTracks",
+        )
+        itunes.writeBytes("#EXTINF:120,Beyonc\u00e9 - Halo\r\n".toByteArray(charset("windows-1252")))
+        expect("ansi m3u", files.parseM3u(files.read(itunes), "x").tracks.singleOrNull()?.artists == listOf("Beyonc\u00e9"), files.read(itunes))
+    } finally {
+        itunes.delete()
+    }
+    expect(
+        "youtube links",
+        files.youTubeId("https://youtu.be/dQw4w9WgXcQ?t=1") == "dQw4w9WgXcQ" && files.youTubeId("dQw4w9WgXcQ") == "dQw4w9WgXcQ" &&
+            files.youTubeId("https://example.com/watch?v=dQw4w9WgXcQ") == null,
+        "ok",
+    )
     return ok
 }
 

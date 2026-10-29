@@ -87,6 +87,8 @@ dependencies {
     implementation("net.java.dev.jna:jna-platform:5.17.0")
     // The JetBrains Runtime's custom title bar, so the top bar can be the window's title bar.
     implementation("org.jetbrains.runtime:jbr-api:1.12.0")
+    // Reads the phone's song.db out of a phone backup.
+    implementation("org.xerial:sqlite-jdbc:3.49.1.0")
 
     testImplementation(kotlin("test"))
 }

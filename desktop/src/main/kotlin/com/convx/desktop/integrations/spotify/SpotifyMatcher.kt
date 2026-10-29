@@ -69,26 +69,34 @@ object SpotifyMatcher {
         if (!isSpotify(song)) return song
         val trackId = song.id.removePrefix(Prefix)
         matches.value[trackId]?.let { return it }
-        return withContext(Dispatchers.IO) {
-            val artist = song.artists.firstOrNull()?.name.orEmpty()
-            val query = if (artist.isEmpty()) song.title else "$artist ${song.title}"
-            val candidates = YouTube.search(query, SearchFilter.FILTER_SONG)
-                .onFailure { Log.w(Tag, "Search for \"$query\" failed", it) }
-                .getOrNull()?.items.orEmpty()
-                .filterIsInstance<SongItem>()
-                .distinctBy { it.id }
-            val wanted = song.artists.joinToString(" ") { it.name }
-            val best = candidates
-                .map { it to score(song.title, wanted, (song.duration ?: 0) * 1000L, it.title, it.artists.joinToString(" ") { a -> a.name }, it.duration) }
-                .maxByOrNull { it.second }
-            if (best == null || best.second < MinScore) {
-                Log.w(Tag, "No YouTube Music match for \"$query\" (best ${best?.second})")
-                return@withContext null
-            }
-            // Spotify's cover is usually the better picture of the two; keep it.
-            val matched = best.first.toSong().let { if (song.thumbnail != null) it.copy(thumbnail = song.thumbnail) else it }
-            matches.update { it + (trackId to matched) }
-            matched
+        val best = bestMatch(song.title, song.artists.map { it.name }, (song.duration ?: 0) * 1000L) ?: return null
+        // Spotify's cover is usually the better picture of the two; keep it.
+        val matched = best.toSong().let { if (song.thumbnail != null) it.copy(thumbnail = song.thumbnail) else it }
+        matches.update { it + (trackId to matched) }
+        return matched
+    }
+
+    /**
+     * The YouTube Music song closest to a title, its artists and length (0 if unknown), or null if
+     * nothing scores [MinScore]. Playlist files are matched with this too.
+     */
+    suspend fun bestMatch(title: String, artists: List<String>, durationMs: Long): SongItem? = withContext(Dispatchers.IO) {
+        val artist = artists.firstOrNull().orEmpty()
+        val query = if (artist.isEmpty()) title else "$artist $title"
+        val candidates = YouTube.search(query, SearchFilter.FILTER_SONG)
+            .onFailure { Log.w(Tag, "Search for \"$query\" failed", it) }
+            .getOrNull()?.items.orEmpty()
+            .filterIsInstance<SongItem>()
+            .distinctBy { it.id }
+        val wanted = artists.joinToString(" ")
+        val best = candidates
+            .map { it to score(title, wanted, durationMs, it.title, it.artists.joinToString(" ") { a -> a.name }, it.duration) }
+            .maxByOrNull { it.second }
+        if (best == null || best.second < MinScore) {
+            Log.w(Tag, "No YouTube Music match for \"$query\" (best ${best?.second})")
+            null
+        } else {
+            best.first
         }
     }
 

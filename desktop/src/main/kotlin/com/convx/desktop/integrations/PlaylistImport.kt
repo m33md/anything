@@ -8,6 +8,7 @@ package com.convx.desktop.integrations
 import com.convx.desktop.core.AppDirs
 import com.convx.desktop.core.AppScope
 import com.convx.desktop.core.Log
+import com.convx.desktop.data.ArtistRef
 import com.convx.desktop.data.Library
 import com.convx.desktop.data.Song
 import com.convx.desktop.data.toSong
@@ -36,7 +37,8 @@ import java.io.File
 
 /**
  * The phone's playlist imports: Spotify playlists and Liked Songs mirrored into Convx playlists,
- * and Apple Music playlists from a public link or a Music/iTunes XML export. Every track is
+ * Apple Music playlists from a public link or a Music/iTunes XML export, and M3U and CSV files
+ * (see [PlaylistFiles]). Every track is
  * matched to a YouTube Music song the way the phone matches it; songs with no close match are
  * skipped and counted rather than replaced by a guess.
  */
@@ -44,6 +46,7 @@ object PlaylistImport {
     private const val Tag = "PlaylistImport"
     /** The phone's Apple threshold: the same title, the same artist, and a close overall score. */
     private const val AppleMinScore = 0.78
+    const val FileSource = "Playlist file"
 
     sealed interface State {
         data object Idle : State
@@ -164,11 +167,60 @@ object PlaylistImport {
         }
     }
 
-    /** Puts the matched Apple playlist into a new Convx playlist, or adds it to [playlistId]. */
-    fun saveApple(playlistId: String?) {
+    // M3U and CSV files
+
+    /**
+     * Matches a playlist file's songs, as the phone's "Import a m3u/csv playlist" does, and waits
+     * for where to put them like an Apple import. The phone takes YouTube's first search result for
+     * each line; here each is scored on title, artist and length, and a poor match is skipped.
+     */
+    fun loadFile(parsed: PlaylistFiles.Parsed) {
+        if (busy) return
+        if (parsed.tracks.isEmpty()) {
+            _state.value = State.Failed("No songs found in this file.")
+            return
+        }
+        _state.value = State.Loading(FileSource)
+        job = AppScope.launch(Dispatchers.IO) {
+            try {
+                val tracks = parsed.tracks
+                // Lines that already name a YouTube song are looked up together, not searched.
+                val linked = tracks.mapNotNull { it.videoId }.distinct().chunked(50).flatMap { ids ->
+                    ensureActive()
+                    YouTube.queue(ids, null).onFailure { Log.w(Tag, "Couldn't look up ${ids.size} linked songs", it) }.getOrNull().orEmpty()
+                }.associateBy { it.id }
+                val matched = mutableListOf<Song>()
+                var skipped = 0
+                tracks.forEachIndexed { index, track ->
+                    ensureActive()
+                    _state.value = State.Matching(FileSource, parsed.title, index, tracks.size)
+                    val id = track.videoId
+                    val song = when {
+                        id != null -> linked[id]?.toSong() ?: Song(
+                            id = id,
+                            title = track.title.ifBlank { id },
+                            artists = track.artists.map { ArtistRef(null, it) },
+                            duration = (track.durationMs / 1000).toInt().takeIf { it > 0 },
+                            thumbnail = "https://i.ytimg.com/vi/$id/hqdefault.jpg",
+                        )
+                        else -> SpotifyMatcher.bestMatch(track.title, track.artists, track.durationMs)?.toSong().also { delay(150) }
+                    }
+                    if (song != null) matched += song else skipped++
+                }
+                _state.value = State.Ready(parsed.title, matched.distinctBy { it.id }, skipped)
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                Log.w(Tag, "Playlist file import failed", error)
+                _state.value = State.Failed("Couldn't import this file: ${error.message ?: "check your connection"}")
+            }
+        }
+    }
+
+    /** Puts a matched Apple playlist or playlist file into a new Convx playlist, or adds it to [playlistId]. */
+    fun save(playlistId: String?) {
         val ready = state.value as? State.Ready ?: return
         val id = if (playlistId == null) {
-            Library.createPlaylist(ready.title.trim().ifEmpty { "Apple Music playlist" }, ready.songs)
+            Library.createPlaylist(ready.title.trim().ifEmpty { "Imported playlist" }, ready.songs)
         } else {
             Library.addToPlaylist(playlistId, ready.songs)
             playlistId
