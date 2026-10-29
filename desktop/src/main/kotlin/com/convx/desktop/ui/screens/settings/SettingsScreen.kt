@@ -82,6 +82,8 @@ enum class SettingsPage(val title: String, val hub: String) {
     Discord("Discord", "accounts"),
     LiquidGlass("Liquid Glass", "appearance"),
     Font("App Font", "appearance"),
+    LayoutHome("Layout & home", "appearance"),
+    HomeFeedOrder("Arrange home feed (Beta)", "appearance"),
     Equalizer("Convx Equalizer", "playback"),
     QualitySound("Quality & sound", "playback"),
     Transitions("Song transitions", "playback"),
@@ -375,6 +377,12 @@ private val searchEntries: List<SearchEntry> by lazy {
         SearchEntry("Liquid Glass", "Blur, lens and highlights", h.appearance, SettingsPage.LiquidGlass, "glass blur lens refraction vibrancy chromatic aberration rim"),
         SearchEntry("App Font", "App typeface", h.appearance, SettingsPage.Font, "font typeface jakarta outfit google sans flex sf pro"),
         SearchEntry("Custom font", "Install a .ttf or .otf font", h.appearance, SettingsPage.Font, "font import ttf otf"),
+        SearchEntry("Layout & home", "Default tab and home", h.appearance, SettingsPage.LayoutHome, "layout home default tab start open"),
+        SearchEntry("Default open tab", null, h.appearance, SettingsPage.LayoutHome, "start home search library tab"),
+        SearchEntry("Hero card", "Show the large featured card at the top of Home", h.appearance, SettingsPage.LayoutHome, "featured hero card home"),
+        SearchEntry("Mood filters", "Show Energize, Relax and other filters at the top of Home", h.appearance, SettingsPage.LayoutHome, "mood chips filters energize relax"),
+        SearchEntry("Randomize Home Screen Order", null, h.appearance, SettingsPage.LayoutHome, "shuffle random order home sections"),
+        SearchEntry("Home feed order", "Arrange home sections", h.appearance, SettingsPage.HomeFeedOrder, "arrange order sections hide home feed"),
         SearchEntry("Content country", "Charts and recommendations", h.library, keywords = "region location"),
         SearchEntry("Content language", "The language YouTube Music answers in", h.library, keywords = "locale"),
         SearchEntry("Hide explicit content", null, h.library, keywords = "explicit filter"),
@@ -520,6 +528,8 @@ private fun PageContent(page: SettingsPage) {
         SettingsPage.Discord -> DiscordSettings()
         SettingsPage.LiquidGlass -> LiquidGlassSettings()
         SettingsPage.Font -> AppFontSettings()
+        SettingsPage.LayoutHome -> LayoutHomeSettings()
+        SettingsPage.HomeFeedOrder -> HomeFeedOrderSettings()
         SettingsPage.Equalizer -> EqualizerPage()
         SettingsPage.QualitySound -> QualitySoundSettings()
         SettingsPage.Transitions -> SongTransitionsSettings()

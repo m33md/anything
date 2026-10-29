@@ -87,6 +87,10 @@ fun AppearanceHub() {
             tint = SystemColors.Gray,
             value = if (settings.customFontEnabled && settings.customFont.isNotBlank()) "Custom" else AppFont.of(settings.appFont).label,
         ) { SettingsNav.push(SettingsPage.Font) }
+        RowDivider()
+        LinkRow("Layout & home", "Default tab and home", icon = "sliders", tint = SystemColors.Green) { SettingsNav.push(SettingsPage.LayoutHome) }
+        RowDivider()
+        LinkRow("Home feed order", "Arrange home sections", icon = "sliders", tint = SystemColors.Orange) { SettingsNav.push(SettingsPage.HomeFeedOrder) }
     }
 }
 

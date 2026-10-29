@@ -19,23 +19,23 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyHorizontalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,36 +46,42 @@ import androidx.compose.ui.unit.dp
 import com.convx.desktop.data.AppSettings
 import com.convx.desktop.data.Library
 import com.convx.desktop.data.Settings
+import com.convx.desktop.data.Song
+import com.convx.desktop.data.toItem
 import com.convx.desktop.data.toSong
+import com.convx.desktop.integrations.youtube.YouTubeAccount
 import com.convx.desktop.player.PlayerController
+import com.convx.desktop.ui.components.CompactSongRow
 import com.convx.desktop.ui.components.Gutter
-import com.convx.desktop.ui.components.LocalPageInsets
-import com.convx.desktop.ui.components.bleedStart
+import com.convx.desktop.ui.components.IconButton
+import com.convx.desktop.ui.components.ItemActions
 import com.convx.desktop.ui.components.ItemShelf
 import com.convx.desktop.ui.components.LoadingState
+import com.convx.desktop.ui.components.LocalPageInsets
+import com.convx.desktop.ui.components.LocalPlayback
 import com.convx.desktop.ui.components.MessageState
+import com.convx.desktop.ui.components.PlayAllButton
 import com.convx.desktop.ui.components.SectionHeader
 import com.convx.desktop.ui.components.Shelf
 import com.convx.desktop.ui.components.SongShelf
 import com.convx.desktop.ui.components.TopPickCard
+import com.convx.desktop.ui.components.bleedStart
 import com.convx.desktop.ui.components.pressable
+import com.convx.desktop.ui.screens.settings.SettingsNav
+import com.convx.desktop.ui.screens.settings.SettingsPage
 import com.convx.desktop.ui.shell.LocalNavigator
 import com.convx.desktop.ui.shell.Screen
 import com.convx.desktop.ui.shell.UiState
-import com.convx.desktop.ui.theme.ConvxColors
 import com.convx.desktop.ui.theme.ConvxType
 import com.music.innertube.YouTube
+import com.music.innertube.models.ArtistItem
 import com.music.innertube.models.SongItem
 import com.music.innertube.models.YTItem
 import com.music.innertube.models.filterExplicit
 import com.music.innertube.models.filterVideoSongs
 import com.music.innertube.pages.ChartsPage
-import com.music.innertube.pages.ExplorePage
 import com.music.innertube.pages.HomePage
 import com.music.innertube.pages.MoodAndGenres
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.util.Calendar
 
 /** Applies the hide-explicit / hide-videos settings, as the phone does to every feed. */
@@ -99,62 +105,67 @@ fun HomeScreen() {
     val navigator = LocalNavigator.current
     val settings by AppSettings.state.collectAsState()
     val library by Library.state.collectAsState()
-    val scope = rememberCoroutineScope()
+    val account by YouTubeAccount.state.collectAsState()
+    val feed by HomeFeed.state.collectAsState()
+    LaunchedEffect(Unit) { HomeFeed.load() }
     // The mood chips live in Home's strip under the top bar.
     val selectedChip = UiState.homeChip
 
-    val home = rememberPage("home") { YouTube.home().getOrThrow() }
     val charts = rememberPage("charts") { YouTube.getChartsPage().getOrThrow() }
     val explore = rememberPage("explore") { YouTube.explore().getOrThrow() }
-    val chipTitles = home.value?.chips.orEmpty().map { it.title }
+    val chips = if (settings.homeMoodFilters) feed.homePage?.chips.orEmpty().filter { it.endpoint?.browseId?.isNotBlank() == true } else emptyList()
+    val chipTitles = chips.map { it.title }
     LaunchedEffect(chipTitles) {
         UiState.homeChips = chipTitles
-        if (selectedChip != null && chipTitles.isNotEmpty() && selectedChip !in chipTitles) UiState.homeChip = null
+        if (selectedChip != null && selectedChip !in chipTitles) UiState.homeChip = null
     }
     val chipPage = selectedChip?.let { title ->
-        val chip = home.value?.chips?.firstOrNull { it.title == title }
+        val chip = chips.firstOrNull { it.title == title }
         rememberPage("home-chip-$title") {
             val endpoint = chip?.endpoint ?: error("This filter isn't available any more")
             YouTube.home(params = endpoint.params, browseId = endpoint.browseId).getOrThrow()
         }
     }
-    var loadingMore by remember { mutableStateOf(false) }
 
-    val listState = rememberLazyListState()
-    PageList(
-        state = listState,
-        onNearEnd = {
-            val page = home.value ?: return@PageList
-            val continuation = page.continuation ?: return@PageList
-            if (loadingMore || selectedChip != null) return@PageList
-            loadingMore = true
-            scope.launch {
-                val next = withContext(Dispatchers.IO) { YouTube.home(continuation).getOrNull() }
-                if (next != null) home.update { it.copy(sections = it.sections + next.sections, continuation = next.continuation) }
-                loadingMore = false
-            }
-        },
-    ) {
+    PageList(state = rememberLazyListState()) {
         item(key = "greeting") {
-            Text(greeting(), style = ConvxType.LargeTitle, modifier = Modifier.padding(horizontal = Gutter, vertical = 8.dp))
+            Row(Modifier.fillMaxWidth().padding(horizontal = Gutter, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(greeting(), style = ConvxType.LargeTitle, modifier = Modifier.weight(1f))
+                // The phone's pull to refresh: new picks, a new order.
+                if (feed.loading) {
+                    CircularProgressIndicator(color = Color.White.copy(alpha = 0.7f), strokeWidth = 2.dp, modifier = Modifier.padding(8.dp).size(20.dp))
+                } else {
+                    IconButton("refresh", {
+                        HomeFeed.load(force = true)
+                        charts.retry()
+                        explore.retry()
+                    }, size = 36.dp, iconSize = 20.dp)
+                }
+            }
+        }
+
+        // Apple Music's "Transfer music" card, pointed at the phone's one import: signing in to YouTube Music.
+        if (selectedChip == null && account !is YouTubeAccount.State.SignedIn && !settings.homeSignInCardDismissed) {
+            item(key = "sign_in_card") {
+                HomeSignInCard(
+                    onGetStarted = {
+                        navigator.navigate(Screen.Settings)
+                        SettingsNav.push(SettingsPage.YouTubeMusic)
+                    },
+                    onDismiss = { AppSettings.update { it.copy(homeSignInCardDismissed = true) } },
+                    modifier = Modifier.padding(top = 4.dp, bottom = 20.dp),
+                )
+            }
         }
 
         if (chipPage != null) {
             val page = chipPage.value
             when {
-                page != null -> homeSections(page.sections, settings, heroFirst = true)
+                page != null -> chipSections(page.sections, settings)
                 chipPage.error != null -> item { MessageState("Couldn't load this mood", friendlyError(chipPage.error), actionText = "Try again", onAction = { chipPage.retry() }) }
                 else -> item { LoadingState() }
             }
             return@PageList
-        }
-
-        // Quick picks from your own listening, like the phone's Keep Listening.
-        val recent = Library.recentSongs(16)
-        if (recent.size >= 4) {
-            item(key = "recent") {
-                RecentGrid(recent.take(8)) { index -> PlayerController.playSongs(recent, index, "Recently played") }
-            }
         }
 
         val chartsPage = charts.value
@@ -183,71 +194,242 @@ fun HomeScreen() {
             }
         }
 
-        val liked = library.liked
-        if (liked.size >= 4) {
-            item(key = "liked_shelf") {
-                SongShelf(
-                    "From your Liked Songs",
-                    liked.take(16).map { it.song },
-                    onTitleClick = { navigator.navigate(Screen.Liked) },
-                ) { index -> PlayerController.playSongs(liked.map { it.song }, index, "Liked Songs") }
-                Spacer(Modifier.height(20.dp))
+        // Then the phone's feed, in its order, the order you arranged, or shuffled.
+        val speedDial = HomeFeed.speedDial(feed, library.speedDial)
+        val moods = explorePage?.moodAndGenres?.distinctBy { it.title }
+        val sections = buildHomeSections(feed, settings, pinsShown = speedDial.isNotEmpty(), hasMoods = moods != null)
+        sections.forEach { section ->
+            item(key = section.id) {
+                HomeSectionView(section, feed, speedDial, moods.orEmpty(), account)
             }
         }
 
-        val homePage = home.value
         when {
-            homePage != null -> homeSections(homePage.sections, settings, heroFirst = false)
-            home.error != null && charts.value == null -> item {
+            feed.homePage != null || sections.isNotEmpty() -> Unit
+            feed.homeError != null && chartsPage == null -> item(key = "offline") {
                 MessageState(
                     "Couldn't reach YouTube Music",
-                    friendlyError(home.error),
+                    friendlyError(feed.homeError),
                     icon = "offline",
                     actionText = "Try again",
                     onAction = {
-                        home.retry()
+                        HomeFeed.load(force = true)
                         charts.retry()
                         explore.retry()
                     },
                 )
             }
-            else -> item { LoadingState() }
+            feed.loading -> item(key = "loading") { LoadingState() }
+            else -> Unit
         }
-
-        val moods = explorePage?.moodAndGenres.orEmpty().distinctBy { it.title }
-        if (moods.isNotEmpty()) {
-            item(key = "moods") { MoodGrid("Moods & Genres", moods) }
-        }
-        if (loadingMore) item(key = "more") { LoadingState() }
     }
 }
 
-/** YouTube Music's own home shelves, each drawn the way the phone draws that kind of shelf. */
-fun LazyListScope.homeSections(sections: List<HomePage.Section>, settings: Settings, heroFirst: Boolean) {
-    sections.forEachIndexed { index, section ->
-        val items = section.items.filtered(settings).distinctBy { it.id }
-        if (items.isEmpty()) return@forEachIndexed
-        item(key = "home_${index}_${section.title}") {
-            val navigator = LocalNavigator.current
-            val onTitle = section.endpoint?.let { endpoint ->
-                {
-                    if (endpoint.browseId == "FEmusic_moods_and_genres") navigator.navigate(Screen.Browse(endpoint.browseId, null, section.title))
-                    else navigator.navigate(Screen.Browse(endpoint.browseId, endpoint.params, section.title))
+/** One of the phone's Home sections, drawn as the phone draws it. */
+@Composable
+private fun HomeSectionView(
+    section: HomeSection,
+    feed: HomeFeedState,
+    speedDial: List<YTItem>,
+    moods: List<MoodAndGenres.Item>,
+    account: YouTubeAccount.State,
+) {
+    val navigator = LocalNavigator.current
+    val playback = LocalPlayback.current
+    fun playOrToggle(songs: List<Song>, index: Int, title: String) {
+        if (songs[index].id == playback.currentId) PlayerController.togglePlay()
+        else PlayerController.playSongs(songs, index, title)
+    }
+    // Mood tiles bring their own space below.
+    Column(Modifier.fillMaxWidth().padding(bottom = if (section == HomeSection.MoodAndGenres) 0.dp else 20.dp)) {
+        when (section) {
+            HomeSection.Hero -> {
+                val picks = feed.quickPicks.orEmpty()
+                val top = picks.firstOrNull() ?: return@Column
+                HomeHeroCard(
+                    title = top.title,
+                    subtitle = top.artists.joinToString { it.name },
+                    thumbnail = top.thumbnail,
+                    onPlay = { PlayerController.playSongs(picks, 0, top.title) },
+                    onShuffle = { PlayerController.playSongs(picks.shuffled(), 0, top.title) },
+                    onClick = { PlayerController.playSongs(listOf(top), 0, top.title) },
+                    modifier = Modifier.padding(horizontal = Gutter),
+                )
+            }
+            HomeSection.SpeedDial -> ListShelf(
+                "Speed dial",
+                speedDial.map { item -> ListEntry.Item(item) { ItemActions.open(item, navigator) } } +
+                    // At the tail, as on the phone: for when nothing here appeals.
+                    ListEntry.Action("speed_dial_randomize", "shuffle", "Surprise me", "Play something at random") {
+                        HomeFeed.randomItem(feed)?.let { ItemActions.open(it, navigator) }
+                    },
+            )
+            HomeSection.QuickPicks -> {
+                val picks = feed.quickPicks.orEmpty().distinctBy { it.id }
+                ListShelf(
+                    "Quick picks",
+                    // A pick starts a radio from it; Play all plays them in order.
+                    picks.map { song -> ListEntry.Item(song.toItem()) { PlayerController.startRadio(song) } },
+                    onPlayAll = { PlayerController.playSongs(picks, 0, "Quick picks") },
+                )
+            }
+            HomeSection.FromTheCommunity -> ItemShelf("From the community", feed.communityPlaylists.orEmpty())
+            HomeSection.DailyDiscover -> {
+                val picks = feed.dailyDiscover.orEmpty().distinctBy { it.id }
+                Shelf(
+                    "Your daily discover",
+                    spacing = 12.dp,
+                    trailing = { PlayAllButton { PlayerController.playSongs(picks.map { it.toSong() }, 0, "Your daily discover") } },
+                ) {
+                    items(picks, key = { it.id }) { TopPickCard(it, Modifier.padding(start = 10.dp, top = 6.dp, bottom = 24.dp)) }
                 }
             }
-            when {
-                items.isSongShelf() -> {
-                    val songs = items.filterIsInstance<SongItem>().map { it.toSong() }
-                    SongShelf(section.title, songs, subtitle = section.label, onTitleClick = onTitle) { i ->
-                        PlayerController.playSongs(songs, i, section.title)
+            HomeSection.ListenAgain -> feed.listenAgain?.let { RemoteSection(it, RemoteStyle.Compact) }
+            HomeSection.TopSongs -> {
+                val songs = feed.topSongs.orEmpty().distinctBy { it.id }.take(10)
+                Shelf(
+                    "Most played songs",
+                    spacing = 12.dp,
+                    onTitleClick = { navigator.navigate(Screen.TopSongs) },
+                    trailing = { PlayAllButton { PlayerController.playSongs(songs, 0, "Most played songs") } },
+                ) {
+                    itemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
+                        TopPickCard(song.toItem(), Modifier.padding(start = 10.dp, top = 6.dp, bottom = 24.dp)) { playOrToggle(songs, index, "Most played songs") }
                     }
                 }
-                heroFirst && index == 0 -> Shelf(section.title, subtitle = section.label, onTitleClick = onTitle, spacing = 12.dp) {
-                    items(items, key = { it.id }) { TopPickCard(it, Modifier.padding(start = 10.dp, top = 6.dp, bottom = 24.dp)) }
-                }
-                else -> ItemShelf(section.title, items, subtitle = section.label, onTitleClick = onTitle)
             }
-            Spacer(Modifier.height(20.dp))
+            HomeSection.AccountPlaylists -> {
+                val profile = (account as? YouTubeAccount.State.SignedIn)?.profile
+                ItemShelf(
+                    profile?.name ?: "YouTube Music",
+                    feed.accountPlaylists.orEmpty(),
+                    subtitle = "Your YouTube playlists",
+                    // Blank shows the person placeholder, as the phone does without a picture.
+                    thumbnail = profile?.thumbnail.orEmpty(),
+                    roundThumbnail = true,
+                    onTitleClick = { navigator.navigate(Screen.Library) },
+                )
+            }
+            HomeSection.ForgottenFavorites -> {
+                val songs = feed.forgottenFavorites.orEmpty().distinctBy { it.id }.take(8)
+                SectionHeader(
+                    "Forgotten favorites",
+                    Modifier.padding(horizontal = Gutter),
+                    trailing = { PlayAllButton { PlayerController.playSongs(songs, 0, "Forgotten favorites") } },
+                )
+                Spacer(Modifier.height(8.dp))
+                // The phone's eight rows, in two columns of four at this width.
+                Row(Modifier.fillMaxWidth().padding(horizontal = Gutter - 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    songs.withIndex().chunked(4).forEach { column ->
+                        Column(Modifier.weight(1f)) {
+                            column.forEach { (index, song) -> CompactSongRow(song, { playOrToggle(songs, index, "Forgotten favorites") }) }
+                        }
+                    }
+                    if (songs.size <= 4) Spacer(Modifier.weight(1f))
+                }
+            }
+            is HomeSection.SimilarRecommendation -> {
+                val recommendation = feed.similar?.getOrNull(section.index) ?: return@Column
+                val seed = recommendation.seed
+                ItemShelf(
+                    seed.title,
+                    recommendation.items,
+                    subtitle = "Similar to",
+                    thumbnail = seed.thumbnail,
+                    roundThumbnail = seed is SimilarSeed.OfArtist,
+                    onTitleClick = when (seed) {
+                        is SimilarSeed.OfArtist -> ({ navigator.navigate(Screen.Artist(seed.id)) })
+                        is SimilarSeed.OfAlbum -> ({ navigator.navigate(Screen.Album(seed.album.id)) })
+                        is SimilarSeed.OfSong -> seed.song.album?.let { album -> { navigator.navigate(Screen.Album(album.id)) } }
+                    },
+                )
+            }
+            is HomeSection.HomePageSection -> feed.homePage?.sections?.getOrNull(section.index)?.let { RemoteSection(it) }
+            HomeSection.MoodAndGenres -> MoodGrid(
+                "Mood and Genres",
+                moods,
+                onTitleClick = { navigator.navigate(Screen.Browse("FEmusic_moods_and_genres", null, "Mood and Genres")) },
+            )
+        }
+    }
+}
+
+/** How the phone draws one of YouTube Music's shelves. */
+private enum class RemoteStyle { Hero, Compact, List }
+
+/**
+ * One of YouTube Music's own shelves: its label, title and picture, Play all when it has songs,
+ * and songs as list columns, the rest as cards, as the phone draws them.
+ */
+@Composable
+private fun RemoteSection(section: HomePage.Section, style: RemoteStyle? = null) {
+    val navigator = LocalNavigator.current
+    val settings by AppSettings.state.collectAsState()
+    val items = section.items.filtered(settings).distinctBy { it.id }
+    if (items.isEmpty()) return
+    val songs = items.filterIsInstance<SongItem>().map { it.toSong() }
+    val onTitle = section.endpoint?.let { endpoint ->
+        {
+            if (endpoint.browseId == "FEmusic_moods_and_genres") navigator.navigate(Screen.Browse(endpoint.browseId, null, section.title))
+            else navigator.navigate(Screen.Browse(endpoint.browseId, endpoint.params, section.title))
+        }
+    }
+    val onPlayAll: (() -> Unit)? = if (songs.isNotEmpty()) {
+        { PlayerController.playSongs(songs, 0, section.title) }
+    } else {
+        null
+    }
+    val round = section.endpoint?.isArtistEndpoint == true
+    when (style ?: if (section.isListenAgain()) RemoteStyle.Compact else if (items.isSongShelf()) RemoteStyle.List else RemoteStyle.Compact) {
+        RemoteStyle.List -> ListShelf(
+            section.title,
+            items.map { item -> ListEntry.Item(item) { ItemActions.open(item, navigator) } },
+            subtitle = section.label,
+            onTitleClick = onTitle,
+            thumbnail = section.thumbnail,
+            roundThumbnail = round,
+            onPlayAll = onPlayAll,
+        )
+        RemoteStyle.Hero -> Shelf(
+            section.title,
+            subtitle = section.label,
+            onTitleClick = onTitle,
+            spacing = 12.dp,
+            trailing = if (onPlayAll != null) ({ PlayAllButton(onPlayAll) }) else null,
+            thumbnail = section.thumbnail,
+            roundThumbnail = round,
+        ) {
+            items(items, key = { it.id }) { TopPickCard(it, Modifier.padding(start = 10.dp, top = 6.dp, bottom = 24.dp)) }
+        }
+        RemoteStyle.Compact -> ItemShelf(
+            section.title,
+            items,
+            subtitle = section.label,
+            onTitleClick = onTitle,
+            thumbnail = section.thumbnail,
+            roundThumbnail = round,
+            onPlayAll = onPlayAll,
+        )
+    }
+}
+
+/** A mood's own feed, with the phone's mix of layouts so it doesn't read as one row repeated. */
+private fun LazyListScope.chipSections(sections: List<HomePage.Section>, settings: Settings) {
+    var cardShelves = 0
+    sections.forEachIndexed { index, section ->
+        val items = section.items.filtered(settings)
+        if (items.isEmpty()) return@forEachIndexed
+        val style = when {
+            section.isListenAgain() -> RemoteStyle.Compact
+            items.isSongShelf() -> RemoteStyle.List
+            index == 0 -> RemoteStyle.Hero
+            items.all { it is ArtistItem } -> RemoteStyle.Compact
+            // The phone's large spotlight cards are this card here.
+            cardShelves++ % 2 == 0 -> RemoteStyle.Hero
+            else -> RemoteStyle.Compact
+        }
+        item(key = "chip_${index}_${section.title}") {
+            Column(Modifier.padding(bottom = 20.dp)) { RemoteSection(section, style) }
         }
     }
 }
@@ -263,54 +445,12 @@ private fun TrendingShelf(items: List<YTItem>) {
     }
 }
 
-/** Your recent songs as Spotify's top-of-home shortcut tiles, two rows of four. */
-@Composable
-private fun RecentGrid(songs: List<com.convx.desktop.data.Song>, onPlay: (Int) -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = Gutter, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        songs.chunked(4).forEachIndexed { row, chunk ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                chunk.forEachIndexed { col, song ->
-                    val index = row * 4 + col
-                    val interaction = remember { MutableInteractionSource() }
-                    val hovered by interaction.collectIsHoveredAsState()
-                    Row(
-                        Modifier
-                            .weight(1f)
-                            .height(56.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color.White.copy(alpha = if (hovered) 0.16f else 0.09f))
-                            .hoverable(interaction)
-                            .pressable({ onPlay(index) }, interaction = interaction, pressScale = 0.98f),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        com.convx.desktop.ui.components.Artwork(
-                            song.thumbnail,
-                            Modifier.width(56.dp).fillMaxHeight(),
-                            size = 160,
-                            shape = RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp),
-                            iconSize = 20.dp,
-                        )
-                        Text(
-                            song.title,
-                            style = ConvxType.BodyStrong,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(horizontal = 12.dp).weight(1f),
-                        )
-                    }
-                }
-                repeat(4 - chunk.size) { Spacer(Modifier.weight(1f)) }
-            }
-        }
-    }
-}
-
 /** Mood and genre tiles: the stripe colour down the left, as on the phone. */
 @Composable
-fun MoodGrid(title: String, moods: List<MoodAndGenres.Item>) {
+fun MoodGrid(title: String, moods: List<MoodAndGenres.Item>, onTitleClick: (() -> Unit)? = null) {
     val navigator = LocalNavigator.current
     Column(Modifier.fillMaxWidth().padding(bottom = 20.dp)) {
-        SectionHeader(title, Modifier.padding(horizontal = Gutter))
+        SectionHeader(title, Modifier.padding(horizontal = Gutter), onAction = onTitleClick)
         Spacer(Modifier.height(10.dp))
         val bleed = LocalPageInsets.current.start
         LazyHorizontalGrid(

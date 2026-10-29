@@ -43,7 +43,7 @@ fun main(args: Array<String>) {
             "kJQP7kiw5Fk",
         )
     }
-    val dspOk = dspCheck() and libraryCheck() and partyCheck() and backupCheck() and playlistFileCheck() and downloadsCheck() and lyricsMenuCheck()
+    val dspOk = dspCheck() and libraryCheck() and partyCheck() and backupCheck() and playlistFileCheck() and downloadsCheck() and lyricsMenuCheck() and homeOrderCheck()
     partyServerCheck()
     runBlocking(Dispatchers.IO) { initYouTube() }
     var passed = 0
@@ -285,6 +285,40 @@ private fun downloadsCheck(): Boolean {
     } catch (error: Throwable) {
         expect("run", false, "${error::class.simpleName}: ${error.message}")
     }
+    return ok
+}
+
+/** Home's section order, by the phone's rules: default, arranged, hidden, and shuffled with the card on top. */
+private fun homeOrderCheck(): Boolean {
+    var ok = true
+    fun expect(name: String, pass: Boolean, detail: String) {
+        if (!pass) ok = false
+        println("${if (pass) "PASS" else "FAIL"} home order $name: $detail")
+    }
+    val song = com.convx.desktop.data.Song("abc", "Song")
+    val playlist = com.music.innertube.models.PlaylistItem("PL1", "Mix", null, null, null, null, null, null)
+    val state = com.convx.desktop.ui.screens.HomeFeedState(
+        quickPicks = listOf(song),
+        forgottenFavorites = listOf(song),
+        topSongs = listOf(song),
+        communityPlaylists = listOf(playlist),
+        seed = 42,
+    )
+    val base = com.convx.desktop.data.Settings(homeRandomOrder = false)
+    fun ids(settings: com.convx.desktop.data.Settings) =
+        com.convx.desktop.ui.screens.buildHomeSections(state, settings, pinsShown = true, hasMoods = true).map { it.id }
+    val default = ids(base)
+    expect(
+        "default",
+        default == listOf("hero", "quick_picks", "speed_dial", "from_the_community", "forgotten_favorites", "mood_and_genres", "top_songs"),
+        default.toString(),
+    )
+    val arranged = ids(base.copy(homeSectionOrder = listOf("speed_dial", "forgotten_favorites"), homeSectionsHidden = listOf("hero")))
+    expect("arranged", arranged.take(3) == listOf("speed_dial", "forgotten_favorites", "quick_picks") && "hero" !in arranged, arranged.toString())
+    val noCard = ids(base.copy(homeHeroCard = false))
+    expect("card off", "hero" !in noCard, noCard.toString())
+    val shuffled = ids(base.copy(homeRandomOrder = true))
+    expect("shuffled keeps the card on top", shuffled.first() == "hero" && shuffled.toSet() == default.toSet(), shuffled.toString())
     return ok
 }
 

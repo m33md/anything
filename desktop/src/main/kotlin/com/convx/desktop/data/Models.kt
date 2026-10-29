@@ -5,8 +5,11 @@
 
 package com.convx.desktop.data
 
+import com.music.innertube.models.Album
 import com.music.innertube.models.AlbumItem
+import com.music.innertube.models.Artist
 import com.music.innertube.models.ArtistItem
+import com.music.innertube.models.YTItem
 import com.music.innertube.models.PlaylistItem
 import com.music.innertube.models.SongItem
 import kotlinx.serialization.Serializable
@@ -89,6 +92,24 @@ data class LibraryData(
     val localPlaylists: List<LocalPlaylist> = emptyList(),
     val history: List<PlayEvent> = emptyList(),
     val searchHistory: List<String> = emptyList(),
+    /** Home's Speed dial pins, newest first. */
+    val speedDial: List<SpeedDialEntry> = emptyList(),
+)
+
+/** A Speed dial pin, as the phone keeps one: enough of the item to show it and open it again. */
+@Serializable
+data class SpeedDialEntry(
+    val id: String,
+    /** An album's playlist id. */
+    val secondaryId: String? = null,
+    val title: String,
+    /** Artists, comma separated, or a playlist's author. */
+    val subtitle: String? = null,
+    val thumbnail: String? = null,
+    /** SONG, ALBUM, ARTIST or PLAYLIST. */
+    val type: String,
+    val explicit: Boolean = false,
+    val pinnedAt: Long = System.currentTimeMillis(),
 )
 
 enum class RepeatMode { OFF, ALL, ONE }
@@ -273,6 +294,17 @@ data class Settings(
     /** Blank for "Visit Convx". */
     val discordButton2Text: String = "",
     val glass: GlassSettings = GlassSettings(),
+    // The phone's Layout & home page and its Arrange home feed, with its defaults.
+    /** home, search or library: where Convx opens. */
+    val defaultTab: String = "home",
+    val homeHeroCard: Boolean = true,
+    /** Home's sections shuffle each visit until you arrange them yourself, as on the phone. */
+    val homeRandomOrder: Boolean = true,
+    val homeSectionOrder: List<String> = emptyList(),
+    val homeSectionsHidden: List<String> = emptyList(),
+    val homeSignInCardDismissed: Boolean = false,
+    /** The mood chips (Energize, Relax...) in Home's strip. */
+    val homeMoodFilters: Boolean = true,
     /** The phone's app font by its id; Plus Jakarta Sans, its default. */
     val appFont: String = "plus_jakarta_sans",
     /** An imported font (kept with the imported lyrics fonts) used everywhere while this is on. */
@@ -352,3 +384,53 @@ fun PlaylistItem.toSaved(): SavedPlaylist = SavedPlaylist(
 )
 
 fun ArtistItem.toSaved(): SavedArtist = SavedArtist(id = id, name = title, thumbnail = thumbnail)
+
+/** A song back as YouTube's item, for the shelves and menus that take one. */
+fun Song.toItem(): SongItem = SongItem(
+    id = id,
+    title = title,
+    artists = artists.map { Artist(it.name, it.id) },
+    album = album?.let { Album(it.name, it.id) },
+    duration = duration,
+    // Any video type but a song's, so it still reads as a video.
+    musicVideoType = if (isVideo) "MUSIC_VIDEO_TYPE_OMV" else null,
+    thumbnail = thumbnail.orEmpty(),
+    explicit = explicit,
+    setVideoId = setVideoId,
+)
+
+fun SpeedDialEntry.toItem(): YTItem = when (type) {
+    "ALBUM" -> AlbumItem(
+        browseId = id,
+        playlistId = secondaryId.orEmpty(),
+        title = title,
+        artists = subtitle?.split(", ")?.map { Artist(it, null) },
+        thumbnail = thumbnail.orEmpty(),
+        explicit = explicit,
+    )
+    "ARTIST" -> ArtistItem(id = id, title = title, thumbnail = thumbnail, shuffleEndpoint = null, radioEndpoint = null)
+    "PLAYLIST" -> PlaylistItem(
+        id = id,
+        title = title,
+        author = subtitle?.let { Artist(it, null) },
+        songCountText = null,
+        thumbnail = thumbnail,
+        playEndpoint = null,
+        shuffleEndpoint = null,
+        radioEndpoint = null,
+    )
+    else -> SongItem(
+        id = id,
+        title = title,
+        artists = subtitle?.split(", ")?.map { Artist(it, null) }.orEmpty(),
+        thumbnail = thumbnail.orEmpty(),
+        explicit = explicit,
+    )
+}
+
+fun YTItem.toSpeedDial(): SpeedDialEntry = when (this) {
+    is SongItem -> SpeedDialEntry(id, null, title, artists.joinToString(", ") { it.name }, thumbnail, "SONG", explicit)
+    is AlbumItem -> SpeedDialEntry(browseId, playlistId, title, artists?.joinToString(", ") { it.name }, thumbnail, "ALBUM", explicit)
+    is ArtistItem -> SpeedDialEntry(id, null, title, null, thumbnail, "ARTIST")
+    is PlaylistItem -> SpeedDialEntry(id, null, title, author?.name, thumbnail, "PLAYLIST")
+}

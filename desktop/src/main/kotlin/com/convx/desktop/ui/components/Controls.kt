@@ -257,8 +257,21 @@ fun SectionHeader(
     action: String? = null,
     onAction: (() -> Unit)? = null,
     trailing: @Composable (() -> Unit)? = null,
+    /** A picture beside the title, as the phone's shelves show their artist or album; round for artists. */
+    thumbnail: String? = null,
+    roundThumbnail: Boolean = false,
 ) {
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+        if (thumbnail != null) {
+            Artwork(
+                thumbnail,
+                Modifier.align(Alignment.CenterVertically).padding(end = 12.dp).size(48.dp),
+                size = 160,
+                shape = if (roundThumbnail) CircleShape else ConvxShapes.Artwork,
+                placeholderIcon = if (roundThumbnail) "person" else "music_note",
+                iconSize = 20.dp,
+            )
+        }
         Column(Modifier.weight(1f)) {
             if (subtitle != null) Text(subtitle.uppercase(), style = ConvxType.CaptionStrong, color = ConvxColors.SecondaryLabel)
             val interaction = remember { MutableInteractionSource() }

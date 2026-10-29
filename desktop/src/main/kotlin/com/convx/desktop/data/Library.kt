@@ -164,6 +164,65 @@ object Library {
     fun recentSongs(limit: Int = 30): List<Song> =
         value.history.asSequence().map { it.song }.distinctBy { it.id }.take(limit).toList()
 
+    /** The phone's "most played" over plays since [since], skipping the first [offset]. */
+    fun mostPlayedSongs(since: Long, limit: Int, offset: Int = 0): List<Song> =
+        value.history.asSequence()
+            .filter { it.at >= since }
+            .groupBy { it.song.id }
+            .values
+            .sortedByDescending { it.size }
+            .drop(offset)
+            .take(limit)
+            .map { it.first().song }
+
+    /** Artists of the songs played since [since], most played first, as id and name. */
+    fun mostPlayedArtists(since: Long, limit: Int): List<ArtistRef> =
+        value.history.asSequence()
+            .filter { it.at >= since }
+            .flatMap { event -> event.song.artists.filter { it.id != null }.asSequence() }
+            .groupBy { it.id }
+            .values
+            .sortedByDescending { it.size }
+            .take(limit)
+            .map { it.first() }
+
+    /** Albums of the songs played since [since], most played first, with a cover from one of them. */
+    fun mostPlayedAlbums(since: Long, limit: Int): List<Pair<AlbumRef, Song>> =
+        value.history.asSequence()
+            .filter { it.at >= since && it.song.album != null }
+            .groupBy { it.song.album!!.id }
+            .values
+            .sortedByDescending { it.size }
+            .take(limit)
+            .map { plays -> plays.first().song.album!! to plays.first().song }
+
+    /**
+     * The phone's forgotten favourites, by its query: songs heard again this month, but less than
+     * a fifth as much as before it. Counted in plays where the phone sums time played.
+     */
+    fun forgottenFavorites(now: Long = System.currentTimeMillis()): List<Song> {
+        val monthAgo = now - 30L * 86_400_000
+        return value.history.groupBy { it.song.id }.values
+            .mapNotNull { events ->
+                val old = events.count { it.at < monthAgo }
+                val new = events.size - old
+                if (new > 0 && 0.2 * old > new) events.first().song else null
+            }
+            .take(100)
+    }
+
+    // Speed dial
+
+    fun isPinned(id: String): Boolean = value.speedDial.any { it.id == id }
+
+    fun togglePin(entry: SpeedDialEntry) = store.update { data ->
+        if (data.speedDial.any { it.id == entry.id }) {
+            data.copy(speedDial = data.speedDial.filterNot { it.id == entry.id })
+        } else {
+            data.copy(speedDial = listOf(entry) + data.speedDial)
+        }
+    }
+
     // Search history
 
     fun addSearch(query: String) {

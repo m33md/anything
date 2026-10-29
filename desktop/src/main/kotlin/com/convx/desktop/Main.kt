@@ -106,7 +106,7 @@ fun main() {
             position = WindowPosition(Alignment.Center),
             size = DpSize(saved.windowWidth.coerceAtLeast(940).dp, saved.windowHeight.coerceAtLeast(600).dp),
         )
-        val navigator = remember { Navigator() }
+        val navigator = remember { Navigator(com.convx.desktop.ui.shell.startScreen(saved.defaultTab)) }
 
         fun quit() {
             Party.shutdown()

@@ -46,8 +46,8 @@ data class Entry(val screen: Screen, val key: Long = nextEntryKey++)
  * has a key so its scroll position survives going back to it.
  */
 @Stable
-class Navigator {
-    val backStack = mutableStateListOf(Entry(Screen.Home))
+class Navigator(start: Screen = Screen.Home) {
+    val backStack = mutableStateListOf(Entry(start))
     private val forwardStack = mutableStateListOf<Entry>()
 
     /** Keys whose saved state can be dropped; drained by the host. */
@@ -97,6 +97,13 @@ class Navigator {
         if (forwardStack.isEmpty()) return
         backStack += forwardStack.removeAt(forwardStack.lastIndex)
     }
+}
+
+/** The phone's default open tab, by its id in Settings. */
+fun startScreen(tab: String): Screen = when (tab) {
+    "search" -> Screen.Search
+    "library" -> Screen.Library
+    else -> Screen.Home
 }
 
 val LocalNavigator = staticCompositionLocalOf<Navigator> { error("No navigator") }

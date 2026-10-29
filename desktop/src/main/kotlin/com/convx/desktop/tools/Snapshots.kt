@@ -18,6 +18,7 @@ import com.convx.desktop.core.initYouTube
 import com.convx.desktop.data.AppSettings
 import com.convx.desktop.data.Library
 import com.convx.desktop.data.toSaved
+import com.convx.desktop.data.toSpeedDial
 import com.convx.desktop.data.toSong
 import com.convx.desktop.data.PlayerBackground
 import com.convx.desktop.data.PlayerDesign
@@ -149,6 +150,15 @@ fun main(args: Array<String>) {
         // The whole app in another of the phone's fonts, then back to its default.
         shoot("07dc-settings-font-outfit", seconds = 2) { AppSettings.update { it.copy(appFont = "outfit") } }
         AppSettings.update { it.copy(appFont = com.convx.desktop.ui.theme.AppFont.Default.id) }
+        shoot("07dd-settings-layout-home", seconds = 2) {
+            SettingsNav.back()
+            SettingsNav.push(SettingsPage.LayoutHome)
+        }
+        shoot("07de-settings-home-order", seconds = 2) {
+            AppSettings.update { it.copy(homeSectionsHidden = listOf("forgotten_favorites")) }
+            SettingsNav.push(SettingsPage.HomeFeedOrder)
+        }
+        AppSettings.update { it.copy(homeSectionsHidden = emptyList()) }
         shoot("07e-settings-playback", seconds = 2) { SettingsNav.openHub(SettingsHubs.playback.id) }
         shoot("07f-settings-eq", seconds = 3) {
             AppSettings.update { it.copy(equalizer = it.equalizer.copy(enabled = true)) }
@@ -287,6 +297,17 @@ fun main(args: Array<String>) {
                 Downloads.record(song, file, ResolvedStream(song.id, "", "audio/mp4", 128_000, 44_100, file.length(), null, null, "Snapshots", 0))
             }
             Downloads.download(songs.drop(3).take(2))
+            // Home as the phone builds it from your listening: the featured card, Speed dial with
+            // a pin, Quick picks and the rest, in the default order so the shots compare.
+            album?.let { Library.togglePin(it.toSpeedDial()) }
+            AppSettings.update { it.copy(homeRandomOrder = false) }
+            com.convx.desktop.ui.screens.HomeFeed.load(force = true)
+            fun scroll(lines: Float) = scene.sendPointerEvent(PointerEventType.Scroll, Offset(900f, 500f), scrollDelta = Offset(0f, lines))
+            shoot("20-home-feed", seconds = 25) { navigator.navigate(Screen.Home) }
+            shoot("20a-home-feed-down", seconds = 3) { scroll(10f) }
+            shoot("20b-home-feed-further", seconds = 3) { scroll(10f) }
+            shoot("20c-home-feed-end", seconds = 3) { scroll(20f) }
+            AppSettings.update { it.copy(homeRandomOrder = true) }
             shoot("14-library", seconds = 8) { navigator.navigate(Screen.Library) }
             shoot("15-liked", seconds = 6) { navigator.navigate(Screen.Liked) }
             shoot("16-local-playlist", seconds = 6) { navigator.navigate(Screen.LocalPlaylist(mix)) }

@@ -448,7 +448,7 @@ fun ItemCard(
 
 /** Home's "Top Picks" hero card: 242 x 323, cover on top, frosted reflection underneath. */
 @Composable
-fun TopPickCard(item: YTItem, modifier: Modifier = Modifier) {
+fun TopPickCard(item: YTItem, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
     val navigator = LocalNavigator.current
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
@@ -480,7 +480,7 @@ fun TopPickCard(item: YTItem, modifier: Modifier = Modifier) {
             .background(ConvxColors.CardSecondary)
             .hoverable(interaction)
             .onSecondaryClick(menu.openAtProvider())
-            .pressable({ ItemActions.open(item, navigator) }, interaction = interaction, pressScale = 0.98f),
+            .pressable(onClick ?: { ItemActions.open(item, navigator) }, interaction = interaction, pressScale = 0.98f),
     ) {
         val bitmap = image
         if (bitmap != null) {
@@ -541,6 +541,8 @@ fun Shelf(
     onTitleClick: (() -> Unit)? = null,
     spacing: Dp = 4.dp,
     trailing: @Composable (() -> Unit)? = null,
+    thumbnail: String? = null,
+    roundThumbnail: Boolean = false,
     content: LazyListScope.() -> Unit,
 ) {
     val state = rememberLazyListState()
@@ -553,6 +555,8 @@ fun Shelf(
                 subtitle = subtitle,
                 onAction = onTitleClick,
                 modifier = Modifier.padding(horizontal = Gutter),
+                thumbnail = thumbnail,
+                roundThumbnail = roundThumbnail,
                 trailing = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (trailing != null) trailing()
@@ -597,11 +601,29 @@ fun ItemShelf(
     subtitle: String? = null,
     onTitleClick: (() -> Unit)? = null,
     cardWidth: Dp = 176.dp,
+    thumbnail: String? = null,
+    roundThumbnail: Boolean = false,
+    onPlayAll: (() -> Unit)? = null,
 ) {
     if (items.isEmpty()) return
-    Shelf(title, modifier, subtitle, onTitleClick) {
+    Shelf(
+        title,
+        modifier,
+        subtitle,
+        onTitleClick,
+        trailing = if (onPlayAll != null) ({ PlayAllButton(onPlayAll) }) else null,
+        thumbnail = thumbnail,
+        roundThumbnail = roundThumbnail,
+    ) {
         items(items.distinctBy { it.id }, key = { it.id }) { item -> ItemCard(item, width = cardWidth) }
     }
+}
+
+/** The phone's play-all button beside a shelf's title. */
+@Composable
+fun PlayAllButton(onClick: () -> Unit) {
+    PillButton("Play all", onClick, icon = "play_applemusic", contentPadding = PaddingValues(horizontal = 12.dp, vertical = 5.dp))
+    Spacer(Modifier.width(8.dp))
 }
 
 /** Songs four deep in sideways-paging columns, the phone's song shelf. */
@@ -622,10 +644,7 @@ fun SongShelf(
         subtitle,
         onTitleClick,
         spacing = 12.dp,
-        trailing = {
-            PillButton("Play all", { onPlay(0) }, icon = "play_applemusic", contentPadding = PaddingValues(horizontal = 12.dp, vertical = 5.dp))
-            Spacer(Modifier.width(8.dp))
-        },
+        trailing = { PlayAllButton { onPlay(0) } },
     ) {
         items(columns, key = { it.first().value.id + it.first().index }) { column ->
             Column(Modifier.width(380.dp).padding(start = 4.dp)) {

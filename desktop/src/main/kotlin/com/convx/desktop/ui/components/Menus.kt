@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.convx.desktop.data.Library
 import com.convx.desktop.data.Song
+import com.convx.desktop.data.toItem
 import com.convx.desktop.player.Downloads
 import com.convx.desktop.player.PlayerController
 import com.convx.desktop.ui.glass.InteractiveHighlight
@@ -172,6 +173,7 @@ fun SongMenuContent(
         dismiss()
     }
     MenuItem("Add to playlist", "playlist_add") { choosingPlaylist = true }
+    if (!local) SpeedDialMenuItem(song.toItem(), library.speedDial.any { it.id == song.id }, dismiss)
     DownloadMenuItems(listOf(song), dismiss)
     MenuDivider()
     song.artists.firstOrNull { it.id != null }?.let { artist ->

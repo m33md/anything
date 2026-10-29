@@ -15,6 +15,7 @@ import androidx.compose.ui.text.AnnotatedString
 import com.convx.desktop.core.AppScope
 import com.convx.desktop.core.Log
 import com.convx.desktop.data.Library
+import com.convx.desktop.data.toSpeedDial
 import com.convx.desktop.data.Song
 import com.convx.desktop.data.toSaved
 import com.convx.desktop.data.toSong
@@ -132,6 +133,16 @@ object ItemActions {
     }
 }
 
+/** The phone's Pin to Speed dial: puts the item on Home's Speed dial, newest first. */
+@Composable
+fun SpeedDialMenuItem(item: YTItem, pinned: Boolean, dismiss: () -> Unit) {
+    MenuItem(if (pinned) "Unpin from Speed dial" else "Pin to Speed dial", if (pinned) "remove" else "add") {
+        Library.togglePin(item.toSpeedDial())
+        Overlays.toast(if (pinned) "Unpinned from Speed dial" else "Pinned to Speed dial", if (pinned) "remove" else "ic_push_pin")
+        dismiss()
+    }
+}
+
 /** Right-click menu for any YouTube item on a card or shelf. */
 @Composable
 fun ItemMenuContent(item: YTItem, dismiss: () -> Unit) {
@@ -205,6 +216,7 @@ fun ItemMenuContent(item: YTItem, dismiss: () -> Unit) {
         }
         is SongItem -> Unit
     }
+    SpeedDialMenuItem(item, library.speedDial.any { it.id == item.toSpeedDial().id }, dismiss)
     MenuItem("Copy link", "link") {
         clipboard.setText(AnnotatedString(item.link()))
         Overlays.toast("Link copied", "link")
