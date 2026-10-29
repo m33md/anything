@@ -56,6 +56,7 @@ import com.convx.desktop.ui.components.LocalPageInsets
 import com.convx.desktop.ui.components.LocalPlayback
 import com.convx.desktop.ui.components.OverlayHost
 import com.convx.desktop.ui.components.Overlays
+import com.convx.desktop.ui.screens.replay.ReplayOverlay
 import com.convx.desktop.ui.components.PageInsets
 import com.convx.desktop.ui.components.PillButton
 import com.convx.desktop.ui.components.Playback
@@ -209,6 +210,8 @@ fun AppShell(navigator: Navigator) {
                         Box(Modifier.fillMaxSize().windowDragArea()) { FullPlayer() }
                     }
                 }
+
+                ReplayOverlay()
 
                 OverlayHost()
             }

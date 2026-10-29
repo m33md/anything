@@ -64,6 +64,7 @@ import com.convx.desktop.ui.components.Shelf
 import com.convx.desktop.ui.components.pressable
 import com.convx.desktop.ui.components.rememberMenuAnchor
 import com.convx.desktop.ui.glass.GlassCircleButton
+import com.convx.desktop.ui.screens.replay.Replay
 import com.convx.desktop.ui.theme.ConvxColors
 import com.convx.desktop.ui.theme.ConvxShapes
 import com.convx.desktop.ui.theme.ConvxType
@@ -186,8 +187,8 @@ private object ArtistPictureLookup {
 
 /**
  * The phone's Stats: your most played songs, artists and albums for a rolling period or a calendar
- * week, month or year, ranked by time listened, with the shuffle button for the songs. The phone's
- * Wrapped button isn't here, as Wrapped isn't on the PC yet.
+ * week, month or year, ranked by time listened, with the shuffle button for the songs and the
+ * sparks button that opens Replay.
  */
 @Composable
 fun StatsScreen() {
@@ -208,7 +209,13 @@ fun StatsScreen() {
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         PageList(state = listState, tint = Color.Black) {
             item(key = "title") {
-                Text("Stats", style = ConvxType.LargeTitle, modifier = Modifier.padding(horizontal = Gutter, vertical = 8.dp))
+                Row(Modifier.fillMaxWidth().padding(horizontal = Gutter, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Stats", style = ConvxType.LargeTitle, modifier = Modifier.weight(1f))
+                    // The phone's sparks button, which opens Replay.
+                    GlassCircleButton(onClick = Replay::show, tooltip = "Replay ’${java.time.Year.now().value % 100}") {
+                        ConvxIcon("sparks", tint = Color.White, size = 22.dp)
+                    }
+                }
             }
             item(key = "chips") {
                 StatsChips(

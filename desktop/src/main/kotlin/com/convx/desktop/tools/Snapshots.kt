@@ -31,6 +31,8 @@ import com.convx.desktop.player.PlayerController
 import com.convx.desktop.player.ResolvedStream
 import com.convx.desktop.ui.shell.AppShell
 import com.convx.desktop.ui.shell.ExploreAnchor
+import com.convx.desktop.ui.screens.replay.Replay
+import com.convx.desktop.ui.screens.replay.ReplayPage
 import com.convx.desktop.ui.screens.settings.SettingsHubs
 import com.convx.desktop.ui.screens.settings.SettingsNav
 import com.convx.desktop.ui.screens.settings.SettingsPage
@@ -371,6 +373,16 @@ fun main(args: Array<String>) {
             }
             com.convx.desktop.ui.screens.StatsSelection.option = com.convx.desktop.ui.screens.StatsOption.Continuous
             com.convx.desktop.ui.screens.StatsSelection.chip = 0
+            // Replay from the Stats button, held on one page at a time.
+            shoot("21b-replay-intro", seconds = 8) {
+                Replay.show()
+                Replay.stopped = true
+            }
+            film("21c-replay-minutes", listOf(2_400L)) { Replay.go(ReplayPage.Minutes.ordinal) }
+            shoot("21d-replay-top-song", seconds = 3) { Replay.go(ReplayPage.TopSong.ordinal) }
+            shoot("21e-replay-top-artists", seconds = 4) { Replay.go(ReplayPage.ArtistTable.ordinal) }
+            shoot("21f-replay-summary", seconds = 3) { Replay.go(ReplayPage.Summary.ordinal) }
+            Replay.close()
             shoot("22-my-top", seconds = 4) { navigator.navigate(Screen.MyTop) }
             AppSettings.update { it.copy(homeRandomOrder = true) }
             shoot("14-library", seconds = 8) { navigator.navigate(Screen.Library) }

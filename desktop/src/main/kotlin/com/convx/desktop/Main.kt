@@ -47,6 +47,7 @@ import com.convx.desktop.player.AudioEngine
 import com.convx.desktop.player.Downloads
 import com.convx.desktop.player.PlayerController
 import com.convx.desktop.ui.components.ImageCache
+import com.convx.desktop.ui.screens.replay.Replay
 import com.convx.desktop.ui.shell.AppShell
 import com.convx.desktop.ui.shell.Navigator
 import com.convx.desktop.ui.shell.TopBarHeight
@@ -195,6 +196,18 @@ fun main() {
 private fun shortcut(event: KeyEvent, navigator: Navigator): Boolean {
     if (event.type != KeyEventType.KeyDown) return false
     val ctrl = event.isCtrlPressed
+    // Replay takes the keys a story needs while it's open; the rest still reach the app.
+    if (Replay.open && !ctrl) {
+        val handled = when (event.key) {
+            Key.Escape -> { Replay.close(); true }
+            Key.DirectionLeft -> { Replay.go(Replay.page - 1); true }
+            Key.DirectionRight -> { Replay.go(Replay.page + 1); true }
+            Key.Spacebar -> { Replay.stopped = !Replay.stopped; true }
+            Key.M -> { Replay.toggleMute(); true }
+            else -> false
+        }
+        if (handled) return true
+    }
     return when {
         // Esc steps back out of full-screen lyrics first: to the lyrics beside the cover, or with
         // one-tap on (where that middle step isn't used) to the cover.
