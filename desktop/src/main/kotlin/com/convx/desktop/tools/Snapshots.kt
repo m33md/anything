@@ -331,6 +331,7 @@ fun main(args: Array<String>) {
             }
             com.convx.desktop.ui.screens.StatsSelection.option = com.convx.desktop.ui.screens.StatsOption.Continuous
             com.convx.desktop.ui.screens.StatsSelection.chip = 0
+            shoot("22-my-top", seconds = 4) { navigator.navigate(Screen.MyTop) }
             AppSettings.update { it.copy(homeRandomOrder = true) }
             shoot("14-library", seconds = 8) { navigator.navigate(Screen.Library) }
             shoot("15-liked", seconds = 6) { navigator.navigate(Screen.Liked) }
@@ -375,6 +376,7 @@ fun main(args: Array<String>) {
                 SettingsNav.back()
                 SettingsNav.push(SettingsPage.AiTranslation)
             }
+            shoot("19h-settings-library-hub", seconds = 2) { SettingsNav.openHub(com.convx.desktop.ui.screens.settings.SettingsHubs.library.id) }
         }
     }.onFailure { Log.e("Snapshots", "Rendering failed", it) }
 

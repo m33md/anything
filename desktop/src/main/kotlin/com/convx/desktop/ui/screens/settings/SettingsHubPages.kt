@@ -5,6 +5,7 @@
 
 package com.convx.desktop.ui.screens.settings
 
+import kotlin.math.roundToInt
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -107,6 +108,29 @@ fun LibraryHub() {
         SwitchRow("Hide explicit content", checked = settings.hideExplicit) { v -> AppSettings.update { it.copy(hideExplicit = v) } }
         RowDivider(PlainInset)
         SwitchRow("Hide music videos", "Show only audio tracks in feeds and search.", settings.hideVideos) { v -> AppSettings.update { it.copy(hideVideos = v) } }
+    }
+    SectionGap()
+    // The phone's Auto playlists switches and My Top's length, kept together here.
+    SettingsSection("Auto playlists", footer = "The phone's \"Uploaded\" playlist, of your YouTube Music uploads, isn't on the PC yet.") {
+        SwitchRow("Show \"Liked\" playlist", checked = settings.showLikedPlaylist, icon = "favorite", tint = SystemColors.Pink) { v ->
+            AppSettings.update { it.copy(showLikedPlaylist = v) }
+        }
+        RowDivider()
+        SwitchRow("Show \"Downloaded\" playlist", checked = settings.showDownloadedPlaylist, icon = "download", tint = SystemColors.Green) { v ->
+            AppSettings.update { it.copy(showDownloadedPlaylist = v) }
+        }
+        RowDivider()
+        SwitchRow("Show \"Top\" playlist", checked = settings.showTopPlaylist, icon = "trending_up", tint = SystemColors.Orange) { v ->
+            AppSettings.update { it.copy(showTopPlaylist = v) }
+        }
+        RowDivider()
+        SwitchRow("Show \"Cached\" playlist", checked = settings.showCachedPlaylist, icon = "cloud", tint = SystemColors.Cyan) { v ->
+            AppSettings.update { it.copy(showCachedPlaylist = v) }
+        }
+        RowDivider(PlainInset)
+        SliderRow("My Top list length", "${settings.topSize}", settings.topSize.toFloat(), 1f..100f) { v ->
+            AppSettings.update { it.copy(topSize = v.roundToInt().coerceIn(1, 100)) }
+        }
     }
     SectionGap()
     val localIndex by com.convx.desktop.player.LocalMusic.index.collectAsState()

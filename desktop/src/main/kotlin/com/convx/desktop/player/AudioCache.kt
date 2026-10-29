@@ -126,6 +126,13 @@ object AudioCache {
 
     fun sizeBytes(): Long = dir.listFiles()?.sumOf { it.length() } ?: 0L
 
+    /** Every song kept whole in the cache, newest first: the phone's "Cached" playlist. */
+    fun cachedIds(): List<String> =
+        dir.listFiles { f -> f.name.endsWith(".ok") }.orEmpty()
+            .sortedByDescending { it.lastModified() }
+            .map { it.name.substringBefore('.') }
+            .distinct()
+
     fun clear() {
         active.values.forEach { it.cancel() }
         active.clear()

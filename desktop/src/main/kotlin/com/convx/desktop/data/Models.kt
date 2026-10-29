@@ -312,6 +312,12 @@ data class Settings(
     val homeSignInCardDismissed: Boolean = false,
     /** The mood chips (Energize, Relax...) in Home's strip. */
     val homeMoodFilters: Boolean = true,
+    // The phone's auto playlists: which ones Your Library shows, and how long My top is.
+    val showLikedPlaylist: Boolean = true,
+    val showDownloadedPlaylist: Boolean = true,
+    val showTopPlaylist: Boolean = true,
+    val showCachedPlaylist: Boolean = true,
+    val topSize: Int = 50,
     /** The phone's app font by its id; Plus Jakarta Sans, its default. */
     val appFont: String = "plus_jakarta_sans",
     /** An imported font (kept with the imported lyrics fonts) used everywhere while this is on. */

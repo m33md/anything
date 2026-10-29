@@ -164,7 +164,7 @@ private fun listenedTime(ms: Long): String {
 }
 
 /** "3 times • 12:34", or just the plays for history from before time played was kept. */
-private fun statsLine(plays: Int, playedMs: Long): String =
+internal fun statsLine(plays: Int, playedMs: Long): String =
     listOfNotNull(pluralize(plays, "time"), playedMs.takeIf { it > 0 }?.let(::listenedTime)).joinToString(" • ")
 
 /**

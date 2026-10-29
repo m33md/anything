@@ -173,6 +173,8 @@ fun BrowseScreen(browseId: String, params: String?, title: String?) {
 fun LibraryScreen() {
     val navigator = LocalNavigator.current
     val library by Library.state.collectAsState()
+    val settings by com.convx.desktop.data.AppSettings.state.collectAsState()
+    val downloaded by com.convx.desktop.player.Downloads.done.collectAsState()
     val tab = UiState.libraryTab
     PageList {
         // The filters live in Library's strip under the top bar.
@@ -186,14 +188,49 @@ fun LibraryScreen() {
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 if (tab == LibraryTab.All || tab == LibraryTab.Playlists) {
-                    val liked = library.liked.map { it.song }
-                    SavedCard(
-                        "Liked Songs",
-                        pluralize(liked.size, "song"),
-                        art = { _ -> GradientTile("favorite", 156.dp, listOf(Color(0xFFFA2D48), Color(0xFF8E2DE2)), RoundedCornerShape(8.dp)) },
-                        onClick = { navigator.navigate(Screen.Liked) },
-                        onPlay = if (liked.isEmpty()) null else ({ PlayerController.playSongs(liked, 0, "Liked Songs") }),
-                    )
+                    // The phone's auto playlists first, each as its Settings switch says.
+                    if (settings.showLikedPlaylist) {
+                        val liked = library.liked.map { it.song }
+                        SavedCard(
+                            "Liked Songs",
+                            pluralize(liked.size, "song"),
+                            art = { _ -> GradientTile("favorite", 156.dp, listOf(Color(0xFFFA2D48), Color(0xFF8E2DE2)), RoundedCornerShape(8.dp)) },
+                            onClick = { navigator.navigate(Screen.Liked) },
+                            onPlay = if (liked.isEmpty()) null else ({ PlayerController.playSongs(liked, 0, "Liked Songs") }),
+                        )
+                    }
+                    if (settings.showDownloadedPlaylist && downloaded.isNotEmpty()) {
+                        val songs = downloaded.values.sortedByDescending { it.at }.map { it.song }
+                        SavedCard(
+                            "Downloaded",
+                            pluralize(songs.size, "song"),
+                            art = { _ -> GradientTile("download", 156.dp, com.convx.desktop.ui.shell.DownloadsGradient, RoundedCornerShape(8.dp)) },
+                            onClick = { navigator.navigate(Screen.Downloads) },
+                            onPlay = { PlayerController.playSongs(songs, 0, "Downloaded") },
+                        )
+                    }
+                    if (settings.showTopPlaylist && library.history.isNotEmpty()) {
+                        val title = "My top ${settings.topSize}"
+                        SavedCard(
+                            title,
+                            "Playlist",
+                            art = { _ -> GradientTile("trending_up", 156.dp, TopGradient, RoundedCornerShape(8.dp)) },
+                            onClick = { navigator.navigate(Screen.MyTop) },
+                            onPlay = { PlayerController.playSongs(myTopSongs(TopFilter.AllTime, settings).map { it.value }, 0, title) },
+                        )
+                    }
+                    if (settings.showCachedPlaylist) {
+                        val cached = remember(library, downloaded) { cachedSongs(library, downloaded.values) }
+                        if (cached.isNotEmpty()) {
+                            SavedCard(
+                                "Cached",
+                                pluralize(cached.size, "song"),
+                                art = { _ -> GradientTile("cloud", 156.dp, CachedGradient, RoundedCornerShape(8.dp)) },
+                                onClick = { navigator.navigate(Screen.Cached) },
+                                onPlay = { PlayerController.playSongs(cached, 0, "Cached") },
+                            )
+                        }
+                    }
                     library.localPlaylists.forEach { p ->
                         SavedCard(
                             p.name,

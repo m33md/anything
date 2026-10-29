@@ -25,6 +25,8 @@ sealed interface Screen {
     data object Downloads : Screen
     data object History : Screen
     data object Stats : Screen
+    data object MyTop : Screen
+    data object Cached : Screen
     data object Settings : Screen
     data object Party : Screen
     data class Album(val browseId: String) : Screen

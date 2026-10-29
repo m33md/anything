@@ -388,6 +388,8 @@ private val searchEntries: List<SearchEntry> by lazy {
         SearchEntry("Content language", "The language YouTube Music answers in", h.library, keywords = "locale"),
         SearchEntry("Hide explicit content", null, h.library, keywords = "explicit filter"),
         SearchEntry("Hide music videos", "Only audio tracks", h.library, keywords = "video filter"),
+        SearchEntry("Auto playlists", "Liked, Downloaded, Top and Cached", h.library, keywords = "show liked downloaded top cached playlist library auto"),
+        SearchEntry("My Top list length", "How many songs My top holds", h.library, keywords = "top 50 length size most played"),
         SearchEntry("Spotify", "Your playlists and Liked Songs", h.accounts, SettingsPage.Spotify, "account login import"),
         SearchEntry("Discord", "Listening status on your profile", h.accounts, SettingsPage.Discord, "rich presence rpc status buttons"),
         SearchEntry("Max song cache size", "Songs kept for instant starts", h.privacy, SettingsPage.Storage, "storage clear cache limit size"),

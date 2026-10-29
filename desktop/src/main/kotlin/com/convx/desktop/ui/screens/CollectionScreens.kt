@@ -10,6 +10,7 @@ import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -55,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.convx.desktop.core.formatTotal
 import com.convx.desktop.core.pluralize
+import com.convx.desktop.data.AppSettings
 import com.convx.desktop.data.Library
 import com.convx.desktop.data.Song
 import com.convx.desktop.data.toSaved
@@ -788,6 +790,144 @@ fun DownloadsScreen() {
                 }
             } else {
                 songTable(songs, "Downloaded", "downloaded", trailingLabel = "Downloaded", trailing = { i -> entries.getOrNull(i)?.let { relativeDate(it.at) } })
+            }
+        }
+    }
+}
+
+/** My top's colours, the phone's trending orange. */
+val TopGradient = listOf(Color(0xFFFF9F0A), Color(0xFFB2361B))
+
+/** Cached's colours. */
+val CachedGradient = listOf(Color(0xFF64D2FF), Color(0xFF5E5CE6))
+
+/** The periods the phone's My top can be sorted by, under its names for them. */
+enum class TopFilter(val label: String) {
+    AllTime("All time"),
+    Day("Past 24 hours"),
+    Week("Past week"),
+    Month("Past month"),
+    Year("Past year"),
+    ;
+
+    fun since(): Long {
+        val now = java.time.ZonedDateTime.now()
+        val start = when (this) {
+            AllTime -> return 0L
+            Day -> now.minusDays(1)
+            Week -> now.minusWeeks(1)
+            Month -> now.minusMonths(1)
+            Year -> now.minusYears(1)
+        }
+        return start.toInstant().toEpochMilli()
+    }
+}
+
+/** My top's songs: the most listened to over [filter], as many as Settings asks for. */
+fun myTopSongs(filter: TopFilter, settings: com.convx.desktop.data.Settings = AppSettings.value): List<Library.Ranked<Song>> =
+    Library.listeningStats(filter.since()).songs
+        .filter { !settings.hideVideos || !it.value.isVideo }
+        .take(settings.topSize)
+
+/** Songs kept whole in the audio cache, newest first, as the library knows them; ones it doesn't are left out. */
+fun cachedSongs(
+    library: com.convx.desktop.data.LibraryData = Library.value,
+    downloaded: Collection<com.convx.desktop.player.DownloadedSong> = Downloads.done.value.values,
+): List<Song> {
+    val known = HashMap<String, Song>()
+    library.localPlaylists.forEach { playlist -> playlist.songs.forEach { known[it.id] = it } }
+    library.liked.forEach { known[it.song.id] = it.song }
+    downloaded.forEach { known[it.song.id] = it.song }
+    // Oldest first, so the newest copy of a song's details wins.
+    library.history.asReversed().forEach { known[it.song.id] = it.song }
+    PlayerController.state.value.queue.forEach { known.putIfAbsent(it.id, it) }
+    return com.convx.desktop.player.AudioCache.cachedIds().mapNotNull { known[it] }
+}
+
+/**
+ * The phone's "My top" auto playlist: your most played songs, as many as its length setting
+ * says, over all time or a recent period picked from its sort menu.
+ */
+@Composable
+fun MyTopScreen() {
+    val library by Library.state.collectAsState()
+    val settings by AppSettings.state.collectAsState()
+    var filter by remember { mutableStateOf(TopFilter.AllTime) }
+    val ranked = remember(library.history, filter, settings.topSize, settings.hideVideos) { myTopSongs(filter, settings) }
+    val songs = remember(ranked) { ranked.map { it.value } }
+    val title = "My top ${settings.topSize}"
+    val playback = com.convx.desktop.ui.components.LocalPlayback.current
+    val isThisPlaying = playback.isPlaying && songs.any { it.id == playback.currentId }
+    Box(Modifier.fillMaxSize().background(PageBlack)) {
+        PageList(state = rememberLazyListState(), tint = PageBlack, topPadding = 0.dp) {
+            collectionHeader(
+                title = title,
+                art = { size -> GradientTile("trending_up", size, TopGradient, RoundedCornerShape(12.dp)) },
+                metadata = (listOf(filter.label) + songs.totalLine()).joinToString(" · "),
+                playing = isThisPlaying,
+                enabled = songs.isNotEmpty(),
+                onPlay = { if (isThisPlaying) PlayerController.pause() else if (songs.isNotEmpty()) PlayerController.playSongs(songs, 0, title, shuffle = false) },
+                onShuffle = { if (songs.isNotEmpty()) PlayerController.playSongs(songs, 0, title, shuffle = true) },
+                menu = { dismiss -> CollectionMenuContent(songs = { songs }, dismiss = dismiss) },
+            )
+            item(key = "filter") {
+                // The phone's sort header, with its periods in place of sort orders.
+                val menu = rememberMenuAnchor()
+                Box(Modifier.padding(start = Gutter, bottom = 8.dp)) {
+                    com.convx.desktop.ui.components.PillButton(
+                        filter.label,
+                        {
+                            menu.offset = androidx.compose.ui.unit.DpOffset(0.dp, 38.dp)
+                            menu.expanded = true
+                        },
+                        icon = "expand_more",
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                    )
+                    AppMenu(menu) {
+                        TopFilter.entries.forEach { entry ->
+                            MenuItem(entry.label, if (entry == filter) "check" else null) {
+                                menu.expanded = false
+                                filter = entry
+                            }
+                        }
+                    }
+                }
+            }
+            if (songs.isEmpty()) {
+                item(key = "empty") { MessageState("This playlist is empty", "Songs you play rank here by how long you listen.", icon = "trending_up") }
+            } else {
+                songTable(songs, title, "top", trailingLabel = "Played", trailing = { i -> ranked.getOrNull(i)?.let { statsLine(it.plays, it.playedMs) } })
+            }
+        }
+    }
+}
+
+/** The phone's "Cached" auto playlist: songs kept on this PC from playing them, which start at once. */
+@Composable
+fun CachedScreen() {
+    val library by Library.state.collectAsState()
+    val done by Downloads.done.collectAsState()
+    val songs = remember(library, done) { cachedSongs(library, done.values) }
+    val bytes = remember(songs) { com.convx.desktop.player.AudioCache.sizeBytes() }
+    val playback = com.convx.desktop.ui.components.LocalPlayback.current
+    val isThisPlaying = playback.isPlaying && songs.any { it.id == playback.currentId }
+    Box(Modifier.fillMaxSize().background(PageBlack)) {
+        PageList(state = rememberLazyListState(), tint = PageBlack, topPadding = 0.dp) {
+            collectionHeader(
+                title = "Cached",
+                art = { size -> GradientTile("cloud", size, CachedGradient, RoundedCornerShape(12.dp)) },
+                metadata = (songs.totalLine() + listOfNotNull(bytes.takeIf { it > 0 }?.let { com.convx.desktop.ui.screens.settings.formatBytes(it) }))
+                    .joinToString(" · "),
+                playing = isThisPlaying,
+                enabled = songs.isNotEmpty(),
+                onPlay = { if (isThisPlaying) PlayerController.pause() else if (songs.isNotEmpty()) PlayerController.playSongs(songs, 0, "Cached", shuffle = false) },
+                onShuffle = { if (songs.isNotEmpty()) PlayerController.playSongs(songs, 0, "Cached", shuffle = true) },
+                menu = { dismiss -> CollectionMenuContent(songs = { songs }, dismiss = dismiss) },
+            )
+            if (songs.isEmpty()) {
+                item(key = "empty") { MessageState("Nothing cached yet", "Songs you play are kept here, so they start at once next time.", icon = "cloud") }
+            } else {
+                songTable(songs, "Cached", "cached")
             }
         }
     }

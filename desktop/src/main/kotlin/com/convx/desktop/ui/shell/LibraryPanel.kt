@@ -138,6 +138,8 @@ private enum class Kind(val label: String) {
     Liked("Playlist"),
     LocalFiles("Playlist"),
     Downloads("Playlist"),
+    Top("Playlist"),
+    Cached("Playlist"),
     LocalPlaylist("Playlist"),
     Playlist("Playlist"),
     Album("Album"),
@@ -147,7 +149,8 @@ private enum class Kind(val label: String) {
     ;
 
     val spotify: Boolean get() = this == SpotifyLiked || this == SpotifyPlaylist
-    val playlist: Boolean get() = this == Liked || this == LocalFiles || this == Downloads || this == LocalPlaylist || this == Playlist || spotify
+    val playlist: Boolean get() = this == Liked || this == LocalFiles || this == Downloads || this == Top || this == Cached ||
+        this == LocalPlaylist || this == Playlist || spotify
 }
 
 private enum class LibraryFilter(val label: String) { Playlists("Playlists"), Albums("Albums"), Artists("Artists") }
@@ -232,6 +235,31 @@ private fun downloadsEntry(done: Map<String, com.convx.desktop.player.Downloaded
     )
 }
 
+/** The phone's "My top" and "Cached" auto playlists, when switched on and there's something in them. */
+private fun autoEntries(library: LibraryData, settings: com.convx.desktop.data.Settings, cached: List<Song>): List<LibraryEntry> = buildList {
+    if (settings.showTopPlaylist && library.history.isNotEmpty()) {
+        val count = library.history.distinctBy { it.song.id }.size.coerceAtMost(settings.topSize)
+        add(
+            LibraryEntry(
+                key = "my-top", kind = Kind.Top, id = "my-top", title = "My top ${settings.topSize}",
+                owner = if (count == 1) "1 song" else "$count songs",
+                thumbnail = null, mosaic = emptyList(), screen = Screen.MyTop, added = 0L, recent = library.history.first().at,
+            ),
+        )
+    }
+    if (settings.showCachedPlaylist && cached.isNotEmpty()) {
+        val ids = cached.mapTo(HashSet()) { it.id }
+        add(
+            LibraryEntry(
+                key = "cached", kind = Kind.Cached, id = "cached", title = "Cached",
+                owner = if (cached.size == 1) "1 song" else "${cached.size} songs",
+                thumbnail = null, mosaic = emptyList(), screen = Screen.Cached,
+                added = 0L, recent = library.history.firstOrNull { it.song.id in ids }?.at ?: 0L,
+            ),
+        )
+    }
+}
+
 /** Everything in the library as one list; [recent] is the last time anything in it played. */
 private fun LibraryData.entries(): List<LibraryEntry> {
     val bySong = HashMap<String, Long>()
@@ -308,9 +336,14 @@ fun LibraryPanel(collapsed: Boolean, modifier: Modifier = Modifier) {
     }
     val localIndex by com.convx.desktop.player.LocalMusic.index.collectAsState()
     val downloaded by com.convx.desktop.player.Downloads.done.collectAsState()
-    val all = remember(library, spotifyLists, spotifyLiked, localIndex, downloaded) {
-        library.entries() + localEntry(localIndex.tracks.size, library) + downloadsEntry(downloaded, library) +
-            (spotifyLists?.let { spotifyEntries(it, spotifyLiked) } ?: emptyList())
+    val autoSettings = listOf(settings.showLikedPlaylist, settings.showDownloadedPlaylist, settings.showTopPlaylist, settings.showCachedPlaylist, settings.topSize)
+    val all = remember(library, spotifyLists, spotifyLiked, localIndex, downloaded, autoSettings) {
+        val cached = if (settings.showCachedPlaylist) com.convx.desktop.ui.screens.cachedSongs(library, downloaded.values) else emptyList()
+        (
+            library.entries() + localEntry(localIndex.tracks.size, library) + downloadsEntry(downloaded, library) +
+                autoEntries(library, settings, cached) +
+                (spotifyLists?.let { spotifyEntries(it, spotifyLiked) } ?: emptyList())
+            ).filterNot { (it.kind == Kind.Liked && !settings.showLikedPlaylist) || (it.kind == Kind.Downloads && !settings.showDownloadedPlaylist) }
     }
     val shown = remember(all, filter, query, sort, pins) {
         val matching = all.filter { entry ->
@@ -706,6 +739,8 @@ private fun EntryArt(entry: LibraryEntry, size: Dp) {
         Kind.Liked -> GradientTile("favorite", size, listOf(Color(0xFFFA2D48), Color(0xFF8E2DE2)), shape)
         Kind.LocalFiles -> GradientTile("storage", size, LocalFilesGradient, shape)
         Kind.Downloads -> GradientTile("download", size, DownloadsGradient, shape)
+        Kind.Top -> GradientTile("trending_up", size, com.convx.desktop.ui.screens.TopGradient, shape)
+        Kind.Cached -> GradientTile("cloud", size, com.convx.desktop.ui.screens.CachedGradient, shape)
         Kind.LocalPlaylist -> MosaicArt(entry.mosaic, size, shape)
         // Spotify's own Liked Songs tile.
         Kind.SpotifyLiked -> GradientTile("favorite", size, listOf(Color(0xFF450AF5), Color(0xFF8E8EE5)), shape)
@@ -725,6 +760,11 @@ private fun EntryMenu(entry: LibraryEntry, pinned: Boolean, dismiss: () -> Unit)
                 ?.let { PlayerController.playSongs(it, 0, entry.title, shuffle = shuffle) }
             Kind.Downloads -> com.convx.desktop.player.Downloads.done.value.values.sortedByDescending { it.at }.map { it.song }
                 .takeIf { it.isNotEmpty() }
+                ?.let { PlayerController.playSongs(it, 0, entry.title, shuffle = shuffle) }
+            Kind.Top -> com.convx.desktop.ui.screens.myTopSongs(com.convx.desktop.ui.screens.TopFilter.AllTime).map { it.value }
+                .takeIf { it.isNotEmpty() }
+                ?.let { PlayerController.playSongs(it, 0, entry.title, shuffle = shuffle) }
+            Kind.Cached -> com.convx.desktop.ui.screens.cachedSongs().takeIf { it.isNotEmpty() }
                 ?.let { PlayerController.playSongs(it, 0, entry.title, shuffle = shuffle) }
             Kind.LocalPlaylist -> Library.playlist(entry.id)?.songs?.takeIf { it.isNotEmpty() }
                 ?.let { PlayerController.playSongs(it, 0, entry.title, shuffle = shuffle) }
@@ -784,7 +824,7 @@ private fun EntryMenu(entry: LibraryEntry, pinned: Boolean, dismiss: () -> Unit)
             dismiss()
             Library.state.value.artists.firstOrNull { it.id == entry.id }?.let { Library.toggleArtist(it) }
         }
-        Kind.Liked, Kind.LocalFiles, Kind.Downloads, Kind.SpotifyLiked, Kind.SpotifyPlaylist -> Unit
+        Kind.Liked, Kind.LocalFiles, Kind.Downloads, Kind.Top, Kind.Cached, Kind.SpotifyLiked, Kind.SpotifyPlaylist -> Unit
     }
 }
 
