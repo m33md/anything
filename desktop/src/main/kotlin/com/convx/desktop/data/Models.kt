@@ -80,8 +80,13 @@ data class LocalPlaylist(
 @Serializable
 data class LikedSong(val song: Song, val likedAt: Long = System.currentTimeMillis())
 
+/**
+ * One play in the history, as the phone's event: counted once the song has played for the history
+ * duration, then kept up to date with how long it was listened to. Plays from before Convx kept
+ * that time have none.
+ */
 @Serializable
-data class PlayEvent(val song: Song, val at: Long = System.currentTimeMillis())
+data class PlayEvent(val song: Song, val at: Long = System.currentTimeMillis(), val playedMs: Long = 0L)
 
 @Serializable
 data class LibraryData(
@@ -94,6 +99,8 @@ data class LibraryData(
     val searchHistory: List<String> = emptyList(),
     /** Home's Speed dial pins, newest first. */
     val speedDial: List<SpeedDialEntry> = emptyList(),
+    /** Pictures of artists you've played but don't follow, by id, as the phone keeps them for Stats. */
+    val artistPictures: Map<String, String> = emptyMap(),
 )
 
 /** A Speed dial pin, as the phone keeps one: enough of the item to show it and open it again. */

@@ -804,7 +804,7 @@ fun HistoryScreen() {
                 Text("Recently played", style = ConvxType.LargeTitle, modifier = Modifier.weight(1f))
                 if (events.isNotEmpty()) {
                     com.convx.desktop.ui.components.PillButton("Clear history", {
-                        Overlays.confirm("Clear listening history?", "This also resets Your Top 50.", "Clear") { Library.clearHistory() }
+                        Overlays.confirm("Clear listening history?", "This also resets Stats.", "Clear") { Library.clearHistory() }
                     })
                 }
             }
@@ -825,34 +825,6 @@ fun HistoryScreen() {
                     }
                 },
             )
-        }
-    }
-}
-
-@Composable
-fun TopSongsScreen() {
-    val library by Library.state.collectAsState()
-    val top = remember(library.history) { Library.topSongs(50) }
-    val songs = remember(top) { top.map { it.first } }
-    val tint = PageBlack
-    val playback = com.convx.desktop.ui.components.LocalPlayback.current
-    val isThisPlaying = playback.isPlaying && songs.any { it.id == playback.currentId }
-    Box(Modifier.fillMaxSize().background(tint)) {
-        PageList(state = rememberLazyListState(), tint = tint, topPadding = 0.dp) {
-            collectionHeader(
-                title = "Your Top 50",
-                art = { size -> GradientTile("stats", size, listOf(Color(0xFFFF9F0A), Color(0xFFB2361B)), RoundedCornerShape(12.dp)) },
-                metadata = (listOf("Your most played songs") + songs.totalLine()).joinToString(" · "),
-                playing = isThisPlaying,
-                enabled = songs.isNotEmpty(),
-                onPlay = { if (isThisPlaying) PlayerController.pause() else if (songs.isNotEmpty()) PlayerController.playSongs(songs, 0, "Your Top 50", shuffle = false) },
-                onShuffle = { if (songs.isNotEmpty()) PlayerController.playSongs(songs, 0, "Your Top 50", shuffle = true) },
-            )
-            if (songs.isEmpty()) {
-                item { MessageState("No plays yet", "Your most played songs will rank here.", icon = "stats") }
-            } else {
-                songTable(songs, "Your Top 50", "top", trailingLabel = "Plays", trailing = { i -> top.getOrNull(i)?.second?.let { pluralize(it, "play") } })
-            }
         }
     }
 }

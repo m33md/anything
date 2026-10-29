@@ -50,7 +50,7 @@ enum class Section(val label: String, val icon: String, val root: Screen) {
 fun Screen.section(): Section? = when (this) {
     Screen.Home -> Section.Home
     Screen.Explore -> Section.Explore
-    Screen.Library, Screen.Liked, Screen.LocalFiles, Screen.Downloads, Screen.History, Screen.TopSongs -> Section.Library
+    Screen.Library, Screen.Liked, Screen.LocalFiles, Screen.Downloads, Screen.History, Screen.Stats -> Section.Library
     else -> null
 }
 

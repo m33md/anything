@@ -114,6 +114,9 @@ object PlayerController : AudioEngine.Listener {
     private var listenMs = 0L
     private var listenCounted = false
     private var listenTick = 0L
+    // The history entry it was counted as, and the time played last written to it.
+    private var listenAt = 0L
+    private var listenSavedMs = 0L
     /** The session a crossfade already left, so it fades out only once. */
     private var crossfadedToken = 0L
 
@@ -321,16 +324,32 @@ object PlayerController : AudioEngine.Listener {
             if (listenId != song.id) resetListen(song.id) else listenMs += (now - listenTick).coerceIn(0L, 1_000L)
             if (!listenCounted && listenMs >= (AppSettings.value.historyDurationSeconds * 1000).toLong()) {
                 listenCounted = true
-                Library.recordPlay(song)
+                listenAt = Library.recordPlay(song, listenMs) ?: 0L
+                listenSavedMs = listenMs
             }
+        } else {
+            saveListen()
         }
         listenTick = now
     }
 
+    /**
+     * Writes the time played so far to the play's history entry, as the phone's event keeps it:
+     * on a pause, a new song and quitting, rather than every second, as the library is one file.
+     */
+    private fun saveListen() {
+        if (!listenCounted || listenMs == listenSavedMs) return
+        if (listenAt != 0L) Library.setPlayTime(listenAt, listenMs)
+        listenSavedMs = listenMs
+    }
+
     private fun resetListen(id: String) {
+        saveListen()
         listenId = id
         listenMs = 0L
         listenCounted = false
+        listenAt = 0L
+        listenSavedMs = 0L
     }
 
     fun playNext(songs: List<Song>) = guarded {
@@ -543,6 +562,7 @@ object PlayerController : AudioEngine.Listener {
     }
 
     fun shutdown() {
+        saveListen()
         persistQueue()
         engine.stop()
     }

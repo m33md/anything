@@ -377,6 +377,9 @@ fun ItemCard(
     modifier: Modifier = Modifier,
     width: Dp = 176.dp,
     onClick: (() -> Unit)? = null,
+    /** What the card says, where it isn't the item's own: Stats ranks and counts. */
+    title: String = item.title,
+    subtitle: String = item.subtitle(),
 ) {
     val navigator = LocalNavigator.current
     val playback = LocalPlayback.current
@@ -421,7 +424,7 @@ fun ItemCard(
             }
             Spacer(Modifier.height(10.dp))
             Text(
-                item.title,
+                title,
                 style = ConvxType.Body,
                 color = if (isCurrent) LocalAccent.current else Color.White,
                 maxLines = 1,
@@ -429,7 +432,6 @@ fun ItemCard(
                 textAlign = if (isArtist) TextAlign.Center else TextAlign.Start,
                 modifier = Modifier.fillMaxWidth(),
             )
-            val subtitle = item.subtitle()
             if (subtitle.isNotEmpty()) {
                 Text(
                     subtitle,

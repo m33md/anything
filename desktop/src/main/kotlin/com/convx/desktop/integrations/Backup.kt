@@ -54,7 +54,6 @@ object Backup {
     /** The phone's entries (BackupRestoreViewModel). */
     private const val PhoneDatabase = "song.db"
     private const val PhoneSettings = "settings.preferences_pb"
-    private const val HistoryLimit = 3000
 
     sealed interface State {
         data object Idle : State
@@ -73,6 +72,8 @@ object Backup {
         val history: List<PlayEvent>,
         /** Songs that were files on the phone, which this PC can't play. */
         val skippedLocal: Int,
+        /** Every YouTube artist's picture the phone had, for Stats. */
+        val artistPictures: Map<String, String> = emptyMap(),
     )
 
     private val _state = MutableStateFlow<State>(State.Idle)
@@ -323,13 +324,19 @@ object Backup {
             artists += SavedArtist(id, row.string("name").orEmpty(), row.string("thumbnailUrl"), savedAt)
         }
 
-        val history = mutableListOf<PlayEvent>()
-        connection.query("SELECT songId, timestamp FROM event ORDER BY timestamp DESC LIMIT $HistoryLimit") { row ->
-            val song = songs[row.string("songId") ?: return@query] ?: return@query
-            history += PlayEvent(song, row.long("timestamp") ?: return@query)
+        val pictures = HashMap<String, String>()
+        connection.query("SELECT * FROM artist") { row ->
+            val id = row.string("id")?.takeIf { it.startsWith("UC") } ?: return@query
+            pictures[id] = row.string("thumbnailUrl") ?: return@query
         }
 
-        return PhoneLibrary(liked, playlists, savedPlaylists, albums, artists, history, skippedLocal)
+        val history = mutableListOf<PlayEvent>()
+        connection.query("SELECT * FROM event ORDER BY timestamp DESC LIMIT ${Library.HistoryLimit}") { row ->
+            val song = songs[row.string("songId") ?: return@query] ?: return@query
+            history += PlayEvent(song, row.long("timestamp") ?: return@query, playedMs = row.long("playTime") ?: 0L)
+        }
+
+        return PhoneLibrary(liked, playlists, savedPlaylists, albums, artists, history, skippedLocal, pictures)
     }
 
     /** Adds what the phone had without taking anything away from this PC's library. */
@@ -353,16 +360,22 @@ object Backup {
             newSaved = addSaved.size
             // A phone playlist imported again replaces its earlier copy.
             val phoneIds = phone.playlists.mapTo(HashSet()) { it.id }
-            val seen = data.history.mapTo(HashSet()) { it.song.id to it.at }
+            // A play imported before time played came across gets the phone's time now.
+            val phoneTimes = phone.history.associate { (it.song.id to it.at) to it.playedMs }
+            val history = data.history.map { event ->
+                if (event.playedMs == 0L) phoneTimes[event.song.id to event.at]?.let { event.copy(playedMs = it) } ?: event else event
+            }
+            val seen = history.mapTo(HashSet()) { it.song.id to it.at }
             data.copy(
                 liked = (data.liked + addLiked).sortedByDescending { it.likedAt },
                 albums = data.albums + addAlbums,
                 artists = data.artists + addArtists,
                 playlists = data.playlists + addSaved,
                 localPlaylists = data.localPlaylists.filterNot { it.id in phoneIds } + phone.playlists,
-                history = (data.history + phone.history.filter { (it.song.id to it.at) !in seen })
+                history = (history + phone.history.filter { (it.song.id to it.at) !in seen })
                     .sortedByDescending { it.at }
-                    .take(HistoryLimit),
+                    .take(Library.HistoryLimit),
+                artistPictures = phone.artistPictures + data.artistPictures,
             )
         }
         Library.flush()

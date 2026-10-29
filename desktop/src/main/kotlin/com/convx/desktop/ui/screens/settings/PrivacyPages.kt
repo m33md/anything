@@ -53,7 +53,7 @@ fun PrivacySettings() {
     SettingsSection(
         "Listen history",
         footer = "A song counts as a listen once it has played for the history duration. While history is paused, songs you play " +
-            "don't show in History, Your Top 50 or Home. Last.fm and ListenBrainz still scrobble.",
+            "don't show in History, Stats or Home. Last.fm and ListenBrainz still scrobble.",
     ) {
         SwitchRow("Pause listen history", checked = settings.pauseListenHistory, icon = "history", tint = SystemColors.Orange) { v ->
             AppSettings.update { it.copy(pauseListenHistory = v) }

@@ -293,7 +293,17 @@ fun main(args: Array<String>) {
             // A lived-in library, for the side bar, the library page and the song-list pages.
             UiState.fullPlayer = false
             songs.take(6).forEach { Library.toggleLike(it) }
-            songs.take(4).forEach { Library.recordPlay(it) }
+            // Two months of plays with the time listened, for Stats and Home's most played.
+            val now = System.currentTimeMillis()
+            Library.applySync { data ->
+                data.copy(
+                    history = songs.take(8).flatMapIndexed { i, song ->
+                        List(8 - i) { n ->
+                            com.convx.desktop.data.PlayEvent(song, now - (n * 7L + i) * 86_400_000L - 3_600_000L, playedMs = (song.duration ?: 200) * 1000L * (8 - n) / 8)
+                        }
+                    }.sortedByDescending { it.at },
+                )
+            }
             album?.let { Library.toggleAlbum(it.toSaved()) }
             artist?.let { Library.toggleArtist(it.toSaved()) }
             playlist?.let { Library.togglePlaylist(it.toSaved()) }
@@ -314,6 +324,13 @@ fun main(args: Array<String>) {
             shoot("20a-home-feed-down", seconds = 3) { scroll(10f) }
             shoot("20b-home-feed-further", seconds = 3) { scroll(10f) }
             shoot("20c-home-feed-end", seconds = 3) { scroll(20f) }
+            shoot("21-stats", seconds = 8) { navigator.navigate(Screen.Stats) }
+            shoot("21a-stats-months", seconds = 3) {
+                com.convx.desktop.ui.screens.StatsSelection.option = com.convx.desktop.ui.screens.StatsOption.Months
+                com.convx.desktop.ui.screens.StatsSelection.chip = 1
+            }
+            com.convx.desktop.ui.screens.StatsSelection.option = com.convx.desktop.ui.screens.StatsOption.Continuous
+            com.convx.desktop.ui.screens.StatsSelection.chip = 0
             AppSettings.update { it.copy(homeRandomOrder = true) }
             shoot("14-library", seconds = 8) { navigator.navigate(Screen.Library) }
             shoot("15-liked", seconds = 6) { navigator.navigate(Screen.Liked) }

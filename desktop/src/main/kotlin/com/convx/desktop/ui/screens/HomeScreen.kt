@@ -290,7 +290,7 @@ private fun HomeSectionView(
                 Shelf(
                     "Most played songs",
                     spacing = 12.dp,
-                    onTitleClick = { navigator.navigate(Screen.TopSongs) },
+                    onTitleClick = { navigator.navigate(Screen.Stats) },
                     trailing = { PlayAllButton { PlayerController.playSongs(songs, 0, "Most played songs") } },
                 ) {
                     itemsIndexed(songs, key = { _, song -> song.id }) { index, song ->

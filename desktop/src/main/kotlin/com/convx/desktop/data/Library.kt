@@ -15,7 +15,8 @@ import java.util.UUID
 
 /** The user's own music: likes, saved albums/playlists/artists, local playlists, history. */
 object Library {
-    private const val HistoryLimit = 3000
+    /** Plays kept: about a year of daily listening, so Stats' years and months have something to show. */
+    const val HistoryLimit = 10_000
     private const val SearchHistoryLimit = 30
 
     private val store = JsonFile(File(AppDirs.data, "library.json"), LibraryData.serializer()) { LibraryData() }
@@ -142,23 +143,27 @@ object Library {
 
     // History
 
-    fun recordPlay(song: Song) {
-        if (AppSettings.value.pauseListenHistory) return
-        store.update { data -> data.copy(history = (listOf(PlayEvent(song)) + data.history).take(HistoryLimit)) }
+    /** Adds a play to the history and returns when it was, so its time played can follow; null while history is paused. */
+    fun recordPlay(song: Song, playedMs: Long = 0L): Long? {
+        if (AppSettings.value.pauseListenHistory) return null
+        val event = PlayEvent(song, playedMs = playedMs)
+        store.update { data -> data.copy(history = (listOf(event) + data.history).take(HistoryLimit)) }
+        return event.at
+    }
+
+    /** Sets how long the play at [at] was listened to, as it grows. */
+    fun setPlayTime(at: Long, playedMs: Long) = store.update { data ->
+        val index = data.history.indexOfFirst { it.at == at }
+        if (index < 0 || data.history[index].playedMs == playedMs) {
+            data
+        } else {
+            data.copy(history = data.history.toMutableList().apply { this[index] = this[index].copy(playedMs = playedMs) })
+        }
     }
 
     fun clearHistory() = store.update { it.copy(history = emptyList()) }
 
     fun removeFromHistory(at: Long) = store.update { data -> data.copy(history = data.history.filterNot { it.at == at }) }
-
-    /** Most played songs, newest metadata wins. */
-    fun topSongs(limit: Int = 50, since: Long = 0L): List<Pair<Song, Int>> =
-        value.history.asSequence()
-            .filter { it.at >= since }
-            .groupBy { it.song.id }
-            .map { (_, plays) -> plays.first().song to plays.size }
-            .sortedByDescending { it.second }
-            .take(limit)
 
     /** Recently played, one entry per song. */
     fun recentSongs(limit: Int = 30): List<Song> =
@@ -166,35 +171,52 @@ object Library {
 
     /** The phone's "most played" over plays since [since], skipping the first [offset]. */
     fun mostPlayedSongs(since: Long, limit: Int, offset: Int = 0): List<Song> =
-        value.history.asSequence()
-            .filter { it.at >= since }
-            .groupBy { it.song.id }
-            .values
-            .sortedByDescending { it.size }
-            .drop(offset)
-            .take(limit)
-            .map { it.first().song }
+        listeningStats(since).songs.drop(offset).take(limit).map { it.value }
 
     /** Artists of the songs played since [since], most played first, as id and name. */
     fun mostPlayedArtists(since: Long, limit: Int): List<ArtistRef> =
-        value.history.asSequence()
-            .filter { it.at >= since }
-            .flatMap { event -> event.song.artists.filter { it.id != null }.asSequence() }
-            .groupBy { it.id }
-            .values
-            .sortedByDescending { it.size }
-            .take(limit)
-            .map { it.first() }
+        listeningStats(since).artists.take(limit).map { it.value }
 
     /** Albums of the songs played since [since], most played first, with a cover from one of them. */
     fun mostPlayedAlbums(since: Long, limit: Int): List<Pair<AlbumRef, Song>> =
-        value.history.asSequence()
-            .filter { it.at >= since && it.song.album != null }
-            .groupBy { it.song.album!!.id }
-            .values
-            .sortedByDescending { it.size }
-            .take(limit)
-            .map { plays -> plays.first().song.album!! to plays.first().song }
+        listeningStats(since).albums.take(limit).map { it.value to it.song }
+
+    /** One song, artist or album in [ListeningStats], with a song of it for its cover. */
+    data class Ranked<T>(val value: T, val song: Song, val plays: Int, val playedMs: Long)
+
+    class ListeningStats(val songs: List<Ranked<Song>>, val artists: List<Ranked<ArtistRef>>, val albums: List<Ranked<AlbumRef>>)
+
+    /**
+     * The phone's Stats over plays after [from] and up to [to]: songs, YouTube artists and albums,
+     * ranked by time listened as there, then by plays for history from before time was kept.
+     */
+    fun listeningStats(from: Long, to: Long = Long.MAX_VALUE, limit: Int = 1000): ListeningStats {
+        val events = value.history.filter { it.at > from && it.at <= to }
+        fun <K, T> rank(keys: (PlayEvent) -> List<Pair<K, T>>): List<Ranked<T>> {
+            val groups = LinkedHashMap<K, MutableList<Pair<T, PlayEvent>>>()
+            for (event in events) for ((key, item) in keys(event)) groups.getOrPut(key) { mutableListOf() } += item to event
+            return groups.values
+                .map { plays -> Ranked(plays.first().first, plays.first().second.song, plays.size, plays.sumOf { it.second.playedMs }) }
+                .sortedWith(compareByDescending<Ranked<T>> { it.playedMs }.thenByDescending { it.plays })
+                .take(limit)
+        }
+        return ListeningStats(
+            songs = rank { listOf(it.song.id to it.song) },
+            artists = rank { event -> event.song.artists.filter { it.id?.startsWith("UC") == true }.map { it.id!! to it } },
+            albums = rank { event -> listOfNotNull(event.song.album?.let { it.id to it }) },
+        )
+    }
+
+    // Artist pictures
+
+    /** A played artist's picture: from following them, or kept from an earlier look-up. */
+    fun artistPicture(id: String): String? =
+        value.artists.firstOrNull { it.id == id }?.thumbnail ?: value.artistPictures[id]
+
+    fun rememberArtistPictures(pictures: Map<String, String>) {
+        if (pictures.isEmpty()) return
+        store.update { data -> data.copy(artistPictures = data.artistPictures + pictures) }
+    }
 
     /**
      * The phone's forgotten favourites, by its query: songs heard again this month, but less than

@@ -43,7 +43,7 @@ fun main(args: Array<String>) {
             "kJQP7kiw5Fk",
         )
     }
-    val dspOk = dspCheck() and libraryCheck() and partyCheck() and backupCheck() and playlistFileCheck() and downloadsCheck() and lyricsMenuCheck() and homeOrderCheck()
+    val dspOk = dspCheck() and libraryCheck() and partyCheck() and backupCheck() and playlistFileCheck() and downloadsCheck() and lyricsMenuCheck() and homeOrderCheck() and statsCheck()
     partyServerCheck()
     runBlocking(Dispatchers.IO) { initYouTube() }
     var passed = 0
@@ -319,6 +319,41 @@ private fun homeOrderCheck(): Boolean {
     expect("card off", "hero" !in noCard, noCard.toString())
     val shuffled = ids(base.copy(homeRandomOrder = true))
     expect("shuffled keeps the card on top", shuffled.first() == "hero" && shuffled.toSet() == default.toSet(), shuffled.toString())
+    return ok
+}
+
+/** Stats ranks by time listened, as the phone does, and falls back to plays for history without time. */
+private fun statsCheck(): Boolean {
+    var ok = true
+    fun expect(name: String, pass: Boolean, detail: String) {
+        if (!pass) ok = false
+        println("${if (pass) "PASS" else "FAIL"} stats $name: $detail")
+    }
+    val saved = com.convx.desktop.data.Library.value.history
+    val artist = com.convx.desktop.data.ArtistRef("UCstats", "Artist")
+    val long = com.convx.desktop.data.Song("long", "Long", listOf(artist), com.convx.desktop.data.AlbumRef("MPREstats", "Album"))
+    val short = com.convx.desktop.data.Song("short", "Short")
+    val old = com.convx.desktop.data.Song("old", "Old")
+    val now = System.currentTimeMillis()
+    com.convx.desktop.data.Library.applySync { data ->
+        data.copy(
+            history = listOf(
+                com.convx.desktop.data.PlayEvent(short, now - 1_000, playedMs = 30_000),
+                com.convx.desktop.data.PlayEvent(short, now - 2_000, playedMs = 30_000),
+                com.convx.desktop.data.PlayEvent(long, now - 3_000, playedMs = 240_000),
+                com.convx.desktop.data.PlayEvent(old, now - 40L * 86_400_000),
+            ),
+        )
+    }
+    val at = com.convx.desktop.data.Library.recordPlay(short, 30_000)
+    if (at != null) com.convx.desktop.data.Library.setPlayTime(at, 45_000)
+    val week = com.convx.desktop.data.Library.listeningStats(now - 7L * 86_400_000)
+    expect("by time", week.songs.map { it.value.id } == listOf("long", "short"), week.songs.map { "${it.value.id} ${it.plays}x ${it.playedMs}ms" }.toString())
+    expect("time kept", week.songs.firstOrNull { it.value.id == "short" }?.playedMs == 105_000L, week.songs.toString())
+    expect("artists and albums", week.artists.map { it.value.id } == listOf("UCstats") && week.albums.map { it.value.id } == listOf("MPREstats"), "${week.artists} ${week.albums}")
+    val all = com.convx.desktop.data.Library.listeningStats(0)
+    expect("all time", all.songs.size == 3 && all.songs.last().value.id == "old", all.songs.map { it.value.id }.toString())
+    com.convx.desktop.data.Library.applySync { it.copy(history = saved) }
     return ok
 }
 

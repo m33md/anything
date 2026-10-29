@@ -326,7 +326,7 @@ private fun rememberStripEntries(section: Section): List<StripEntry> {
                 StripEntry("local", "Local files", "storage", screen == Screen.LocalFiles) { navigator.switchTo(Screen.LocalFiles) },
                 StripEntry("downloads", "Downloaded", "download", screen == Screen.Downloads) { navigator.switchTo(Screen.Downloads) },
                 StripEntry("history", "History", "history", screen == Screen.History) { navigator.switchTo(Screen.History) },
-                StripEntry("stats", "Stats", "stats", screen == Screen.TopSongs) { navigator.switchTo(Screen.TopSongs) },
+                StripEntry("stats", "Stats", "stats", screen == Screen.Stats) { navigator.switchTo(Screen.Stats) },
             )
         }
     }
