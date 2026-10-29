@@ -160,6 +160,10 @@ data class Settings(
     val proxyType: String = "HTTP",
     val proxyUrl: String = "",
     val proxyUsername: String = "",
+    /** The phone's Party: blank for its default server, the name others see, and this PC's id there. */
+    val partyServer: String = "",
+    val partyName: String = "",
+    val partyId: String = "",
     /** "Listening to" on Discord, through the Discord app on this PC. Off until connected in Settings. */
     val discordPresence: Boolean = false,
     /** Discord's member list shows the song after "Listening to" instead of the artists. */

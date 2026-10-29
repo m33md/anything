@@ -26,6 +26,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -117,7 +118,7 @@ fun TopBar(modifier: Modifier = Modifier) {
     ) {
         val sides = 14.dp
         val leftWidth = 190.dp
-        val rightWidth = WindowTitleBar.rightInset + sides + NavButtonSize + 12.dp
+        val rightWidth = WindowTitleBar.rightInset + sides + NavButtonSize * 2 + 8.dp + 12.dp
         // The middle stays centred in the window, as Spotify's does, and gives way on narrow ones.
         val room = maxWidth - 2 * maxOf(leftWidth, rightWidth) - 2 * (TopBarButtonSize + 10.dp)
         val fieldWidth = room.coerceIn(260.dp, 480.dp)
@@ -155,6 +156,16 @@ fun TopBar(modifier: Modifier = Modifier) {
             Modifier.align(Alignment.CenterEnd).padding(end = sides + WindowTitleBar.rightInset),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // The phone's "Listen Together in top bar": the party, lit while you're in one.
+            val party by com.convx.desktop.integrations.party.Party.session.collectAsState()
+            GlassCircleButton(
+                onClick = { navigator.navigate(Screen.Party) },
+                size = NavButtonSize,
+                tooltip = party?.let { "Party ${it.code}: ${it.members.size} listening" } ?: "Listen together",
+            ) {
+                ConvxIcon("group", tint = if (party != null || screen == Screen.Party) LocalAccent.current else GlassTokens.Icon, size = 22.dp)
+            }
+            Spacer(Modifier.width(8.dp))
             val inSettings = screen == Screen.Settings
             GlassCircleButton(
                 onClick = { navigator.navigate(Screen.Settings) },

@@ -46,6 +46,7 @@ fun ScreenHost(screen: Screen) {
         Screen.History -> HistoryScreen()
         Screen.TopSongs -> TopSongsScreen()
         Screen.Settings -> SettingsScreen()
+        Screen.Party -> PartyScreen()
         is Screen.Album -> AlbumScreen(screen.browseId)
         is Screen.Artist -> ArtistScreen(screen.browseId)
         is Screen.Playlist -> PlaylistScreen(screen.id)

@@ -189,6 +189,16 @@ fun AccountsHub() {
     }
     SectionGap()
     SettingsSection("Services") {
+        val navigator = com.convx.desktop.ui.shell.LocalNavigator.current
+        val party by com.convx.desktop.integrations.party.Party.session.collectAsState()
+        LinkRow(
+            "Listen Together",
+            "A party with friends on phones or PCs",
+            icon = "group",
+            tint = SystemColors.Cyan,
+            value = party?.let { "In ${it.code}" },
+        ) { navigator.navigate(com.convx.desktop.ui.shell.Screen.Party) }
+        RowDivider()
         LinkRow("Network & proxy", "IP version and proxy", icon = "wifi_proxy", tint = SystemColors.Gray) {
             SettingsNav.push(SettingsPage.Network)
         }

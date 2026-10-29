@@ -33,6 +33,7 @@ import com.convx.desktop.core.Network
 import com.convx.desktop.core.initYouTube
 import com.convx.desktop.data.AppSettings
 import com.convx.desktop.data.Library
+import com.convx.desktop.integrations.party.Party
 import com.convx.desktop.integrations.DiscordPresence
 import com.convx.desktop.integrations.LastFm
 import com.convx.desktop.integrations.PlaylistImport
@@ -85,6 +86,7 @@ fun main() {
     YouTubeSync.start()
     PlaylistImport.init()
     if (AppSettings.value.scanLocalOnStart) LocalMusic.scan()
+    Party.start()
 
     val icon = Thread.currentThread().contextClassLoader.getResourceAsStream("convx.png")
         ?.use { BitmapPainter(Image.makeFromEncoded(it.readBytes()).toComposeImageBitmap()) }
@@ -99,6 +101,7 @@ fun main() {
         val navigator = remember { Navigator() }
 
         fun quit() {
+            Party.shutdown()
             DiscordPresence.shutdown()
             PlayerController.shutdown()
             Library.flush()

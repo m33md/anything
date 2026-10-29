@@ -41,7 +41,9 @@ import com.convx.desktop.ui.glass.LocalGlassConfig
 import com.convx.desktop.ui.glass.GlassConfig
 import com.convx.desktop.data.AppSettings
 import com.convx.desktop.lyrics.LyricsService
+import com.convx.desktop.integrations.party.Party
 import com.convx.desktop.player.PlayerController
+import kotlinx.coroutines.launch
 import com.convx.desktop.ui.components.LocalPageInsets
 import com.convx.desktop.ui.components.LocalPlayback
 import com.convx.desktop.ui.components.OverlayHost
@@ -85,6 +87,12 @@ fun AppShell(navigator: Navigator) {
         val error = player.error ?: return@LaunchedEffect
         Overlays.toast(error, "error")
         PlayerController.dismissError()
+    }
+
+    // Why a control did nothing (a party's host has the controls), and what a party wants said.
+    LaunchedEffect(Unit) {
+        launch { PlayerController.notices.collect { Overlays.toast(it, "lock") } }
+        Party.notices.collect { Overlays.toast(it, "group") }
     }
 
     // Look the lyrics up as a song starts, and the next one's too, so they are there on open.

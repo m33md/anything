@@ -25,6 +25,7 @@ sealed interface Screen {
     data object History : Screen
     data object TopSongs : Screen
     data object Settings : Screen
+    data object Party : Screen
     data class Album(val browseId: String) : Screen
     data class Artist(val browseId: String) : Screen
     data class Playlist(val id: String) : Screen

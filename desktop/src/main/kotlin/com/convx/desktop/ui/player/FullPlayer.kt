@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,6 +45,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -57,12 +59,16 @@ import com.convx.desktop.data.Library
 import com.convx.desktop.ui.components.AppMenu
 import com.convx.desktop.ui.components.ArtistLinks
 import com.convx.desktop.ui.components.Artwork
+import com.convx.desktop.ui.components.ConvxIcon
 import com.convx.desktop.ui.components.IconButton
 import com.convx.desktop.ui.components.SongMenuContent
 import com.convx.desktop.ui.components.rememberMenuAnchor
 import com.convx.desktop.ui.components.rememberMeshColors
 import com.convx.desktop.ui.shell.FullPlayerMode
 import com.convx.desktop.ui.shell.UiState
+import com.convx.desktop.ui.components.MenuItem
+import com.convx.desktop.ui.shell.Screen
+import com.convx.desktop.ui.shell.LocalNavigator
 import com.convx.desktop.ui.theme.ConvxType
 import com.convx.desktop.ui.theme.MeshColors
 import com.convx.desktop.player.PlayerController
@@ -123,6 +129,7 @@ fun MeshBackground(colors: List<Color>?, trackKey: Any?, modifier: Modifier = Mo
 @Composable
 fun FullPlayer(modifier: Modifier = Modifier) {
     val state by PlayerController.state.collectAsState()
+    val navigator = LocalNavigator.current
     val settings by AppSettings.state.collectAsState()
     val library by Library.state.collectAsState()
     val song = state.current
@@ -144,10 +151,18 @@ fun FullPlayer(modifier: Modifier = Modifier) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 IconButton("expand_more", { UiState.fullPlayer = false }, size = 40.dp, iconSize = 28.dp, filled = true, tooltip = "Close (Esc)")
                 Spacer(Modifier.weight(1f))
-                state.queueTitle?.let {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    state.queueTitle?.let {
                         Text("PLAYING FROM", style = ConvxType.Footnote, color = Color.White.copy(alpha = 0.6f))
                         Text(it, style = ConvxType.SubheadStrong, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    // The phone's party chip: the code and how many are listening, and the way back to it.
+                    val party by com.convx.desktop.integrations.party.Party.session.collectAsState()
+                    party?.let {
+                        PartyChip(it.code, it.members.size) {
+                            UiState.fullPlayer = false
+                            navigator.navigate(Screen.Party)
+                        }
                     }
                 }
                 Spacer(Modifier.weight(1f))
@@ -222,7 +237,16 @@ fun FullPlayer(modifier: Modifier = Modifier) {
                                     Spacer(Modifier.width(8.dp))
                                     Box {
                                         IconButton("more_horiz", { menu.expanded = true }, size = 38.dp, iconSize = 22.dp, filled = true, tooltip = "More options")
-                                        AppMenu(menu) { SongMenuContent(song, { menu.expanded = false }) }
+                                        AppMenu(menu) {
+                                            SongMenuContent(song, { menu.expanded = false }) { dismiss ->
+                                                // The phone's player menu opens the party from here.
+                                                MenuItem("Listen together", "group") {
+                                                    dismiss()
+                                                    UiState.fullPlayer = false
+                                                    navigator.navigate(Screen.Party)
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -257,5 +281,22 @@ fun FullPlayer(modifier: Modifier = Modifier) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun PartyChip(code: String, members: Int, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .padding(top = 6.dp)
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.14f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ConvxIcon("group", tint = Color.White, size = 14.dp)
+        Spacer(Modifier.width(6.dp))
+        Text("$code · $members", style = ConvxType.CaptionStrong, color = Color.White)
     }
 }

@@ -63,6 +63,9 @@ import com.convx.desktop.ui.glass.rememberInteractiveHighlight
 import com.convx.desktop.ui.shapes.NavContinuousCapsule
 import com.convx.desktop.ui.shell.FullPlayerMode
 import com.convx.desktop.ui.shell.UiState
+import com.convx.desktop.ui.components.MenuItem
+import com.convx.desktop.ui.shell.Screen
+import com.convx.desktop.ui.shell.LocalNavigator
 import com.convx.desktop.ui.theme.ConvxType
 import com.convx.desktop.ui.theme.LocalAccent
 
@@ -83,6 +86,7 @@ private val PlayTint = GlassTokens.Icon.copy(alpha = 1f)
 @Composable
 fun NowPlayingPill(modifier: Modifier = Modifier) {
     val state by PlayerController.state.collectAsState()
+    val navigator = LocalNavigator.current
     val song = state.current ?: return
     val glow = rememberInteractiveHighlight()
     // The phone's bar pills are Apple's continuous (G2) capsule, not a stadium.
@@ -190,7 +194,16 @@ fun NowPlayingPill(modifier: Modifier = Modifier) {
             }
             PillVolume(state, controlSize, iconSize, slider = roomy)
         }
-        AppMenu(menu) { SongMenuContent(song, { menu.expanded = false }) }
+        AppMenu(menu) {
+            SongMenuContent(song, { menu.expanded = false }) { dismiss ->
+                // The phone's player menu opens the party from here.
+                MenuItem("Listen together", "group") {
+                    dismiss()
+                    UiState.fullPlayer = false
+                    navigator.navigate(Screen.Party)
+                }
+            }
+        }
     }
 }
 

@@ -152,6 +152,10 @@ fun main(args: Array<String>) {
         com.convx.desktop.ui.components.Overlays.dismissDialog()
         shoot("07k-settings-folders", seconds = 2) { SettingsNav.push(SettingsPage.LocalFolders) }
         shoot("07l-settings-network", seconds = 2) { SettingsNav.push(SettingsPage.Network) }
+        shoot("07m-party", seconds = 4) { navigator.navigate(Screen.Party) }
+        // A real party on the phone's server; the free server may take a while to wake.
+        shoot("07n-party-in", seconds = 30) { com.convx.desktop.integrations.party.Party.create("Convx CI") }
+        com.convx.desktop.integrations.party.Party.leave()
         shoot("08-explore", seconds = 12) { navigator.navigate(Screen.Explore) }
         shoot("08a-explore-strip", seconds = 3) { UiState.openSection(Section.Explore, navigator) }
         shoot("08b-explore-jump", seconds = 3) { UiState.exploreJump = ExploreAnchor.Moods }

@@ -21,8 +21,11 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -90,6 +93,34 @@ object PlayerController : AudioEngine.Listener {
     /** The session a crossfade already left, so it fades out only once. */
     private var crossfadedToken = 0L
 
+    /**
+     * What the listener at this PC did to playback, for a listening party to pass on. What the
+     * party itself sets comes in through the `party` functions and is never reported back.
+     */
+    sealed interface Change {
+        data class Playing(val playing: Boolean, val positionMs: Long) : Change
+        data class Seeked(val positionMs: Long) : Change
+        data class Track(val song: Song, val playing: Boolean) : Change
+    }
+
+    private val _changes = MutableSharedFlow<Change>(extraBufferCapacity = 64)
+    val changes: SharedFlow<Change> = _changes.asSharedFlow()
+
+    private val _notices = MutableSharedFlow<String>(extraBufferCapacity = 8)
+
+    /** Things to tell the listener that aren't errors, like why a control did nothing. */
+    val notices: SharedFlow<String> = _notices.asSharedFlow()
+
+    /**
+     * Set by a listening party: why this PC may not play, pause, skip or change the queue right
+     * now, or null while it may.
+     */
+    @Volatile
+    var controlLock: (() -> String?)? = null
+
+    /** The song last reported as a [Change.Track] or set by the party, so it isn't reported again. */
+    private var announcedId: String? = null
+
     init {
         applyVolume()
         scope.launch {
@@ -126,8 +157,18 @@ object PlayerController : AudioEngine.Listener {
 
     // Public API (safe from any thread)
 
-    fun playSongs(songs: List<Song>, startIndex: Int = 0, title: String? = null, shuffle: Boolean? = null) = scope.launch {
-        if (songs.isEmpty()) return@launch
+    /** True, once the listener has been told why, while a party's host holds the controls. */
+    fun refused(): Boolean {
+        val reason = controlLock?.invoke() ?: return false
+        _notices.tryEmit(reason)
+        return true
+    }
+
+    /** A control the listener used: nothing happens while a party's host holds the controls. */
+    private fun guarded(block: suspend CoroutineScope.() -> Unit): Job? = if (refused()) null else scope.launch(block = block)
+
+    fun playSongs(songs: List<Song>, startIndex: Int = 0, title: String? = null, shuffle: Boolean? = null) = guarded {
+        if (songs.isEmpty()) return@guarded
         radioContinuation = null
         radioEndpoint = null
         val wantShuffle = shuffle ?: _state.value.shuffle
@@ -146,11 +187,11 @@ object PlayerController : AudioEngine.Listener {
     }
 
     /** Plays [song] and fills the queue with YouTube Music's radio for it. */
-    fun startRadio(seed: Song, endpoint: WatchEndpoint? = null, title: String? = "Radio") = scope.launch {
+    fun startRadio(seed: Song, endpoint: WatchEndpoint? = null, title: String? = "Radio") = guarded {
         // YouTube Music's radio needs its own id for a Spotify song.
         val song = SpotifyMatcher.resolve(seed) ?: run {
             _state.update { it.copy(error = "Couldn't find \"${seed.title}\" on YouTube Music") }
-            return@launch
+            return@guarded
         }
         radioContinuation = null
         unshuffled = null
@@ -162,13 +203,13 @@ object PlayerController : AudioEngine.Listener {
     }
 
     /** Starts a radio/mix from a watch endpoint (e.g. a playlist's radio button) without a known first song. */
-    fun playEndpoint(endpoint: WatchEndpoint, title: String? = null) = scope.launch {
+    fun playEndpoint(endpoint: WatchEndpoint, title: String? = null) = guarded {
         val result = YouTube.next(endpoint).getOrNull() ?: run {
             _state.update { it.copy(error = "Couldn't start this mix") }
-            return@launch
+            return@guarded
         }
         val songs = result.items.map { it.toSong() }
-        if (songs.isEmpty()) return@launch
+        if (songs.isEmpty()) return@guarded
         unshuffled = null
         radioEndpoint = result.endpoint
         radioContinuation = result.continuation
@@ -177,12 +218,12 @@ object PlayerController : AudioEngine.Listener {
         loadCurrent(0, playWhenReady = true)
     }
 
-    fun playNext(songs: List<Song>) = scope.launch {
-        if (songs.isEmpty()) return@launch
+    fun playNext(songs: List<Song>) = guarded {
+        if (songs.isEmpty()) return@guarded
         val s = _state.value
         if (s.current == null) {
             playSongs(songs)
-            return@launch
+            return@guarded
         }
         val queue = s.queue.toMutableList().apply { addAll(s.index + 1, songs) }
         unshuffled = unshuffled?.plus(songs)
@@ -190,20 +231,20 @@ object PlayerController : AudioEngine.Listener {
         prefetchNext()
     }
 
-    fun addToQueue(songs: List<Song>) = scope.launch {
-        if (songs.isEmpty()) return@launch
+    fun addToQueue(songs: List<Song>) = guarded {
+        if (songs.isEmpty()) return@guarded
         if (_state.value.current == null) {
             playSongs(songs)
-            return@launch
+            return@guarded
         }
         unshuffled = unshuffled?.plus(songs)
         _state.update { it.copy(queue = it.queue + songs) }
         prefetchNext()
     }
 
-    fun removeFromQueue(position: Int) = scope.launch {
+    fun removeFromQueue(position: Int) = guarded {
         val s = _state.value
-        if (position !in s.queue.indices || position == s.index) return@launch
+        if (position !in s.queue.indices || position == s.index) return@guarded
         val removed = s.queue[position]
         val queue = s.queue.toMutableList().apply { removeAt(position) }
         unshuffled = unshuffled?.let { list -> list - removed }
@@ -211,12 +252,12 @@ object PlayerController : AudioEngine.Listener {
         prefetchNext()
     }
 
-    fun moveInQueue(from: Int, target: Int) = scope.launch {
+    fun moveInQueue(from: Int, target: Int) = guarded {
         val s = _state.value
-        if (from !in s.queue.indices) return@launch
+        if (from !in s.queue.indices) return@guarded
         // Dragged rows stay in Next up: past either end they stop at the edge.
         val to = if (from > s.index) target.coerceIn(s.index + 1, s.queue.lastIndex) else target.coerceIn(s.queue.indices)
-        if (from == to) return@launch
+        if (from == to) return@guarded
         val queue = s.queue.toMutableList().apply { add(to, removeAt(from)) }
         val index = when (s.index) {
             from -> to
@@ -227,44 +268,39 @@ object PlayerController : AudioEngine.Listener {
         prefetchNext()
     }
 
-    fun clearUpNext() = scope.launch {
+    fun clearUpNext() = guarded {
         val s = _state.value
-        if (s.current == null) return@launch
+        if (s.current == null) return@guarded
         unshuffled = null
         _state.update { it.copy(queue = s.queue.take(s.index + 1)) }
     }
 
-    fun skipTo(position: Int) = scope.launch {
+    fun skipTo(position: Int) = guarded {
         val s = _state.value
-        if (position !in s.queue.indices) return@launch
+        if (position !in s.queue.indices) return@guarded
         _state.update { it.copy(index = position, error = null) }
         loadCurrent(0, playWhenReady = true)
     }
 
-    fun togglePlay() = scope.launch {
-        val s = _state.value
-        when {
-            s.current == null -> Unit
-            s.isPlaying -> pauseNow()
-            engineToken == 0L || s.error != null -> loadCurrent(_position.value, playWhenReady = true)
-            else -> {
-                engine.play()
-                _state.update { it.copy(isPlaying = true) }
-            }
+    fun togglePlay() = guarded { togglePlayNow() }
+
+    fun play() = guarded { if (!_state.value.isPlaying) togglePlayNow() }
+
+    fun pause() = guarded {
+        if (_state.value.isPlaying) {
+            pauseNow()
+            _changes.tryEmit(Change.Playing(false, _position.value))
         }
     }
 
-    fun play() = scope.launch { if (!_state.value.isPlaying) togglePlay() }
+    fun next() = guarded { advance(userInitiated = true) }
 
-    fun pause() = scope.launch { pauseNow() }
-
-    fun next() = scope.launch { advance(userInitiated = true) }
-
-    fun previous() = scope.launch {
+    fun previous() = guarded {
         val s = _state.value
-        if (s.current == null) return@launch
+        if (s.current == null) return@guarded
         if (_position.value > 3_000 || s.index == 0) {
             seekNow(0)
+            _changes.tryEmit(Change.Seeked(0))
         } else {
             _state.update { it.copy(index = s.index - 1, error = null) }
             loadCurrent(0, playWhenReady = true)
@@ -280,9 +316,53 @@ object PlayerController : AudioEngine.Listener {
         return if (s.current != null && engineToken != 0L && !s.isLoading) engine.positionMs else _position.value
     }
 
-    fun seekTo(positionMs: Long) = scope.launch { seekNow(positionMs) }
+    fun seekTo(positionMs: Long) = guarded { seekNow(positionMs)?.let { _changes.tryEmit(Change.Seeked(it)) } }
 
-    fun seekBy(deltaMs: Long) = scope.launch { seekNow((_position.value + deltaMs).coerceAtLeast(0)) }
+    fun seekBy(deltaMs: Long) = guarded { seekNow((_position.value + deltaMs).coerceAtLeast(0))?.let { _changes.tryEmit(Change.Seeked(it)) } }
+
+    /**
+     * A listening party's song and queue, applied as they are: never refused, and never
+     * reported back as this PC's own change.
+     */
+    fun partyTrack(songs: List<Song>, index: Int, positionMs: Long, playing: Boolean, title: String?) = scope.launch {
+        if (songs.isEmpty()) return@launch
+        val start = index.coerceIn(songs.indices)
+        radioContinuation = null
+        radioEndpoint = null
+        unshuffled = null
+        announcedId = songs[start].id
+        _state.update { it.copy(queue = songs, index = start, queueTitle = title, error = null) }
+        loadCurrent(positionMs.coerceAtLeast(0), playWhenReady = playing)
+    }
+
+    /** The party's play state and, when [seekMs] is set, its position, as [partyTrack] applies them. */
+    fun partyPlayback(seekMs: Long?, playing: Boolean?) = scope.launch {
+        val s = _state.value
+        if (s.current == null || s.isLoading) return@launch
+        if (engineToken == 0L || s.error != null) {
+            // Nothing loaded yet: load it where the party is, if the party is playing.
+            if (seekMs != null) _position.value = seekMs
+            if (playing == true) loadCurrent(_position.value, playWhenReady = true)
+            return@launch
+        }
+        if (seekMs != null) seekNow(seekMs)
+        when {
+            playing == true && !s.isPlaying -> {
+                engine.play()
+                _state.update { it.copy(isPlaying = true) }
+            }
+            playing == false && s.isPlaying -> pauseNow()
+        }
+    }
+
+    /** Replaces what plays after the current song with the party's running order. */
+    fun partyUpcoming(songs: List<Song>) = scope.launch {
+        val s = _state.value
+        if (s.current == null) return@launch
+        unshuffled = null
+        _state.update { it.copy(queue = it.queue.take(it.index + 1) + songs) }
+        prefetchNext()
+    }
 
     fun setVolume(volume: Float) = scope.launch {
         _state.update { it.copy(volume = volume.coerceIn(0f, 1f), muted = false) }
@@ -296,7 +376,7 @@ object PlayerController : AudioEngine.Listener {
         persistSettings()
     }
 
-    fun toggleShuffle() = scope.launch {
+    fun toggleShuffle() = guarded {
         val s = _state.value
         if (!s.shuffle) {
             unshuffled = s.queue
@@ -368,6 +448,8 @@ object PlayerController : AudioEngine.Listener {
             if (token != engineToken) return@launch
             if (_state.value.repeat == RepeatMode.ONE) {
                 loadCurrent(0, playWhenReady = true)
+                // The same song from the top: a party hears it as a seek.
+                _changes.tryEmit(Change.Seeked(0))
             } else {
                 advance(userInitiated = false)
             }
@@ -393,18 +475,34 @@ object PlayerController : AudioEngine.Listener {
 
     // Internals (confined)
 
+    private fun togglePlayNow() {
+        val s = _state.value
+        when {
+            s.current == null -> return
+            s.isPlaying -> pauseNow()
+            engineToken == 0L || s.error != null -> loadCurrent(_position.value, playWhenReady = true)
+            else -> {
+                engine.play()
+                _state.update { it.copy(isPlaying = true) }
+            }
+        }
+        _changes.tryEmit(Change.Playing(_state.value.isPlaying, _position.value))
+    }
+
     private fun pauseNow() {
         engine.pause()
         _state.update { it.copy(isPlaying = false) }
         persistQueue()
     }
 
-    private fun seekNow(positionMs: Long) {
+    /** Where it seeked to, or null with nothing to seek in. */
+    private fun seekNow(positionMs: Long): Long? {
         val s = _state.value
-        if (s.current == null) return
+        if (s.current == null) return null
         val target = if (s.durationMs > 0) positionMs.coerceIn(0, s.durationMs - 500) else positionMs
         _position.value = target
         if (engineToken == 0L) loadCurrent(target, playWhenReady = s.isPlaying) else engine.seek(target)
+        return target
     }
 
     private suspend fun advance(userInitiated: Boolean, fadeInMs: Int = 0) {
@@ -505,6 +603,10 @@ object PlayerController : AudioEngine.Listener {
                 }
             }
             if (_state.value.current?.id != song.id) return@launch
+            if (song.id != announcedId) {
+                announcedId = song.id
+                _changes.tryEmit(Change.Track(song, playWhenReady))
+            }
             val source = if (local != null) CachedAudio.Complete(java.io.File(local.path)) else AudioCache.open(stream)
             engineToken = engine.load(source, startMs, playWhenReady, stream.durationMs, trackGain(stream), fadeInMs)
             _state.update { it.copy(stream = stream, durationMs = stream.durationMs ?: it.durationMs) }

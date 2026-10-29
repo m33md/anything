@@ -148,14 +148,13 @@ fun SongMenuContent(
         return
     }
 
+    // In a party where the host holds the controls these say why instead, not "Playing next".
     MenuItem("Play next", "playlist_play") {
-        PlayerController.playNext(listOf(song))
-        Overlays.toast("Playing next")
+        if (PlayerController.playNext(listOf(song)) != null) Overlays.toast("Playing next")
         dismiss()
     }
     MenuItem("Add to queue", "queue_music") {
-        PlayerController.addToQueue(listOf(song))
-        Overlays.toast("Added to queue")
+        if (PlayerController.addToQueue(listOf(song)) != null) Overlays.toast("Added to queue")
         dismiss()
     }
     val local = com.convx.desktop.player.LocalMusic.isLocal(song.id)

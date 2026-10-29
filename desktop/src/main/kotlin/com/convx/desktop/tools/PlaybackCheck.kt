@@ -40,7 +40,8 @@ fun main(args: Array<String>) {
             "kJQP7kiw5Fk",
         )
     }
-    val dspOk = dspCheck() and libraryCheck()
+    val dspOk = dspCheck() and libraryCheck() and partyCheck()
+    partyServerCheck()
     runBlocking(Dispatchers.IO) { initYouTube() }
     var passed = 0
     for (id in ids) {
@@ -124,6 +125,99 @@ private fun libraryCheck(): Boolean {
         "$http, $socks",
     )
     return ok
+}
+
+/** The party's clock maths and invite links, which need no network. */
+private fun partyCheck(): Boolean {
+    var ok = true
+    fun expect(name: String, pass: Boolean, detail: String) {
+        if (!pass) ok = false
+        println("${if (pass) "PASS" else "FAIL"} party $name: $detail")
+    }
+    val playing = com.convx.desktop.integrations.party.PartyPlayback(isPlaying = true, positionMs = 10_000, anchorMs = 1_000_000)
+    val paused = playing.copy(isPlaying = false)
+    val sync = com.convx.desktop.integrations.party.PartySync
+    expect("position while playing", sync.positionAt(playing, 1_002_500) == 12_500L, "${sync.positionAt(playing, 1_002_500)}")
+    expect("position while paused", sync.positionAt(paused, 1_002_500) == 10_000L, "${sync.positionAt(paused, 1_002_500)}")
+    expect("resume anchored ahead", sync.startDelayMs(playing, 999_700) == 300L && sync.positionAt(playing, 999_700) == 10_000L, "${sync.startDelayMs(playing, 999_700)} ms")
+    val clock = com.convx.desktop.integrations.party.PartyClock()
+    clock.observe(clientSentMs = 1_000, serverMs = 6_100, receivedMs = 1_400) // 400 ms round trip
+    clock.observe(clientSentMs = 2_000, serverMs = 7_050, receivedMs = 2_100) // 100 ms: the one to trust
+    expect("clock offset", clock.offsetMs() == 5_000L, "${clock.offsetMs()} ms")
+    val party = com.convx.desktop.integrations.party.Party
+    val link = party.parseInvite("convx://party/ab12cd?server=https%3A%2F%2Fexample.com")
+    expect("invite link", link?.code == "AB12CD" && link?.server == "https://example.com", "$link")
+    expect("typed code", party.parseInvite(" ab-12 cd ")?.code == "AB12CD" && party.parseInvite("hi") == null, "${party.parseInvite(" ab-12 cd ")}")
+    return ok
+}
+
+/**
+ * Creates a party on the phone's real server, joins it as a second device, and checks a song set
+ * by one reaches the other. The free server can be asleep or busy, so this only warns.
+ */
+private fun partyServerCheck() {
+    val server = com.convx.desktop.integrations.party.Party.DefaultServer
+    val client = com.convx.desktop.integrations.party.PartyClient
+    fun request(name: String) = com.convx.desktop.integrations.party.JoinRequest(
+        userId = java.util.UUID.randomUUID().toString(),
+        deviceId = java.util.UUID.randomUUID().toString(),
+        displayName = name,
+    )
+    fun socket(code: String, token: String, frames: kotlinx.coroutines.channels.Channel<kotlinx.serialization.json.JsonObject>) =
+        client.open(server, code, token, object : okhttp3.WebSocketListener() {
+            override fun onMessage(webSocket: okhttp3.WebSocket, text: String) {
+                runCatching { frames.trySend(kotlinx.serialization.json.Json.parseToJsonElement(text) as kotlinx.serialization.json.JsonObject) }
+            }
+        })
+    suspend fun kotlinx.coroutines.channels.Channel<kotlinx.serialization.json.JsonObject>.awaitFrame(
+        what: (kotlinx.serialization.json.JsonObject) -> Boolean,
+    ): kotlinx.serialization.json.JsonObject {
+        while (true) {
+            val frame = receive()
+            if (what(frame)) return frame
+        }
+    }
+    fun type(frame: kotlinx.serialization.json.JsonObject) = (frame["type"] as? kotlinx.serialization.json.JsonPrimitive)?.content
+    fun trackOf(frame: kotlinx.serialization.json.JsonObject, key: String): String? = runCatching {
+        val holder = frame[key] as kotlinx.serialization.json.JsonObject
+        val playback = (holder["playback"] ?: holder) as kotlinx.serialization.json.JsonObject
+        ((playback["track"] as kotlinx.serialization.json.JsonObject)["videoId"] as kotlinx.serialization.json.JsonPrimitive).content
+    }.getOrNull()
+
+    runCatching {
+        runBlocking(Dispatchers.IO) {
+            kotlinx.coroutines.withTimeout(120_000) {
+                client.warm(server)
+                val host = client.create(server, request("Convx CI host"))
+                println("PASS party server create: code ${host.code}, host=${host.you.isHost}")
+                val guest = client.join(server, host.code, request("Convx CI guest"))
+                println("PASS party server join: ${guest.party.members.size} members, guest host=${guest.you.isHost}")
+                val hostFrames = kotlinx.coroutines.channels.Channel<kotlinx.serialization.json.JsonObject>(64)
+                val guestFrames = kotlinx.coroutines.channels.Channel<kotlinx.serialization.json.JsonObject>(64)
+                val hostSocket = socket(host.code, host.token, hostFrames)
+                val guestSocket = socket(guest.code, guest.token, guestFrames)
+                try {
+                    hostSocket.send("{\"type\":\"sync\"}")
+                    hostFrames.awaitFrame { type(it) == "welcome" || type(it) == "state" }
+                    hostSocket.send("{\"type\":\"ping\",\"clientMs\":${System.currentTimeMillis()}}")
+                    val pong = hostFrames.awaitFrame { type(it) == "pong" }
+                    println("PASS party server clock: pong with serverMs ${pong["serverMs"]}")
+                    hostSocket.send(
+                        "{\"type\":\"control\",\"action\":\"setTrack\",\"track\":{\"videoId\":\"4NRXx6U8ABQ\",\"title\":\"Blinding Lights\"," +
+                            "\"artist\":\"The Weeknd\",\"durationMs\":200000},\"positionMs\":0,\"isPlaying\":true}",
+                    )
+                    guestSocket.send("{\"type\":\"sync\"}")
+                    val seen = guestFrames.awaitFrame { trackOf(it, "playback") == "4NRXx6U8ABQ" || trackOf(it, "party") == "4NRXx6U8ABQ" }
+                    println("PASS party server sync: the guest got the host's song in a ${type(seen)} frame")
+                } finally {
+                    hostSocket.close(1000, null)
+                    guestSocket.close(1000, null)
+                    client.leave(server, guest.code, guest.token)
+                    client.leave(server, host.code, host.token)
+                }
+            }
+        }
+    }.onFailure { println("WARN party server: ${it::class.simpleName}: ${it.message}") }
 }
 
 private fun tryPlay(id: String): String {
