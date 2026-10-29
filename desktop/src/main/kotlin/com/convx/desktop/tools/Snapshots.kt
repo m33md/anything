@@ -200,6 +200,13 @@ fun main(args: Array<String>) {
                 PlayerController.cue(songs, 0, positionMs = 62_000)
                 navigator.navigate(Screen.Home)
             }
+            // The phone's Ask before replacing the queue, for a song that isn't in it.
+            shoot("09a-queue-conflict", seconds = 2) {
+                AppSettings.update { it.copy(askBeforeReplacingQueue = true) }
+                PlayerController.playSongs(listOf(com.convx.desktop.data.Song("dQw4w9WgXcQ", "Never Gonna Give You Up")))
+            }
+            com.convx.desktop.ui.components.Overlays.dismissDialog()
+            AppSettings.update { it.copy(askBeforeReplacingQueue = false) }
             artist?.let {
                 shoot("10-artist-playing", seconds = 6) { navigator.navigate(Screen.Artist(it.id)) }
                 film("11-library-strip", listOf(100L, 220L)) { UiState.openSection(Section.Library, navigator) }

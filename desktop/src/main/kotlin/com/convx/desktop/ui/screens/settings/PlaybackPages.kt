@@ -134,6 +134,12 @@ fun QueueSettings() {
             AppSettings.update { it.copy(persistentQueue = v) }
         }
         RowDivider(PlainInset)
+        SwitchRow(
+            "Ask before replacing the queue",
+            "When something is already playing, choose whether to keep or clear the queue",
+            settings.askBeforeReplacingQueue,
+        ) { v -> AppSettings.update { it.copy(askBeforeReplacingQueue = v) } }
+        RowDivider(PlainInset)
         SwitchRow("Enable similar content", "Automatically add more similar songs when the end of the queue is reached", settings.autoRadio) { v ->
             AppSettings.update { it.copy(autoRadio = v) }
         }

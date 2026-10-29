@@ -77,6 +77,26 @@ object PlayerController : AudioEngine.Listener {
     )
     val state: StateFlow<PlayerState> = _state.asStateFlow()
 
+    /** A play waiting on Keep queue or Clear and play. */
+    class QueueConflict(val keep: () -> Unit, val replace: () -> Unit)
+
+    /** The queue as it was before a play replaced it, for Undo. */
+    class ReplacedQueue(
+        internal val queue: List<Song>,
+        internal val index: Int,
+        internal val positionMs: Long,
+        internal val title: String?,
+        internal val shuffle: Boolean,
+        internal val unshuffled: List<Song>?,
+        internal val radioEndpoint: WatchEndpoint?,
+        internal val radioContinuation: String?,
+    )
+
+    private val _conflicts = MutableSharedFlow<QueueConflict>(extraBufferCapacity = 1)
+    val conflicts: SharedFlow<QueueConflict> = _conflicts.asSharedFlow()
+    private val _replaced = MutableSharedFlow<ReplacedQueue>(extraBufferCapacity = 1)
+    val replaced: SharedFlow<ReplacedQueue> = _replaced.asSharedFlow()
+
     private val _position = MutableStateFlow(0L)
     val position: StateFlow<Long> = _position.asStateFlow()
 
@@ -89,7 +109,11 @@ object PlayerController : AudioEngine.Listener {
     private var radioEndpoint: WatchEndpoint? = null
     private var consecutiveFailures = 0
     private var retriedCurrent = false
-    private var playStartedAt = 0L
+    // The current song's play time, toward the phone's History duration before it counts as a listen.
+    private var listenId: String? = null
+    private var listenMs = 0L
+    private var listenCounted = false
+    private var listenTick = 0L
     /** The session a crossfade already left, so it fades out only once. */
     private var crossfadedToken = 0L
 
@@ -127,6 +151,7 @@ object PlayerController : AudioEngine.Listener {
             while (isActive) {
                 val s = _state.value
                 if (s.current != null && engineToken != 0L) _position.value = engine.positionMs
+                countListen(s)
                 maybeCrossfade()
                 delay(if (s.isPlaying) 100 else 400)
             }
@@ -167,7 +192,17 @@ object PlayerController : AudioEngine.Listener {
     /** A control the listener used: nothing happens while a party's host holds the controls. */
     private fun guarded(block: suspend CoroutineScope.() -> Unit): Job? = if (refused()) null else scope.launch(block = block)
 
-    fun playSongs(songs: List<Song>, startIndex: Int = 0, title: String? = null, shuffle: Boolean? = null) = guarded {
+    fun playSongs(songs: List<Song>, startIndex: Int = 0, title: String? = null, shuffle: Boolean? = null, force: Boolean = false): Job? {
+        if (!force && songs.isNotEmpty() && intercepted(
+                songs.getOrNull(startIndex)?.id,
+                keep = { addToQueue(if (shuffle == true) songs.shuffled() else songs) },
+                replace = { playSongs(songs, startIndex, title, shuffle, force = true) },
+            )
+        ) return null
+        return playSongsNow(songs, startIndex, title, shuffle)
+    }
+
+    private fun playSongsNow(songs: List<Song>, startIndex: Int, title: String?, shuffle: Boolean?) = guarded {
         if (songs.isEmpty()) return@guarded
         radioContinuation = null
         radioEndpoint = null
@@ -187,7 +222,17 @@ object PlayerController : AudioEngine.Listener {
     }
 
     /** Plays [song] and fills the queue with YouTube Music's radio for it. */
-    fun startRadio(seed: Song, endpoint: WatchEndpoint? = null, title: String? = "Radio") = guarded {
+    fun startRadio(seed: Song, endpoint: WatchEndpoint? = null, title: String? = "Radio", force: Boolean = false): Job? {
+        if (!force && intercepted(
+                seed.id,
+                keep = { enqueueRadio(seed, endpoint) },
+                replace = { startRadio(seed, endpoint, title, force = true) },
+            )
+        ) return null
+        return startRadioNow(seed, endpoint, title)
+    }
+
+    private fun startRadioNow(seed: Song, endpoint: WatchEndpoint?, title: String?) = guarded {
         // YouTube Music's radio needs its own id for a Spotify song.
         val song = SpotifyMatcher.resolve(seed) ?: run {
             _state.update { it.copy(error = "Couldn't find \"${seed.title}\" on YouTube Music") }
@@ -203,7 +248,17 @@ object PlayerController : AudioEngine.Listener {
     }
 
     /** Starts a radio/mix from a watch endpoint (e.g. a playlist's radio button) without a known first song. */
-    fun playEndpoint(endpoint: WatchEndpoint, title: String? = null) = guarded {
+    fun playEndpoint(endpoint: WatchEndpoint, title: String? = null, force: Boolean = false): Job? {
+        if (!force && intercepted(
+                endpoint.videoId,
+                keep = { enqueueEndpoint(endpoint) },
+                replace = { playEndpoint(endpoint, title, force = true) },
+            )
+        ) return null
+        return playEndpointNow(endpoint, title)
+    }
+
+    private fun playEndpointNow(endpoint: WatchEndpoint, title: String?) = guarded {
         val result = YouTube.next(endpoint).getOrNull() ?: run {
             _state.update { it.copy(error = "Couldn't start this mix") }
             return@guarded
@@ -216,6 +271,66 @@ object PlayerController : AudioEngine.Listener {
         val index = (result.currentIndex ?: 0).coerceIn(songs.indices)
         _state.update { it.copy(queue = songs, index = index, queueTitle = title ?: result.title, error = null) }
         loadCurrent(0, playWhenReady = true)
+    }
+
+    /**
+     * The phone's rule for a play that would replace the queue: something is playing and the play
+     * doesn't start on a song already in it. With Ask before replacing the queue on, it waits for
+     * the listener's answer (true); otherwise it goes ahead and the old queue is offered for Undo.
+     */
+    private fun intercepted(startId: String?, keep: () -> Unit, replace: () -> Unit): Boolean {
+        val s = _state.value
+        if (s.current == null || (startId != null && s.queue.any { it.id == startId })) return false
+        // A party's host has the controls: the play is refused anyway, with its own notice.
+        if (controlLock?.invoke() != null) return false
+        if (AppSettings.value.askBeforeReplacingQueue) {
+            _conflicts.tryEmit(QueueConflict(keep, replace))
+            return true
+        }
+        _replaced.tryEmit(
+            ReplacedQueue(s.queue, s.index, _position.value, s.queueTitle, s.shuffle, unshuffled, radioEndpoint, radioContinuation),
+        )
+        return false
+    }
+
+    /** Puts back the queue a play replaced: the phone's Undo on "Queue replaced". */
+    fun restoreQueue(previous: ReplacedQueue) = guarded {
+        unshuffled = previous.unshuffled
+        radioEndpoint = previous.radioEndpoint
+        radioContinuation = previous.radioContinuation
+        _state.update { it.copy(queue = previous.queue, index = previous.index, queueTitle = previous.title, shuffle = previous.shuffle, error = null) }
+        loadCurrent(previous.positionMs, playWhenReady = true)
+    }
+
+    /** Keep queue, for a radio: its first songs go on the end, as the phone's enqueue does. */
+    private fun enqueueRadio(seed: Song, endpoint: WatchEndpoint?) = guarded {
+        val song = SpotifyMatcher.resolve(seed) ?: seed
+        val watch = endpoint ?: WatchEndpoint(videoId = song.id, playlistId = "RDAMVM${song.id}")
+        addToQueue(YouTube.next(watch).getOrNull()?.items?.map { it.toSong() }.orEmpty().ifEmpty { listOf(song) })
+    }
+
+    private fun enqueueEndpoint(endpoint: WatchEndpoint) = guarded {
+        val songs = YouTube.next(endpoint).getOrNull()?.items?.map { it.toSong() }.orEmpty()
+        if (songs.isEmpty()) _state.update { it.copy(error = "Couldn't start this mix") } else addToQueue(songs)
+    }
+
+    private fun countListen(s: PlayerState) {
+        val now = System.currentTimeMillis()
+        val song = s.current
+        if (song != null && s.isPlaying && !s.isLoading && engineToken != 0L) {
+            if (listenId != song.id) resetListen(song.id) else listenMs += (now - listenTick).coerceIn(0L, 1_000L)
+            if (!listenCounted && listenMs >= (AppSettings.value.historyDurationSeconds * 1000).toLong()) {
+                listenCounted = true
+                Library.recordPlay(song)
+            }
+        }
+        listenTick = now
+    }
+
+    private fun resetListen(id: String) {
+        listenId = id
+        listenMs = 0L
+        listenCounted = false
     }
 
     fun playNext(songs: List<Song>) = guarded {
@@ -618,10 +733,7 @@ object PlayerController : AudioEngine.Listener {
             }
             engineToken = engine.load(source, startMs, playWhenReady, stream.durationMs, trackGain(stream), fadeInMs)
             _state.update { it.copy(stream = stream, durationMs = stream.durationMs ?: it.durationMs) }
-            if (startMs == 0L) {
-                playStartedAt = System.currentTimeMillis()
-                Library.recordPlay(song)
-            }
+            if (startMs == 0L) resetListen(song.id)
         }
     }
 

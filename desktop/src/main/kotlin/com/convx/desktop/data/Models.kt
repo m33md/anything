@@ -328,6 +328,10 @@ data class Settings(
     val saveDownloadsToMusic: Boolean = true,
     /** The phone's Privacy page: stop recording plays or searches, and keep the window out of screenshots. */
     val pauseListenHistory: Boolean = false,
+    /** Seconds a song plays before it counts as a listen; the phone's History duration. */
+    val historyDurationSeconds: Float = 30f,
+    /** The phone's Ask before replacing the queue: keep or clear when something's playing. */
+    val askBeforeReplacingQueue: Boolean = false,
     val pauseSearchHistory: Boolean = false,
     val disableScreenshot: Boolean = false,
     /** The phone's Storage page, in MB with its defaults; 0 turns a cache off and -1 (songs only) lifts the cap. */

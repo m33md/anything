@@ -19,11 +19,17 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -44,11 +50,13 @@ import com.convx.desktop.lyrics.LyricsService
 import com.convx.desktop.integrations.party.Party
 import com.convx.desktop.player.PlayerController
 import kotlinx.coroutines.launch
+import com.convx.desktop.ui.components.DialogCard
 import com.convx.desktop.ui.components.LocalPageInsets
 import com.convx.desktop.ui.components.LocalPlayback
 import com.convx.desktop.ui.components.OverlayHost
 import com.convx.desktop.ui.components.Overlays
 import com.convx.desktop.ui.components.PageInsets
+import com.convx.desktop.ui.components.PillButton
 import com.convx.desktop.ui.components.Playback
 import com.convx.desktop.ui.glass.LocalAppBackdrop
 import com.convx.desktop.ui.glass.LocalPagesBackdrop
@@ -60,6 +68,7 @@ import com.convx.desktop.ui.player.NowPlayingPillWidthFraction
 import com.convx.desktop.ui.screens.ScreenHost
 import com.convx.desktop.ui.theme.ConvxColors
 import com.convx.desktop.ui.theme.ConvxTheme
+import com.convx.desktop.ui.theme.ConvxType
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 
@@ -93,6 +102,13 @@ fun AppShell(navigator: Navigator) {
     // Why a control did nothing (a party's host has the controls), and what a party wants said.
     LaunchedEffect(Unit) {
         launch { PlayerController.notices.collect { Overlays.toast(it, "lock") } }
+        // The phone's queue conflict: ask before a play clears the queue, or offer Undo after.
+        launch { PlayerController.conflicts.collect { queueConflictDialog(it) } }
+        launch {
+            PlayerController.replaced.collect { previous ->
+                Overlays.toast("Queue replaced", "queue_music", action = "Undo") { PlayerController.restoreQueue(previous) }
+            }
+        }
         Party.notices.collect { Overlays.toast(it, "group") }
     }
 
@@ -217,6 +233,29 @@ private fun Pages(navigator: Navigator) {
     ) { entry ->
         holder.SaveableStateProvider(entry.key) {
             ScreenHost(entry.screen)
+        }
+    }
+}
+
+private fun queueConflictDialog(conflict: PlayerController.QueueConflict) {
+    Overlays.showDialog {
+        DialogCard("Something is already playing") {
+            Text(
+                "Keep the current queue and add this to the end, or clear it and play now?",
+                style = ConvxType.Body,
+                color = ConvxColors.SecondaryLabel,
+            )
+            Spacer(Modifier.height(20.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)) {
+                PillButton("Keep queue", {
+                    Overlays.dismissDialog()
+                    conflict.keep()
+                })
+                PillButton("Clear and play", {
+                    Overlays.dismissDialog()
+                    conflict.replace()
+                }, filled = true)
+            }
         }
     }
 }

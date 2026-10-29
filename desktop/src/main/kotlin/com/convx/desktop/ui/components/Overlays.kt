@@ -65,7 +65,7 @@ object Overlays {
     internal val toasts = mutableStateListOf<Toast>()
     private var nextToast = 0L
 
-    data class Toast(val id: Long, val text: String, val icon: String?)
+    data class Toast(val id: Long, val text: String, val icon: String?, val action: String? = null, val onAction: (() -> Unit)? = null)
 
     fun showDialog(content: @Composable () -> Unit) {
         dialog = content
@@ -75,8 +75,9 @@ object Overlays {
         dialog = null
     }
 
-    fun toast(text: String, icon: String? = "check") {
-        toasts += Toast(nextToast++, text, icon)
+    /** A short note at the bottom; with an [action] (the phone's snackbar Undo) it stays a little longer. */
+    fun toast(text: String, icon: String? = "check", action: String? = null, onAction: (() -> Unit)? = null) {
+        toasts += Toast(nextToast++, text, icon, action, onAction)
         while (toasts.size > 3) toasts.removeAt(0)
     }
 
@@ -207,7 +208,7 @@ private fun ToastView(toast: Overlays.Toast) {
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(toast.id) {
         visible = true
-        delay(2600)
+        delay(if (toast.action != null) 4000 else 2600)
         visible = false
         delay(300)
         Overlays.toasts.remove(toast)
@@ -224,6 +225,17 @@ private fun ToastView(toast: Overlays.Toast) {
         ) {
             if (toast.icon != null) ConvxIcon(toast.icon, tint = Color.Black, size = 18.dp)
             Text(toast.text, style = ConvxType.SubheadStrong, color = Color.Black)
+            if (toast.action != null) {
+                Text(
+                    toast.action,
+                    style = ConvxType.SubheadStrong,
+                    color = Color(0xFFFF453A),
+                    modifier = Modifier.padding(start = 6.dp).pressable({
+                        toast.onAction?.invoke()
+                        visible = false
+                    }),
+                )
+            }
         }
     }
 }
