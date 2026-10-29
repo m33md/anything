@@ -77,10 +77,11 @@ fun rememberSmoothPosition(): State<Long> {
                 smooth.longValue = base
                 if (!isPlaying) return@collectLatest
                 val start = withFrameMillis { it }
+                val tempo = PlayerController.state.value.tempo
                 while (true) {
                     withFrameMillis { now ->
                         // Never run more than a little ahead of the last report.
-                        smooth.longValue = base + (now - start).coerceAtMost(250)
+                        smooth.longValue = base + ((now - start) * tempo).toLong().coerceAtMost(250)
                     }
                 }
             }

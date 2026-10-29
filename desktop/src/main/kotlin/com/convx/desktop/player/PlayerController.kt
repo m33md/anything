@@ -51,6 +51,9 @@ data class PlayerState(
     val queueTitle: String? = null,
     /** The queue ran out: play starts the song over, and the phone draws its replay arrow. */
     val ended: Boolean = false,
+    /** The phone's Tempo and Pitch: speed with the pitch kept, and semitones with the speed kept. */
+    val tempo: Float = 1f,
+    val transpose: Int = 0,
 ) {
     val current: Song? get() = queue.getOrNull(index)
     val upNext: List<Song> get() = if (index < 0) queue else queue.drop(index + 1)
@@ -505,6 +508,15 @@ object PlayerController : AudioEngine.Listener {
         _state.update { it.copy(volume = volume.coerceIn(0f, 1f), muted = false) }
         applyVolume()
         persistSettings()
+    }
+
+    /** The phone's Tempo and Pitch, for this listening session as on the phone; not saved. */
+    fun setTempoPitch(tempo: Float, transpose: Int) = scope.launch {
+        val t = tempo.coerceIn(0.25f, 2f)
+        val semitones = transpose.coerceIn(-12, 12)
+        _state.update { it.copy(tempo = t, transpose = semitones) }
+        engine.tempo = t
+        engine.pitch = 2f.pow(semitones / 12f)
     }
 
     fun toggleMute() = scope.launch {

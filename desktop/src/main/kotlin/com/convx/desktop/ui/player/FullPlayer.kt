@@ -366,6 +366,10 @@ fun PlayerStage(
                                                         UiState.fullPlayer = false
                                                         navigator.navigate(Screen.Party)
                                                     }
+                                                    MenuItem("Tempo and pitch", "speed") {
+                                                        dismiss()
+                                                        tempoAndPitch()
+                                                    }
                                                     MenuItem("Ambient mode", "fullscreen") {
                                                         dismiss()
                                                         Ambient.on = true

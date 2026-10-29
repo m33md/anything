@@ -180,7 +180,8 @@ object DiscordPresence {
         val player = PlayerController.state.value
         val song = player.current
         val want = if (song != null && player.isPlaying && !player.isLoading) {
-            val position = PlayerController.position.value
+            // At another tempo the song takes longer or shorter in real time, as the phone tells Discord.
+            val position = (PlayerController.position.value / player.tempo).toLong()
             Shown(song.id, now - position, Look.of(settings))
         } else {
             null
@@ -195,7 +196,7 @@ object DiscordPresence {
 
         val activity = if (want?.look != null && song != null) {
             val durationMs = player.durationMs.takeIf { it > 0 } ?: ((song.duration ?: 0) * 1000L)
-            activity(song, want.startMs, durationMs, want.look)
+            activity(song, want.startMs, (durationMs / player.tempo).toLong(), want.look)
         } else {
             null
         }

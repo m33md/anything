@@ -43,7 +43,7 @@ fun main(args: Array<String>) {
             "kJQP7kiw5Fk",
         )
     }
-    val dspOk = dspCheck() and libraryCheck() and partyCheck() and backupCheck() and playlistFileCheck() and downloadsCheck() and lyricsMenuCheck() and homeOrderCheck() and statsCheck()
+    val dspOk = dspCheck() and libraryCheck() and partyCheck() and backupCheck() and playlistFileCheck() and downloadsCheck() and lyricsMenuCheck() and homeOrderCheck() and statsCheck() and sonicCheck()
     partyServerCheck()
     runBlocking(Dispatchers.IO) { initYouTube() }
     var passed = 0
@@ -59,6 +59,58 @@ fun main(args: Array<String>) {
     }
     println("$passed of ${ids.size} songs played")
     exitProcess(if (passed > 0 && dspOk) 0 else 1)
+}
+
+/**
+ * Tempo and Pitch: a 440 Hz tone sped up keeps its pitch and gets shorter, and one moved up an
+ * octave keeps its length and doubles in pitch.
+ */
+private fun sonicCheck(): Boolean {
+    val rate = 48_000
+    val frames = rate * 2
+    val tone = FloatArray(frames * 2) { i -> (0.5 * kotlin.math.sin(2 * Math.PI * 440 * (i / 2) / rate)).toFloat() }
+    fun run(speed: Float, pitch: Float): FloatArray {
+        val sonic = com.convx.desktop.audio.Sonic(rate, 2)
+        sonic.speed = speed
+        sonic.pitch = pitch
+        val out = ArrayList<Float>()
+        val chunk = FloatArray(1024 * 2)
+        var at = 0
+        while (at < frames) {
+            val n = minOf(1024, frames - at)
+            System.arraycopy(tone, at * 2, chunk, 0, n * 2)
+            sonic.queueInput(chunk, n)
+            at += n
+            val ready = sonic.availableFrames
+            val buffer = FloatArray(ready * 2)
+            sonic.readOutput(buffer, ready)
+            buffer.forEach(out::add)
+        }
+        return out.toFloatArray()
+    }
+    fun hz(samples: FloatArray): Double {
+        // Rising zero crossings of the left channel, past Sonic's start-up.
+        var crossings = 0
+        val left = samples.filterIndexed { i, _ -> i % 2 == 0 }.drop(4800)
+        for (i in 1 until left.size) if (left[i - 1] < 0f && left[i] >= 0f) crossings++
+        return crossings * rate.toDouble() / left.size
+    }
+    var ok = true
+    fun expect(name: String, pass: Boolean, detail: String) {
+        if (!pass) ok = false
+        println("${if (pass) "PASS" else "FAIL"} sonic $name: $detail")
+    }
+    val faster = run(1.5f, 1f)
+    val fasterFrames = faster.size / 2
+    expect("tempo 1.5x", kotlin.math.abs(fasterFrames - frames / 1.5) < frames * 0.05 && kotlin.math.abs(hz(faster) - 440) < 15,
+        "$fasterFrames frames of ${frames / 1.5}, ${"%.1f".format(hz(faster))} Hz")
+    val higher = run(1f, 2f)
+    val higherFrames = higher.size / 2
+    expect("pitch +12", kotlin.math.abs(higherFrames - frames) < frames * 0.06 && kotlin.math.abs(hz(higher) - 880) < 25,
+        "$higherFrames frames of $frames, ${"%.1f".format(hz(higher))} Hz")
+    val same = run(1f, 1f)
+    expect("natural", same.size == tone.size && same.contentEquals(tone), "${same.size / 2} frames passed through")
+    return ok
 }
 
 /**

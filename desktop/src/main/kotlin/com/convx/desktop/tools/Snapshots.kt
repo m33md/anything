@@ -339,6 +339,12 @@ fun main(args: Array<String>) {
                 com.convx.desktop.ui.player.Ambient.on = true
             }
             com.convx.desktop.ui.player.Ambient.on = false
+            shoot("13s-tempo-pitch", seconds = 2) {
+                PlayerController.setTempoPitch(1.25f, 2)
+                com.convx.desktop.ui.player.tempoAndPitch()
+            }
+            com.convx.desktop.ui.components.Overlays.dismissDialog()
+            PlayerController.setTempoPitch(1f, 0)
 
             // A lived-in library, for the side bar, the library page and the song-list pages.
             UiState.fullPlayer = false

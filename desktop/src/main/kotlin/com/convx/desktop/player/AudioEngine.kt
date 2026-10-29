@@ -7,6 +7,7 @@ package com.convx.desktop.player
 
 import com.convx.desktop.audio.AudioEffects
 import com.convx.desktop.audio.EffectsChain
+import com.convx.desktop.audio.Sonic
 import com.convx.desktop.audio.softClip
 import com.convx.desktop.core.Log
 import org.bytedeco.ffmpeg.global.avutil
@@ -29,9 +30,10 @@ import kotlin.math.sin
  * track; play/pause/seek act on the live session. Everything YouTube serves (Opus in WebM,
  * AAC in MP4) decodes the same way, so there is no codec matrix to manage.
  *
- * Samples pass through the [effects] (equalizer, spatial audio, skip silence) as floats. For a
- * crossfade the outgoing session is [handOff]ed: it keeps playing on its own line, fading out,
- * while the next one fades in on another, and the system mixes the two.
+ * Samples pass through [Sonic] for the [tempo] and [pitch], then the [effects] (equalizer,
+ * spatial audio, skip silence), as floats. For a crossfade the outgoing session is [handOff]ed:
+ * it keeps playing on its own line, fading out, while the next one fades in on another, and the
+ * system mixes the two.
  */
 class AudioEngine(private val listener: Listener) {
     interface Listener {
@@ -86,6 +88,12 @@ class AudioEngine(private val listener: Listener) {
 
     /** The output to open new sessions on, by name; null for the system's default. */
     @Volatile var outputDevice: String? = null
+
+    /** The phone's Tempo and Pitch: how fast songs play with the pitch kept, 0.25..2. */
+    @Volatile var tempo: Float = 1f
+
+    /** The pitch as a ratio (2 is an octave up), with the speed kept. */
+    @Volatile var pitch: Float = 1f
 
     val positionMs: Long get() = session?.positionMs() ?: 0L
     val durationMs: Long get() = session?.durationMs ?: 0L
@@ -161,16 +169,21 @@ class AudioEngine(private val listener: Listener) {
         @Volatile private var line: SourceDataLine? = null
         private val signal = Object()
 
+        private val sonic = Sonic(SampleRate, Channels)
+        private val tempo: Float get() = this@AudioEngine.tempo.coerceIn(0.25f, 2f)
+        private val pitch: Float get() = this@AudioEngine.pitch.coerceIn(0.5f, 2f)
+
         private val fadeInFrames = SampleRate.toLong() * fadeInMs / 1000
         private var fadeInDone = 0L
         @Volatile private var fadeOutFrames = 0L
         private var fadeOutDone = 0L
 
-        // Skipped silence, so the playhead (and the lyrics) stay with the music: each mark is the
-        // frames written when a stretch was cut, and how many frames the cut left out.
-        private val skipMarks = ArrayDeque<LongArray>()
-        private var skippedPlayed = 0L
+        // Where the song is at each point of what's been written, so the playhead (and the lyrics)
+        // stay with the music however it's stretched or how much silence was skipped: each mark
+        // is the frames written so far and the song time they reach.
+        private val marks = ArrayDeque<LongArray>().apply { addLast(longArrayOf(0L, startMs)) }
         private var writtenFrames = 0L
+        private var decodedFrames = 0L
 
         fun start() {
             thread(name = "convx-audio-$token", isDaemon = true) { run() }
@@ -180,11 +193,13 @@ class AudioEngine(private val listener: Listener) {
             val l = line ?: return baseMs
             if (pendingSeekMs >= 0) return pendingSeekMs
             val played = (l.longFramePosition - framesAtBase).coerceAtLeast(0)
-            val skipped = synchronized(skipMarks) {
-                while (skipMarks.isNotEmpty() && skipMarks.first()[0] <= played) skippedPlayed += skipMarks.removeFirst()[1]
-                skippedPlayed
+            val pos = synchronized(marks) {
+                while (marks.size >= 2 && marks[1][0] <= played) marks.removeFirst()
+                val from = marks.firstOrNull() ?: return@synchronized baseMs
+                val to = marks.getOrNull(1) ?: return@synchronized from[1]
+                val span = (to[0] - from[0]).coerceAtLeast(1)
+                from[1] + (played - from[0]).coerceIn(0, span) * (to[1] - from[1]) / span
             }
-            val pos = baseMs + (played + skipped) * 1000 / SampleRate
             return if (durationMs > 0) pos.coerceAtMost(durationMs) else pos
         }
 
@@ -254,6 +269,7 @@ class AudioEngine(private val listener: Listener) {
 
                 val chain = EffectsChain(SampleRate)
                 var floats = FloatArray(0)
+                var stretched = FloatArray(0)
                 var bytes = ByteArray(0)
                 while (!closed) {
                     val seekTo = pendingSeekMs
@@ -262,11 +278,13 @@ class AudioEngine(private val listener: Listener) {
                         grabber.timestamp = seekTo * 1000
                         baseMs = seekTo
                         framesAtBase = l.longFramePosition
-                        synchronized(skipMarks) {
-                            skipMarks.clear()
-                            skippedPlayed = 0
+                        synchronized(marks) {
+                            marks.clear()
+                            marks.addLast(longArrayOf(0L, seekTo))
                         }
                         writtenFrames = 0
+                        decodedFrames = 0
+                        sonic.flush()
                         chain.reset()
                         pendingSeekMs = -1
                         if (playing) l.start()
@@ -285,17 +303,33 @@ class AudioEngine(private val listener: Listener) {
                         break
                     }
                     val samples = frame.samples ?: continue
-                    val frames = interleavedCount(samples) / Channels
+                    var frames = interleavedCount(samples) / Channels
                     if (floats.size < frames * Channels) floats = FloatArray(frames * Channels)
                     decode(samples, floats)
+                    decodedFrames += frames
+
+                    // Tempo and pitch: untouched (and without Sonic's delay) at the natural speed.
+                    sonic.speed = tempo
+                    sonic.pitch = pitch
+                    var input = floats
+                    if (!sonic.isIdentity || sonic.pendingInputFrames > 0 || sonic.availableFrames > 0) {
+                        sonic.queueInput(floats, frames)
+                        frames = sonic.availableFrames
+                        if (stretched.size < frames * Channels) stretched = FloatArray(frames * Channels)
+                        sonic.readOutput(stretched, frames)
+                        input = stretched
+                    }
+                    // The song time this buffer reaches, less what Sonic is still holding on to.
+                    val reachedMs = baseMs + (decodedFrames - sonic.pendingInputFrames).coerceAtLeast(0) * 1000 / SampleRate
 
                     val effects = this@AudioEngine.effects
                     chain.configure(effects)
-                    val count = chain.process(floats, frames)
-                    if (chain.skippedFrames > 0) {
-                        synchronized(skipMarks) { skipMarks.addLast(longArrayOf(writtenFrames, chain.skippedFrames.toLong())) }
+                    val count = if (frames == 0) 0 else chain.process(input, frames)
+                    if (count == 0) {
+                        // All of it was silence skipped (or held by Sonic): the song moves on regardless.
+                        synchronized(marks) { marks.addLast(longArrayOf(writtenFrames, reachedMs)) }
+                        continue
                     }
-                    if (count == 0) continue
                     if (bytes.size < count * Channels * 2) bytes = ByteArray(count * Channels * 2)
                     val shaped = effects.shapesSound || trackGain > 1f
                     if (!encode(chain.output, count, bytes, gain * trackGain, shaped)) {
@@ -304,6 +338,11 @@ class AudioEngine(private val listener: Listener) {
                         break
                     }
                     writtenFrames += count
+                    synchronized(marks) {
+                        marks.addLast(longArrayOf(writtenFrames, reachedMs))
+                        // Only the line's quarter second of marks is ever looked up.
+                        if (marks.size > 512) marks.removeFirst()
+                    }
                     var offset = 0
                     val length = count * Channels * 2
                     while (offset < length && !closed && pendingSeekMs < 0) {
