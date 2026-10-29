@@ -105,7 +105,22 @@ fun AccountsHub() {
     val spotify by SpotifyAccount.state.collectAsState()
     val settings by AppSettings.state.collectAsState()
     val discord by DiscordPresence.status.collectAsState()
+    val youtube by com.convx.desktop.integrations.youtube.YouTubeAccount.state.collectAsState()
     SettingsSection("Accounts") {
+        LinkRow(
+            "YouTube Music",
+            (youtube as? com.convx.desktop.integrations.youtube.YouTubeAccount.State.SignedIn)?.profile?.name
+                ?: "Your library, likes and recommendations",
+            icon = "play",
+            tint = YouTubeRed,
+            value = when (youtube) {
+                is com.convx.desktop.integrations.youtube.YouTubeAccount.State.SignedIn -> "Logged in"
+                com.convx.desktop.integrations.youtube.YouTubeAccount.State.SignedOut -> "Off"
+                is com.convx.desktop.integrations.youtube.YouTubeAccount.State.Failed -> "Not logged in"
+                else -> "Logging in"
+            },
+        ) { SettingsNav.push(SettingsPage.YouTubeMusic) }
+        RowDivider()
         LinkRow(
             "Spotify",
             "Your playlists and Liked Songs in Your Library",
@@ -155,7 +170,7 @@ fun AccountsHub() {
         ) { SettingsNav.push(SettingsPage.ListenBrainz) }
     }
     SectionGap()
-    InfoNote("Signing in to YouTube Music and imports from other apps are on their way, as on the phone. On the phone ListenBrainz sits in the YouTube Music account page; here it has its own row until that page exists.")
+    InfoNote("Imports from other apps are on their way, as on the phone. On the phone ListenBrainz sits inside the YouTube Music account page; here it has its own row.")
 }
 
 @Composable

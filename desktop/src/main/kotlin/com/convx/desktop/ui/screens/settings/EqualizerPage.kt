@@ -559,7 +559,7 @@ private fun editBand(index: Int, band: EqBand, onApplied: () -> Unit) {
 }
 
 @Composable
-internal fun DialogField(label: String, value: String, onChange: (String) -> Unit) {
+internal fun DialogField(label: String, value: String, lines: Int = 1, onChange: (String) -> Unit) {
     DisposableEffect(label) { onDispose { UiState.typingFocusChanged(label, false) } }
     Column {
         Text(label, style = ConvxType.Subhead, color = ConvxColors.SecondaryLabel, modifier = Modifier.padding(start = 4.dp, bottom = 6.dp))
@@ -573,8 +573,10 @@ internal fun DialogField(label: String, value: String, onChange: (String) -> Uni
             BasicTextField(
                 value = value,
                 onValueChange = onChange,
-                singleLine = true,
-                textStyle = ConvxType.Body.copy(color = Color.White),
+                singleLine = lines == 1,
+                minLines = lines,
+                maxLines = lines,
+                textStyle = (if (lines == 1) ConvxType.Body else ConvxType.Subhead).copy(color = Color.White),
                 cursorBrush = SolidColor(Color.White),
                 modifier = Modifier.fillMaxWidth().onFocusChanged { UiState.typingFocusChanged(label, it.isFocused) },
             )

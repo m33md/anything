@@ -40,8 +40,8 @@ object Scrobbler {
             }
         }
         AppScope.launch {
-            Library.likeChanges.collect { (song, liked) ->
-                if (AppSettings.value.lastFmSendLikes) LastFm.love(song, liked)
+            Library.changes.collect { change ->
+                if (change is Library.Change.Like && AppSettings.value.lastFmSendLikes) LastFm.love(change.song, change.liked)
             }
         }
     }

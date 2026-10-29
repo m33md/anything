@@ -79,6 +79,7 @@ enum class SettingsPage(val title: String, val hub: String) {
     Transitions("Song transitions", "playback"),
     Queue("Queue & autoplay", "playback"),
     Output("Sound output", "playback"),
+    YouTubeMusic("YouTube Music", "accounts"),
     LastFm("Last.fm", "accounts"),
     ListenBrainz("ListenBrainz", "accounts"),
 }
@@ -235,7 +236,12 @@ private fun RootList(state: LazyListState, sidebar: Boolean) {
 @Composable
 private fun ProfileCard(onClick: () -> Unit) {
     val spotify by SpotifyAccount.state.collectAsState()
-    val profile = (spotify as? SpotifyAccount.State.SignedIn)?.profile
+    val youtube by com.convx.desktop.integrations.youtube.YouTubeAccount.state.collectAsState()
+    // The phone's card is the YouTube Music account; Spotify's stands in until you sign in there.
+    val youtubeProfile = (youtube as? com.convx.desktop.integrations.youtube.YouTubeAccount.State.SignedIn)?.profile
+    val spotifyProfile = (spotify as? SpotifyAccount.State.SignedIn)?.profile
+    val name = youtubeProfile?.name ?: spotifyProfile?.name
+    val photo = youtubeProfile?.thumbnail ?: spotifyProfile?.image
     Row(
         Modifier
             .fillMaxWidth()
@@ -245,7 +251,6 @@ private fun ProfileCard(onClick: () -> Unit) {
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        val photo = profile?.image
         if (photo != null) {
             Artwork(photo, Modifier.size(60.dp), size = 160, shape = CircleShape, placeholderIcon = "person")
         } else {
@@ -254,9 +259,9 @@ private fun ProfileCard(onClick: () -> Unit) {
             }
         }
         Column(Modifier.weight(1f).padding(start = 16.dp)) {
-            Text(profile?.name ?: "Sign in", style = ConvxType.Title3, color = ConvxColors.Label, maxLines = 1)
+            Text(name ?: "Sign in", style = ConvxType.Title3, color = ConvxColors.Label, maxLines = 1)
             Text(
-                "Spotify, Discord and more",
+                youtubeProfile?.let { it.email ?: it.handle } ?: "YouTube Music, Spotify, Discord and more",
                 style = ConvxType.Subhead,
                 color = ConvxColors.SecondaryLabel,
                 maxLines = 1,
@@ -317,6 +322,10 @@ private val searchEntries: List<SearchEntry> by lazy {
         SearchEntry("Persistent queue", "Restore your last queue", h.playback, SettingsPage.Queue, "queue restore"),
         SearchEntry("Enable similar content", "Keep going when the queue ends", h.playback, SettingsPage.Queue, "radio autoplay queue"),
         SearchEntry("Remember shuffle and repeat", null, h.playback, SettingsPage.Queue, "shuffle repeat"),
+        SearchEntry("YouTube Music", "Log in, channels and sync", h.accounts, SettingsPage.YouTubeMusic, "youtube google login sign in account channel sync token"),
+        SearchEntry("Login with token", null, h.accounts, SettingsPage.YouTubeMusic, "token cookie"),
+        SearchEntry("More content", "Recommendations from your account", h.accounts, SettingsPage.YouTubeMusic, "login browse personalized"),
+        SearchEntry("Auto sync with account", null, h.accounts, SettingsPage.YouTubeMusic, "sync likes playlists"),
         SearchEntry("Last.fm", "Scrobbling", h.accounts, SettingsPage.LastFm, "lastfm scrobble love now playing"),
         SearchEntry("ListenBrainz", "Scrobbling with a token", h.accounts, SettingsPage.ListenBrainz, "listenbrainz scrobble musicbrainz"),
         SearchEntry("Sound output", "Speakers or headphones", h.playback, SettingsPage.Output, "device speaker headphones output"),
@@ -454,6 +463,7 @@ private fun PageContent(page: SettingsPage) {
         SettingsPage.Transitions -> SongTransitionsSettings()
         SettingsPage.Queue -> QueueSettings()
         SettingsPage.Output -> OutputSettings()
+        SettingsPage.YouTubeMusic -> YouTubeAccountSettings()
         SettingsPage.LastFm -> LastFmSettings()
         SettingsPage.ListenBrainz -> ListenBrainzSettings()
     }

@@ -29,9 +29,16 @@ object Library {
 
     fun isLiked(id: String): Boolean = value.liked.any { it.song.id == id }
 
-    /** Each like (true) or unlike (false) as it happens, for Last.fm's loves. */
-    private val _likeChanges = MutableSharedFlow<Pair<Song, Boolean>>(extraBufferCapacity = 16)
-    val likeChanges: SharedFlow<Pair<Song, Boolean>> = _likeChanges.asSharedFlow()
+    /** What you like, save and follow, as you do it, for Last.fm loves and YouTube Music sync. */
+    sealed interface Change {
+        data class Like(val song: Song, val liked: Boolean) : Change
+        data class Album(val album: SavedAlbum, val saved: Boolean) : Change
+        data class Playlist(val playlist: SavedPlaylist, val saved: Boolean) : Change
+        data class Artist(val artist: SavedArtist, val followed: Boolean) : Change
+    }
+
+    private val _changes = MutableSharedFlow<Change>(extraBufferCapacity = 64)
+    val changes: SharedFlow<Change> = _changes.asSharedFlow()
 
     fun toggleLike(song: Song) {
         val liked = !isLiked(song.id)
@@ -39,7 +46,7 @@ object Library {
             if (data.liked.any { it.song.id == song.id }) data.copy(liked = data.liked.filterNot { it.song.id == song.id })
             else data.copy(liked = listOf(LikedSong(song)) + data.liked)
         }
-        _likeChanges.tryEmit(song to liked)
+        _changes.tryEmit(Change.Like(song, liked))
     }
 
     fun setLiked(song: Song, liked: Boolean) {
@@ -50,24 +57,39 @@ object Library {
 
     fun isAlbumSaved(browseId: String) = value.albums.any { it.browseId == browseId }
 
-    fun toggleAlbum(album: SavedAlbum) = store.update { data ->
-        if (data.albums.any { it.browseId == album.browseId }) data.copy(albums = data.albums.filterNot { it.browseId == album.browseId })
-        else data.copy(albums = listOf(album) + data.albums)
+    fun toggleAlbum(album: SavedAlbum) {
+        val saved = !isAlbumSaved(album.browseId)
+        store.update { data ->
+            if (data.albums.any { it.browseId == album.browseId }) data.copy(albums = data.albums.filterNot { it.browseId == album.browseId })
+            else data.copy(albums = listOf(album) + data.albums)
+        }
+        _changes.tryEmit(Change.Album(album, saved))
     }
 
     fun isPlaylistSaved(id: String) = value.playlists.any { it.id == id }
 
-    fun togglePlaylist(playlist: SavedPlaylist) = store.update { data ->
-        if (data.playlists.any { it.id == playlist.id }) data.copy(playlists = data.playlists.filterNot { it.id == playlist.id })
-        else data.copy(playlists = listOf(playlist) + data.playlists)
+    fun togglePlaylist(playlist: SavedPlaylist) {
+        val saved = !isPlaylistSaved(playlist.id)
+        store.update { data ->
+            if (data.playlists.any { it.id == playlist.id }) data.copy(playlists = data.playlists.filterNot { it.id == playlist.id })
+            else data.copy(playlists = listOf(playlist) + data.playlists)
+        }
+        _changes.tryEmit(Change.Playlist(playlist, saved))
     }
 
     fun isArtistFollowed(id: String) = value.artists.any { it.id == id }
 
-    fun toggleArtist(artist: SavedArtist) = store.update { data ->
-        if (data.artists.any { it.id == artist.id }) data.copy(artists = data.artists.filterNot { it.id == artist.id })
-        else data.copy(artists = listOf(artist) + data.artists)
+    fun toggleArtist(artist: SavedArtist) {
+        val followed = !isArtistFollowed(artist.id)
+        store.update { data ->
+            if (data.artists.any { it.id == artist.id }) data.copy(artists = data.artists.filterNot { it.id == artist.id })
+            else data.copy(artists = listOf(artist) + data.artists)
+        }
+        _changes.tryEmit(Change.Artist(artist, followed))
     }
+
+    /** Applies what an account sync found, without echoing it back as changes of yours. */
+    internal fun applySync(transform: (LibraryData) -> LibraryData) = store.update(transform)
 
     // Local playlists
 

@@ -7,6 +7,7 @@ package com.convx.desktop.core
 
 import com.convx.desktop.data.AppSettings
 import com.convx.desktop.data.Settings
+import com.convx.desktop.integrations.youtube.YouTubeAccount
 import com.music.innertube.YouTube
 import com.music.innertube.models.IpVersion
 import com.music.innertube.models.YouTubeLocale
@@ -30,7 +31,9 @@ suspend fun initYouTube() {
     val settings = AppSettings.value
     applyLocale(settings)
     YouTube.ipVersion = IpVersion.IPV4
-    YouTube.cookie = settings.cookie
+    // A signed-in account brings its own cookie and visitor data; the guest's is only a fallback.
+    YouTubeAccount.restore()
+    if (YouTubeAccount.hasVisitorData) return
     val saved = settings.visitorData?.takeIf { it.isNotBlank() && it != "null" }
     if (saved != null) {
         YouTube.visitorData = saved
