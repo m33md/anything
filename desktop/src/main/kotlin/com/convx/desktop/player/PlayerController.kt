@@ -10,6 +10,7 @@ import com.convx.desktop.core.Log
 import com.convx.desktop.data.AppSettings
 import com.convx.desktop.integrations.spotify.SpotifyMatcher
 import com.convx.desktop.data.Library
+import com.convx.desktop.data.RelatedSongs
 import com.convx.desktop.data.RepeatMode
 import com.convx.desktop.data.Song
 import com.convx.desktop.data.toSong
@@ -746,6 +747,8 @@ object PlayerController : AudioEngine.Listener {
                 announcedId = song.id
                 _changes.tryEmit(Change.Track(song, playWhenReady))
             }
+            // The phone notes a song's related songs the first time it plays, for Quick picks.
+            if (local == null) RelatedSongs.ensure(song.id)
             val source = when {
                 local != null -> CachedAudio.Complete(java.io.File(local.path))
                 offline != null -> CachedAudio.Complete(offline.second)

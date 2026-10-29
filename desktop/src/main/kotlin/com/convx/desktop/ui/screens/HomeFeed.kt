@@ -10,6 +10,7 @@ import com.convx.desktop.core.Log
 import com.convx.desktop.data.AlbumRef
 import com.convx.desktop.data.AppSettings
 import com.convx.desktop.data.Library
+import com.convx.desktop.data.RelatedSongs
 import com.convx.desktop.data.Settings
 import com.convx.desktop.data.Song
 import com.convx.desktop.data.SpeedDialEntry
@@ -216,14 +217,22 @@ object HomeFeed {
             ).filterNot { com.convx.desktop.player.LocalMusic.isLocal(it.id) }
             .distinctBy { it.id }
             .take(12)
-        val pages = coroutineScope { seeds.map { seed -> async { relatedOf(seed.id) } }.awaitAll() }
-        val referred = pages.filterNotNull()
-            .flatMap { page -> page.songs.filtered(settings) }
+        // Kept from when each seed first played, as the phone reads its related-songs table; asked
+        // of YouTube only for seeds from before that, and not waited on for long.
+        val lists = coroutineScope {
+            seeds.map { seed ->
+                async {
+                    RelatedSongs.get(seed.id) ?: withTimeoutOrNull(10_000) { requests.withPermit { RelatedSongs.fetch(seed.id) } }
+                }
+            }.awaitAll()
+        }
+        val referred = lists.filterNotNull()
+            .flatMap { songs -> songs.filter { (!settings.hideExplicit || !it.explicit) && (!settings.hideVideos || !it.isVideo) } }
             .groupBy { it.id }
             .values
             .sortedByDescending { it.size }
             .take(100)
-            .map { it.first().toSong() }
+            .map { it.first() }
         val forgotten = _state.value.forgottenFavorites.orEmpty().take(8)
         _state.update { it.copy(quickPicks = (referred + forgotten).distinctBy { song -> song.id }.shuffled().take(20)) }
     }
