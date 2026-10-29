@@ -79,25 +79,6 @@ fun PlayerHub() {
 }
 
 @Composable
-fun PlaybackHub() {
-    val settings by AppSettings.state.collectAsState()
-    SettingsSection("Sound") {
-        ChoiceRow(
-            "Audio quality",
-            "High picks the best stream YouTube offers. Low saves data.",
-            AudioQuality.entries.map { it to it.name.lowercase().replaceFirstChar(Char::titlecase) },
-            settings.audioQuality,
-        ) { q -> AppSettings.update { it.copy(audioQuality = q) } }
-    }
-    SectionGap()
-    SettingsSection("Queue & behaviour") {
-        SwitchRow("Autoplay similar songs", "When your queue ends, keep going with a radio of the last song.", settings.autoRadio) { v ->
-            AppSettings.update { it.copy(autoRadio = v) }
-        }
-    }
-}
-
-@Composable
 fun LibraryHub() {
     val settings by AppSettings.state.collectAsState()
     SettingsSection("Region & filters") {

@@ -5,6 +5,7 @@
 
 package com.convx.desktop.player
 
+import com.convx.desktop.audio.AudioEffects
 import com.convx.desktop.core.Log
 import com.convx.desktop.data.AppSettings
 import com.convx.desktop.integrations.spotify.SpotifyMatcher
@@ -23,9 +24,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.math.pow
 
 data class PlayerState(
     val queue: List<Song> = emptyList(),
@@ -59,7 +63,14 @@ object PlayerController : AudioEngine.Listener {
     private val engine = AudioEngine(this)
 
     private val _state = MutableStateFlow(
-        AppSettings.value.let { PlayerState(shuffle = it.shuffle, repeat = it.repeat, volume = it.volume, muted = it.muted) },
+        AppSettings.value.let {
+            PlayerState(
+                shuffle = it.rememberShuffleRepeat && it.shuffle,
+                repeat = if (it.rememberShuffleRepeat) it.repeat else RepeatMode.OFF,
+                volume = it.volume,
+                muted = it.muted,
+            )
+        },
     )
     val state: StateFlow<PlayerState> = _state.asStateFlow()
 
@@ -76,6 +87,8 @@ object PlayerController : AudioEngine.Listener {
     private var consecutiveFailures = 0
     private var retriedCurrent = false
     private var playStartedAt = 0L
+    /** The session a crossfade already left, so it fades out only once. */
+    private var crossfadedToken = 0L
 
     init {
         applyVolume()
@@ -83,8 +96,25 @@ object PlayerController : AudioEngine.Listener {
             while (isActive) {
                 val s = _state.value
                 if (s.current != null && engineToken != 0L) _position.value = engine.positionMs
+                maybeCrossfade()
                 delay(if (s.isPlaying) 100 else 400)
             }
+        }
+        scope.launch {
+            var first = true
+            AppSettings.state
+                .map { effectsOf(it) to it.outputDevice }
+                .distinctUntilChanged()
+                .collect { (effects, device) ->
+                    engine.effects = effects
+                    if (device != engine.outputDevice) {
+                        engine.outputDevice = device
+                        // Move the song to the new output where it is.
+                        val s = _state.value
+                        if (!first && s.current != null && engineToken != 0L) loadCurrent(engine.positionMs, playWhenReady = s.isPlaying)
+                    }
+                    first = false
+                }
         }
         scope.launch {
             while (isActive) {
@@ -306,6 +336,7 @@ object PlayerController : AudioEngine.Listener {
     /** Restores the last session's queue, paused, at the saved position. */
     fun restore() {
         val settings = AppSettings.value
+        if (!settings.persistentQueue) return
         cue(settings.lastQueue, settings.lastIndex, settings.lastPositionMs)
     }
 
@@ -376,17 +407,17 @@ object PlayerController : AudioEngine.Listener {
         if (engineToken == 0L) loadCurrent(target, playWhenReady = s.isPlaying) else engine.seek(target)
     }
 
-    private suspend fun advance(userInitiated: Boolean) {
+    private suspend fun advance(userInitiated: Boolean, fadeInMs: Int = 0) {
         val s = _state.value
         if (s.current == null) return
         when {
             s.index < s.queue.lastIndex -> {
                 _state.update { it.copy(index = s.index + 1, error = null) }
-                loadCurrent(0, playWhenReady = true)
+                loadCurrent(0, playWhenReady = true, fadeInMs = fadeInMs)
             }
             s.repeat == RepeatMode.ALL && s.queue.isNotEmpty() -> {
                 _state.update { it.copy(index = 0, error = null) }
-                loadCurrent(0, playWhenReady = true)
+                loadCurrent(0, playWhenReady = true, fadeInMs = fadeInMs)
             }
             AppSettings.value.autoRadio -> {
                 // Keep the music going like the phone does: extend with radio from the last song.
@@ -422,11 +453,12 @@ object PlayerController : AudioEngine.Listener {
         prefetchNext()
     }
 
-    private fun loadCurrent(startMs: Long, playWhenReady: Boolean, forceRefresh: Boolean = false) {
+    private fun loadCurrent(startMs: Long, playWhenReady: Boolean, forceRefresh: Boolean = false, fadeInMs: Int = 0) {
         val queued = _state.value.current ?: return
         if (!forceRefresh) retriedCurrent = false
         loadJob?.cancel()
-        engine.stop()
+        // A crossfade's outgoing song keeps playing under this one; anything else stops now.
+        if (fadeInMs == 0) engine.stop()
         engineToken = 0L
         _position.value = startMs
         _state.update {
@@ -464,7 +496,7 @@ object PlayerController : AudioEngine.Listener {
             }
             if (_state.value.current?.id != song.id) return@launch
             val source = AudioCache.open(stream)
-            engineToken = engine.load(source, startMs, playWhenReady, stream.durationMs)
+            engineToken = engine.load(source, startMs, playWhenReady, stream.durationMs, trackGain(stream), fadeInMs)
             _state.update { it.copy(stream = stream, durationMs = stream.durationMs ?: it.durationMs) }
             if (startMs == 0L) {
                 playStartedAt = System.currentTimeMillis()
@@ -479,7 +511,7 @@ object PlayerController : AudioEngine.Listener {
         engineToken = 0L
         _state.update { it.copy(isLoading = false, isPlaying = false, error = message) }
         // Skip past a dead track, but don't spin through a whole queue that can't play.
-        if (consecutiveFailures < 3 && _state.value.index < _state.value.queue.lastIndex) {
+        if (AppSettings.value.skipOnError && consecutiveFailures < 3 && _state.value.index < _state.value.queue.lastIndex) {
             delay(1500)
             if (_state.value.error == message) advance(userInitiated = false)
         }
@@ -495,6 +527,47 @@ object PlayerController : AudioEngine.Listener {
             if (AudioCache.isCached(id)) return@launch
             StreamResolver.resolve(id, AppSettings.value.audioQuality).onSuccess { AudioCache.prefetch(it) }
         }
+    }
+
+    /**
+     * Fades into the next song when this one is within the crossfade of its end: the phone's
+     * song transitions. Songs from one album play straight through, as albums are meant to.
+     */
+    private suspend fun maybeCrossfade() {
+        val settings = AppSettings.value
+        if (!settings.crossfade) return
+        val s = _state.value
+        if (!s.isPlaying || s.isLoading || s.error != null || engineToken == 0L || crossfadedToken == engineToken) return
+        if (s.repeat == RepeatMode.ONE) return
+        val next = when {
+            s.index < s.queue.lastIndex -> s.queue[s.index + 1]
+            s.repeat == RepeatMode.ALL && s.queue.size > 1 -> s.queue[0]
+            else -> return
+        }
+        val fadeMs = (settings.crossfadeSeconds.coerceIn(1f, 12f) * 1000).toLong()
+        val duration = engine.durationMs
+        if (duration < fadeMs * 3) return
+        if (duration - engine.positionMs > fadeMs) return
+        val album = s.current?.album?.id
+        if (album != null && album == next.album?.id) return
+        crossfadedToken = engineToken
+        engine.handOff(fadeMs.toInt())
+        engineToken = 0L
+        advance(userInitiated = false, fadeInMs = fadeMs.toInt())
+    }
+
+    private fun effectsOf(settings: com.convx.desktop.data.Settings) = AudioEffects(
+        eq = settings.equalizer.bands.takeIf { settings.equalizer.enabled },
+        preamp = settings.equalizer.preamp,
+        spatial = settings.equalizer.spatialAudio,
+        skipSilence = settings.skipSilence,
+    )
+
+    /** The phone's normalisation: YouTube's loudness for the song, turned into -15..+3 dB. */
+    private fun trackGain(stream: ResolvedStream): Float {
+        if (!AppSettings.value.normalizeAudio) return 1f
+        val loudness = stream.loudnessDb ?: return 1f
+        return 10.0.pow((-loudness).coerceIn(-15.0, 3.0) / 20.0).toFloat()
     }
 
     private fun applyVolume() {

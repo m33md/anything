@@ -74,6 +74,11 @@ enum class SettingsPage(val title: String, val hub: String) {
     Spotify("Spotify", "accounts"),
     Discord("Discord", "accounts"),
     LiquidGlass("Liquid Glass", "appearance"),
+    Equalizer("Convx Equalizer", "playback"),
+    QualitySound("Quality & sound", "playback"),
+    Transitions("Song transitions", "playback"),
+    Queue("Queue & autoplay", "playback"),
+    Output("Sound output", "playback"),
 }
 
 object SettingsHubs {
@@ -301,8 +306,16 @@ private val searchEntries: List<SearchEntry> by lazy {
     listOf(
         SearchEntry("Wavy progress bar", "The squiggly line while music plays", h.player, keywords = "seek bar slider squiggly"),
         SearchEntry("Word-by-word lyrics", "Light up each word as it's sung", h.player, keywords = "karaoke synced lyrics"),
-        SearchEntry("Audio quality", "High or low", h.playback, keywords = "bitrate stream data"),
-        SearchEntry("Autoplay similar songs", "Keep going when the queue ends", h.playback, keywords = "radio autoplay queue"),
+        SearchEntry("Equalizer", "Shape the sound", h.playback, SettingsPage.Equalizer, "eq bass treble mids preset parametric autoeq dolby dirac"),
+        SearchEntry("Spatial audio", "Wider stereo for headphones", h.playback, SettingsPage.Equalizer, "3d surround headphones widen"),
+        SearchEntry("Audio quality", "High or low", h.playback, SettingsPage.QualitySound, "bitrate stream data"),
+        SearchEntry("Audio normalization", "Even out loud and quiet songs", h.playback, SettingsPage.QualitySound, "loudness volume level"),
+        SearchEntry("Skip silence", "Fast forward through silent parts", h.playback, SettingsPage.QualitySound, "silence gap"),
+        SearchEntry("Song transitions", "Crossfade between songs", h.playback, SettingsPage.Transitions, "crossfade fade automix gapless"),
+        SearchEntry("Persistent queue", "Restore your last queue", h.playback, SettingsPage.Queue, "queue restore"),
+        SearchEntry("Enable similar content", "Keep going when the queue ends", h.playback, SettingsPage.Queue, "radio autoplay queue"),
+        SearchEntry("Remember shuffle and repeat", null, h.playback, SettingsPage.Queue, "shuffle repeat"),
+        SearchEntry("Sound output", "Speakers or headphones", h.playback, SettingsPage.Output, "device speaker headphones output"),
         SearchEntry("Liquid Glass", "Blur, lens and highlights", h.appearance, SettingsPage.LiquidGlass, "glass blur lens refraction vibrancy chromatic aberration rim"),
         SearchEntry("Content country", "Charts and recommendations", h.library, keywords = "region location"),
         SearchEntry("Content language", "The language YouTube Music answers in", h.library, keywords = "locale"),
@@ -432,6 +445,11 @@ private fun PageContent(page: SettingsPage) {
         SettingsPage.Spotify -> SpotifySettings()
         SettingsPage.Discord -> DiscordSettings()
         SettingsPage.LiquidGlass -> LiquidGlassSettings()
+        SettingsPage.Equalizer -> EqualizerPage()
+        SettingsPage.QualitySound -> QualitySoundSettings()
+        SettingsPage.Transitions -> SongTransitionsSettings()
+        SettingsPage.Queue -> QueueSettings()
+        SettingsPage.Output -> OutputSettings()
     }
 }
 

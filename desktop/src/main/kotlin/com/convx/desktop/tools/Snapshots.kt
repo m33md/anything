@@ -137,6 +137,15 @@ fun main(args: Array<String>) {
         }
         AppSettings.update { it.copy(discordPresence = false) }
         shoot("07d-settings-glass", seconds = 3) { SettingsNav.push(SettingsPage.LiquidGlass) }
+        shoot("07e-settings-playback", seconds = 2) { SettingsNav.openHub(SettingsHubs.playback.id) }
+        shoot("07f-settings-eq", seconds = 3) {
+            AppSettings.update { it.copy(equalizer = it.equalizer.copy(enabled = true)) }
+            SettingsNav.push(SettingsPage.Equalizer)
+        }
+        shoot("07g-settings-eq-advanced", seconds = 2) {
+            AppSettings.update { it.copy(equalizer = it.equalizer.copy(advanced = true)) }
+        }
+        AppSettings.update { it.copy(equalizer = com.convx.desktop.audio.EqualizerSettings()) }
         shoot("08-explore", seconds = 12) { navigator.navigate(Screen.Explore) }
         shoot("08a-explore-strip", seconds = 3) { UiState.openSection(Section.Explore, navigator) }
         shoot("08b-explore-jump", seconds = 3) { UiState.exploreJump = ExploreAnchor.Moods }

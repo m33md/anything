@@ -160,6 +160,20 @@ data class Settings(
     /** Blank for "Visit Convx". */
     val discordButton2Text: String = "",
     val glass: GlassSettings = GlassSettings(),
+    val equalizer: com.convx.desktop.audio.EqualizerSettings = com.convx.desktop.audio.EqualizerSettings(),
+    /** Evens out loud and quiet songs with YouTube's loudness for each one, as the phone does. */
+    val normalizeAudio: Boolean = true,
+    val skipSilence: Boolean = false,
+    /** The phone's song transitions: each song fades into the next. */
+    val crossfade: Boolean = false,
+    /** 1..12, Apple's range. */
+    val crossfadeSeconds: Float = 5f,
+    /** Restore the last queue at launch. */
+    val persistentQueue: Boolean = true,
+    val rememberShuffleRepeat: Boolean = true,
+    val skipOnError: Boolean = true,
+    /** The sound output by name; null follows Windows' default. */
+    val outputDevice: String? = null,
     /** YouTube's guest session id; kept so recommendations stay consistent between launches. */
     val visitorData: String? = null,
     val lastQueue: List<Song> = emptyList(),
