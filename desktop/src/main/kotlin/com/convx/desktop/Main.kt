@@ -47,6 +47,7 @@ import com.convx.desktop.player.AudioEngine
 import com.convx.desktop.player.Downloads
 import com.convx.desktop.player.PlayerController
 import com.convx.desktop.ui.components.ImageCache
+import com.convx.desktop.ui.player.Ambient
 import com.convx.desktop.ui.screens.replay.Replay
 import com.convx.desktop.ui.shell.AppShell
 import com.convx.desktop.ui.shell.Navigator
@@ -160,6 +161,18 @@ fun main() {
                     WindowTitleBar.updateInsets()
                 }
             }
+            // Ambient mode fills the screen and keeps it on, as on the phone, then puts the window back.
+            val beforeAmbient = remember { arrayOfNulls<WindowPlacement>(1) }
+            LaunchedEffect(Ambient.on) {
+                if (Ambient.on) {
+                    beforeAmbient[0] = windowState.placement
+                    windowState.placement = WindowPlacement.Fullscreen
+                } else {
+                    beforeAmbient[0]?.let { windowState.placement = it }
+                    beforeAmbient[0] = null
+                }
+                WindowsChrome.keepAwake(Ambient.on)
+            }
             // The phone's "Disable screenshot": the window drops out of screenshots, recordings and screen shares.
             LaunchedEffect(Unit) {
                 AppSettings.state.map { it.disableScreenshot }.distinctUntilChanged().collect { WindowsChrome.hideFromCapture(window, it) }
@@ -168,6 +181,8 @@ fun main() {
                 snapshotFlow { Triple(windowState.size, windowState.placement, Unit) }
                     .debounce(600)
                     .collect { (size, placement) ->
+                        // Ambient mode's full screen is a visit, not where the window lives.
+                        if (placement == WindowPlacement.Fullscreen) return@collect
                         AppSettings.update {
                             if (placement == WindowPlacement.Maximized) {
                                 it.copy(windowMaximized = true)
@@ -211,6 +226,10 @@ private fun shortcut(event: KeyEvent, navigator: Navigator): Boolean {
     return when {
         // Esc steps back out of full-screen lyrics first: to the lyrics beside the cover, or with
         // one-tap on (where that middle step isn't used) to the cover.
+        event.key == Key.Escape && Ambient.on -> {
+            Ambient.on = false
+            true
+        }
         event.key == Key.Escape && UiState.fullPlayer && UiState.lyricsFullscreen && UiState.fullPlayerMode == FullPlayerMode.Lyrics -> {
             UiState.lyricsFullscreen = false
             if (AppSettings.value.oneTapFullscreenLyrics) UiState.fullPlayerMode = FullPlayerMode.Artwork
@@ -300,6 +319,31 @@ private object WindowsChrome {
     private val user32: User32? by lazy {
         if (!System.getProperty("os.name").lowercase().contains("win")) null
         else runCatching { Native.load("user32", User32::class.java) }.getOrNull()
+    }
+
+    private interface Kernel32 : JnaLibrary {
+        fun SetThreadExecutionState(flags: Int): Int
+    }
+
+    private val kernel32: Kernel32? by lazy {
+        if (!System.getProperty("os.name").lowercase().contains("win")) null
+        else runCatching { Native.load("kernel32", Kernel32::class.java) }.getOrNull()
+    }
+
+    private const val ES_CONTINUOUS = 0x80000000.toInt()
+    private const val ES_SYSTEM_REQUIRED = 0x1
+    private const val ES_DISPLAY_REQUIRED = 0x2
+
+    /**
+     * Keeps the display on (and the PC awake) while [on]. Windows ties the request to the thread
+     * that made it, so it's made on the window's event thread, which lasts as long as the app.
+     */
+    fun keepAwake(on: Boolean) {
+        val api = kernel32 ?: return
+        java.awt.EventQueue.invokeLater {
+            runCatching { api.SetThreadExecutionState(if (on) ES_CONTINUOUS or ES_SYSTEM_REQUIRED or ES_DISPLAY_REQUIRED else ES_CONTINUOUS) }
+                .onFailure { Log.w("Window", "Couldn't keep the screen on", it) }
+        }
     }
 
     private const val WDA_NONE = 0

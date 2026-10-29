@@ -101,6 +101,8 @@ data class LibraryData(
     val speedDial: List<SpeedDialEntry> = emptyList(),
     /** Pictures of artists you've played but don't follow, by id, as the phone keeps them for Stats. */
     val artistPictures: Map<String, String> = emptyMap(),
+    /** Your YouTube Music uploads, as the account last listed them: the phone's "Uploaded" playlist. */
+    val uploaded: List<Song> = emptyList(),
 )
 
 /** A Speed dial pin, as the phone keeps one: enough of the item to show it and open it again. */
@@ -327,6 +329,7 @@ data class Settings(
     val showDownloadedPlaylist: Boolean = true,
     val showTopPlaylist: Boolean = true,
     val showCachedPlaylist: Boolean = true,
+    val showUploadedPlaylist: Boolean = true,
     val topSize: Int = 50,
     // The phone's Controls & layout page, with its defaults where the PC has the same thing.
     /** The phone's "Hide player thumbnail": the Convx mark where the player's cover would be. */
@@ -342,6 +345,8 @@ data class Settings(
     val oneTapFullscreenLyrics: Boolean = false,
     /** Full-screen lyrics keep a compact player bar at the top; off, the controls go away entirely. */
     val fullscreenLyricsCollapseTop: Boolean = true,
+    /** The phone's comments button in the player: the song's YouTube comments beside the cover. */
+    val showCommentButton: Boolean = true,
     /** The account button opens a quick popup instead of going straight to Settings. */
     val settingsPopup: Boolean = false,
     /**

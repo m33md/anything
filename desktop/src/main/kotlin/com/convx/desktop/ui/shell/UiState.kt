@@ -50,7 +50,7 @@ enum class Section(val label: String, val icon: String, val root: Screen) {
 fun Screen.section(): Section? = when (this) {
     Screen.Home -> Section.Home
     Screen.Explore -> Section.Explore
-    Screen.Library, Screen.Liked, Screen.LocalFiles, Screen.Downloads, Screen.History, Screen.Stats, Screen.MyTop, Screen.Cached -> Section.Library
+    Screen.Library, Screen.Liked, Screen.LocalFiles, Screen.Downloads, Screen.History, Screen.Stats, Screen.MyTop, Screen.Cached, Screen.Uploaded -> Section.Library
     else -> null
 }
 
@@ -62,7 +62,7 @@ enum class ExploreAnchor(val label: String, val icon: String) {
 }
 
 /** What the full-screen player shows beside the artwork. */
-enum class FullPlayerMode { Lyrics, Queue, Artwork }
+enum class FullPlayerMode { Lyrics, Queue, Comments, Artwork }
 
 /** Window-wide UI state that isn't navigation: overlays, panels, the top bar's tint. */
 object UiState {

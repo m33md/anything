@@ -805,6 +805,9 @@ val TopGradient = listOf(Color(0xFFFF9F0A), Color(0xFFB2361B))
 /** Cached's colours. */
 val CachedGradient = listOf(Color(0xFF64D2FF), Color(0xFF5E5CE6))
 
+/** Uploaded's colours, around the phone's purple for it. */
+val UploadedGradient = listOf(Color(0xFFBF5AF2), Color(0xFF7D2AE8))
+
 /** The AI DJ Mix card's colours. */
 val AiDjGradient = listOf(Color(0xFFBF5AF2), Color(0xFF5E5CE6))
 
@@ -922,7 +925,7 @@ fun CachedScreen() {
         PageList(state = rememberLazyListState(), tint = PageBlack, topPadding = 0.dp) {
             collectionHeader(
                 title = "Cached",
-                art = { size -> GradientTile("cloud", size, CachedGradient, RoundedCornerShape(12.dp)) },
+                art = { size -> GradientTile("cached", size, CachedGradient, RoundedCornerShape(12.dp)) },
                 metadata = (songs.totalLine() + listOfNotNull(bytes.takeIf { it > 0 }?.let { com.convx.desktop.ui.screens.settings.formatBytes(it) }))
                     .joinToString(" · "),
                 playing = isThisPlaying,
@@ -932,9 +935,69 @@ fun CachedScreen() {
                 menu = { dismiss -> CollectionMenuContent(songs = { songs }, dismiss = dismiss) },
             )
             if (songs.isEmpty()) {
-                item(key = "empty") { MessageState("Nothing cached yet", "Songs you play are kept here, so they start at once next time.", icon = "cloud") }
+                item(key = "empty") { MessageState("Nothing cached yet", "Songs you play are kept here, so they start at once next time.", icon = "cached") }
             } else {
                 songTable(songs, "Cached", "cached")
+            }
+        }
+    }
+}
+
+/**
+ * The phone's "Uploaded" auto playlist: songs you uploaded to YouTube Music, refreshed from the
+ * account each time it's opened, as the phone does.
+ */
+@Composable
+fun UploadedScreen() {
+    val library by Library.state.collectAsState()
+    val account by com.convx.desktop.integrations.youtube.YouTubeAccount.state.collectAsState()
+    val signedIn = account is com.convx.desktop.integrations.youtube.YouTubeAccount.State.SignedIn
+    val songs = library.uploaded
+    var refreshing by remember { mutableStateOf(signedIn) }
+    androidx.compose.runtime.LaunchedEffect(signedIn) {
+        if (signedIn) {
+            refreshing = true
+            com.convx.desktop.integrations.youtube.YouTubeSync.refreshUploads()
+        }
+        refreshing = false
+    }
+    val navigator = LocalNavigator.current
+    val playback = com.convx.desktop.ui.components.LocalPlayback.current
+    val isThisPlaying = playback.isPlaying && songs.any { it.id == playback.currentId }
+    Box(Modifier.fillMaxSize().background(PageBlack)) {
+        PageList(state = rememberLazyListState(), tint = PageBlack, topPadding = 0.dp) {
+            collectionHeader(
+                title = "Uploaded",
+                art = { size -> GradientTile("cloud", size, UploadedGradient, RoundedCornerShape(12.dp)) },
+                metadata = (listOf("YouTube Music") + songs.totalLine()).joinToString(" · "),
+                playing = isThisPlaying,
+                enabled = songs.isNotEmpty(),
+                onPlay = { if (isThisPlaying) PlayerController.pause() else if (songs.isNotEmpty()) PlayerController.playSongs(songs, 0, "Uploaded", shuffle = false) },
+                onShuffle = { if (songs.isNotEmpty()) PlayerController.playSongs(songs, 0, "Uploaded", shuffle = true) },
+                menu = { dismiss -> CollectionMenuContent(songs = { songs }, dismiss = dismiss) },
+            )
+            when {
+                songs.isNotEmpty() -> songTable(songs, "Uploaded", "uploaded")
+                !signedIn -> item(key = "signed-out") {
+                    MessageState(
+                        "Sign in to see your uploads",
+                        "Songs you upload to YouTube Music show up here once you sign in.",
+                        icon = "cloud",
+                        actionText = "Sign in",
+                        onAction = {
+                            navigator.navigate(Screen.Settings)
+                            com.convx.desktop.ui.screens.settings.SettingsNav.push(com.convx.desktop.ui.screens.settings.SettingsPage.YouTubeMusic)
+                        },
+                    )
+                }
+                refreshing -> item(key = "loading") {
+                    Box(Modifier.fillMaxWidth().height(240.dp), contentAlignment = Alignment.Center) {
+                        androidx.compose.material3.CircularProgressIndicator(color = Color.White.copy(alpha = 0.7f), strokeWidth = 2.5.dp, modifier = Modifier.size(24.dp))
+                    }
+                }
+                else -> item(key = "empty") {
+                    MessageState("No uploads", "Songs you upload at music.youtube.com show up here.", icon = "cloud")
+                }
             }
         }
     }

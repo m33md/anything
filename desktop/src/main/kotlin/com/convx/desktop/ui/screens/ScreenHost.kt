@@ -48,6 +48,7 @@ fun ScreenHost(screen: Screen) {
         Screen.Stats -> StatsScreen()
         Screen.MyTop -> MyTopScreen()
         Screen.Cached -> CachedScreen()
+        Screen.Uploaded -> UploadedScreen()
         Screen.Settings -> SettingsScreen()
         Screen.Party -> PartyScreen()
         is Screen.Album -> AlbumScreen(screen.browseId)

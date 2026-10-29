@@ -211,6 +211,8 @@ fun AppShell(navigator: Navigator) {
                     }
                 }
 
+                com.convx.desktop.ui.player.AmbientOverlay()
+
                 ReplayOverlay()
 
                 OverlayHost()

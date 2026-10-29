@@ -102,6 +102,14 @@ fun ControlsLayoutSettings() {
             icon = "graphic_eq",
             tint = SystemColors.Indigo,
         ) { on -> AppSettings.update { it.copy(showAudioQualityBadge = on) } }
+        RowDivider()
+        SwitchRow(
+            "Show comment button",
+            "Show a button to view the song's YouTube comments in the player",
+            settings.showCommentButton,
+            icon = "chat_msg",
+            tint = SystemColors.Indigo,
+        ) { on -> AppSettings.update { it.copy(showCommentButton = on) } }
     }
     SectionGap()
     SettingsSection("Lyrics effects") {
@@ -202,8 +210,7 @@ fun ControlsLayoutSettings() {
     SectionGap()
     InfoNote(
         "Not on the PC: Pure Black and the background and text colours (Convx stays red on black), iOS overscroll, " +
-            "the mini bar tab style and nav bar melt (there's no phone navigation bar), the comments button (no YouTube " +
-            "comments on the PC yet), and the top bar blur style " +
+            "the mini bar tab style and nav bar melt (there's no phone navigation bar), and the top bar blur style " +
             "(the PC's top bar is glass buttons, not a blurred band).",
     )
 }

@@ -119,7 +119,7 @@ fun LibraryHub() {
     }
     SectionGap()
     // The phone's Auto playlists switches and My Top's length, kept together here.
-    SettingsSection("Auto playlists", footer = "The phone's \"Uploaded\" playlist, of your YouTube Music uploads, isn't on the PC yet.") {
+    SettingsSection("Auto playlists") {
         SwitchRow("Show \"Liked\" playlist", checked = settings.showLikedPlaylist, icon = "favorite", tint = SystemColors.Pink) { v ->
             AppSettings.update { it.copy(showLikedPlaylist = v) }
         }
@@ -132,9 +132,17 @@ fun LibraryHub() {
             AppSettings.update { it.copy(showTopPlaylist = v) }
         }
         RowDivider()
-        SwitchRow("Show \"Cached\" playlist", checked = settings.showCachedPlaylist, icon = "cloud", tint = SystemColors.Cyan) { v ->
+        SwitchRow("Show \"Cached\" playlist", checked = settings.showCachedPlaylist, icon = "cached", tint = SystemColors.Cyan) { v ->
             AppSettings.update { it.copy(showCachedPlaylist = v) }
         }
+        RowDivider()
+        SwitchRow(
+            "Show \"Uploaded\" playlist",
+            "Songs you uploaded to YouTube Music. Needs you signed in.",
+            settings.showUploadedPlaylist,
+            icon = "backup",
+            tint = SystemColors.Purple,
+        ) { v -> AppSettings.update { it.copy(showUploadedPlaylist = v) } }
         RowDivider(PlainInset)
         SliderRow("My Top list length", "${settings.topSize}", settings.topSize.toFloat(), 1f..100f) { v ->
             AppSettings.update { it.copy(topSize = v.roundToInt().coerceIn(1, 100)) }

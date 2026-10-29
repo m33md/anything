@@ -27,6 +27,7 @@ sealed interface Screen {
     data object Stats : Screen
     data object MyTop : Screen
     data object Cached : Screen
+    data object Uploaded : Screen
     data object Settings : Screen
     data object Party : Screen
     data class Album(val browseId: String) : Screen
@@ -65,6 +66,8 @@ class Navigator(start: Screen = Screen.Home) {
     var searchQuery by mutableStateOf("")
 
     fun navigate(screen: Screen) {
+        // Going somewhere from the full player's menus means seeing it, so the player steps aside.
+        UiState.fullPlayer = false
         if (current.screen == screen) return
         // Replace transient search screens instead of stacking one per keystroke.
         if (screen is Screen.SearchResults && current.screen is Screen.SearchResults) {

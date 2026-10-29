@@ -18,6 +18,7 @@ import com.music.innertube.YouTube
 import com.music.innertube.models.AlbumItem
 import com.music.innertube.models.ArtistItem
 import com.music.innertube.models.PlaylistItem
+import com.music.innertube.models.SongItem
 import com.music.innertube.utils.completed
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -91,6 +92,21 @@ object YouTubeSync {
 
     fun flush() = store.flush()
 
+    /**
+     * The phone's refresh of "Uploaded" when it's opened. Uploads are only read, never changed,
+     * so this runs whenever you're signed in, whether or not sync is on.
+     */
+    suspend fun refreshUploads() {
+        if (!YouTubeAccount.signedIn) return
+        val uploaded = withContext(Dispatchers.IO) { fetchUploads() } ?: return
+        Library.applySync { it.copy(uploaded = uploaded) }
+    }
+
+    private suspend fun fetchUploads(): List<com.convx.desktop.data.Song>? = runCatching {
+        YouTube.library("FEmusic_library_privately_owned_tracks", tabIndex = 1).completed().getOrThrow()
+            .items.filterIsInstance<SongItem>().map { it.toSong() }
+    }.onFailure { Log.i(Tag, "No uploads listed: ${it.message}") }.getOrNull()
+
     /** Forgets what the last account had, e.g. after switching channel; nothing is removed. */
     fun forgetKnown() = store.update { Known() }
 
@@ -103,6 +119,7 @@ object YouTubeSync {
                 albums = data.albums.filterNot { it.browseId in known.albums },
                 artists = data.artists.filterNot { it.id in known.artists },
                 playlists = data.playlists.filterNot { it.id in known.playlists },
+                uploaded = emptyList(),
             )
         }
         forgetKnown()
@@ -122,6 +139,10 @@ object YouTubeSync {
             val playlists = YouTube.library("FEmusic_liked_playlists").completed().getOrThrow().items.filterIsInstance<PlaylistItem>()
                 .filterNot { it.id == "LM" || it.id == "SE" }
                 .map { it.toSaved() }
+            // Uploads sit in the library's second tab. An account without any may have no such tab,
+            // which isn't a failed sync, so what was there stays.
+            _status.value = Status.Running("Uploads")
+            val uploaded = fetchUploads()
             if (!enabled) return
 
             val known = store.value
@@ -134,6 +155,8 @@ object YouTubeSync {
                     albums = merge(data.albums, albums, known.albums, { it.browseId }, { it.browseId }, ::mine) { a, i -> a.copy(savedAt = now - i * 1000L) },
                     artists = merge(data.artists, artists, known.artists, { it.id }, { it.id }, ::mine) { a, i -> a.copy(savedAt = now - i * 1000L) },
                     playlists = merge(data.playlists, playlists, known.playlists, { it.id }, { it.id }, ::mine) { p, i -> p.copy(savedAt = now - i * 1000L) },
+                    // Uploads can't be changed from Convx, so the account's list is the list.
+                    uploaded = uploaded ?: data.uploaded,
                 )
             }
             store.update {

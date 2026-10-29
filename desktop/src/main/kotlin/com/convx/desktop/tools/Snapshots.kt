@@ -332,6 +332,13 @@ fun main(args: Array<String>) {
                 UiState.fullPlayerMode = FullPlayerMode.Lyrics
             }
             AppSettings.update { it.copy(hidePlayerArtwork = false, lyricsArtworkPlayPause = false) }
+            // The phone's comments button: the song's YouTube comments beside the cover.
+            shoot("13q-player-comments", seconds = 8) { UiState.fullPlayerMode = FullPlayerMode.Comments }
+            shoot("13r-ambient", seconds = 2) {
+                UiState.fullPlayerMode = FullPlayerMode.Lyrics
+                com.convx.desktop.ui.player.Ambient.on = true
+            }
+            com.convx.desktop.ui.player.Ambient.on = false
 
             // A lived-in library, for the side bar, the library page and the song-list pages.
             UiState.fullPlayer = false
@@ -345,6 +352,8 @@ fun main(args: Array<String>) {
                             com.convx.desktop.data.PlayEvent(song, now - (n * 7L + i) * 86_400_000L - 3_600_000L, playedMs = (song.duration ?: 200) * 1000L * (8 - n) / 8)
                         }
                     }.sortedByDescending { it.at },
+                    // As if synced from a YouTube Music account's uploads.
+                    uploaded = songs.drop(4).take(5),
                 )
             }
             album?.let { Library.toggleAlbum(it.toSaved()) }
@@ -384,6 +393,7 @@ fun main(args: Array<String>) {
             shoot("21f-replay-summary", seconds = 3) { Replay.go(ReplayPage.Summary.ordinal) }
             Replay.close()
             shoot("22-my-top", seconds = 4) { navigator.navigate(Screen.MyTop) }
+            shoot("22a-uploaded", seconds = 4) { navigator.navigate(Screen.Uploaded) }
             // The phone's AI DJ Mix from a song; with no AI key it's that song's related songs.
             shoot("23-ai-dj", seconds = 3) { navigator.navigate(Screen.AiDj(seed = songs.first())) }
             shoot("23a-ai-dj-set", seconds = 12) {

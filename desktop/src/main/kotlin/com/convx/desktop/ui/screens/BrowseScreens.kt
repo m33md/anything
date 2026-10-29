@@ -219,11 +219,20 @@ fun LibraryScreen() {
                             SavedCard(
                                 "Cached",
                                 pluralize(cached.size, "song"),
-                                art = { size -> GradientTile("cloud", size, CachedGradient, RoundedCornerShape(8.dp)) },
+                                art = { size -> GradientTile("cached", size, CachedGradient, RoundedCornerShape(8.dp)) },
                                 onClick = { navigator.navigate(Screen.Cached) },
                                 onPlay = { PlayerController.playSongs(cached, 0, "Cached") },
                             )
                         }
+                    }
+                    if (settings.showUploadedPlaylist && library.uploaded.isNotEmpty()) {
+                        SavedCard(
+                            "Uploaded",
+                            pluralize(library.uploaded.size, "song"),
+                            art = { size -> GradientTile("cloud", size, UploadedGradient, RoundedCornerShape(8.dp)) },
+                            onClick = { navigator.navigate(Screen.Uploaded) },
+                            onPlay = { PlayerController.playSongs(library.uploaded, 0, "Uploaded") },
+                        )
                     }
                     // The phone's AI DJ Mix sits with the auto playlists, though it opens a builder, not songs.
                     SavedCard(

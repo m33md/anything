@@ -259,6 +259,18 @@ fun PlayerStage(
                     slot = if (v2) PlayerIconSlot.V2_LYRICS else null,
                 )
                 Spacer(Modifier.width(8.dp))
+                // Comments are YouTube's, so a file on this PC has none to show.
+                if (settings.showCommentButton && song != null && !com.convx.desktop.player.LocalMusic.isLocal(song.id)) {
+                    IconButton(
+                        "chat_msg",
+                        { UiState.fullPlayerMode = if (mode == FullPlayerMode.Comments) FullPlayerMode.Artwork else FullPlayerMode.Comments },
+                        size = 40.dp,
+                        iconSize = 20.dp,
+                        filled = mode == FullPlayerMode.Comments,
+                        tooltip = "Comments",
+                    )
+                    Spacer(Modifier.width(8.dp))
+                }
                 IconButton(
                     "apple_queue",
                     { UiState.fullPlayerMode = if (mode == FullPlayerMode.Queue) FullPlayerMode.Artwork else FullPlayerMode.Queue },
@@ -354,6 +366,10 @@ fun PlayerStage(
                                                         UiState.fullPlayer = false
                                                         navigator.navigate(Screen.Party)
                                                     }
+                                                    MenuItem("Ambient mode", "fullscreen") {
+                                                        dismiss()
+                                                        Ambient.on = true
+                                                    }
                                                     MenuItem("Player design", "palette") {
                                                         dismiss()
                                                         UiState.fullPlayer = false
@@ -407,6 +423,11 @@ fun PlayerStage(
                                 FullPlayerMode.Queue -> Column(Modifier.fillMaxSize().padding(vertical = 12.dp)) {
                                     QueueModes(state, settings)
                                     QueueList(state, Modifier.fillMaxWidth().weight(1f), onDark = true)
+                                }
+                                FullPlayerMode.Comments -> if (song != null) {
+                                    CommentsPanel(song.id, Modifier.fillMaxSize().widthIn(max = 760.dp).padding(vertical = 12.dp))
+                                } else {
+                                    Spacer(Modifier.fillMaxSize())
                                 }
                                 FullPlayerMode.Artwork -> Spacer(Modifier.fillMaxSize())
                             }
