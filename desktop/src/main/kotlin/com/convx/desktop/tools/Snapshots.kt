@@ -246,6 +246,9 @@ fun main(args: Array<String>) {
                 UiState.fullPlayerMode = FullPlayerMode.Lyrics
                 UiState.fullPlayer = true
             }
+            // The phone's full-screen lyrics, with the controls folded into a bar along the top.
+            shoot("12b-full-player-lyrics-fullscreen", seconds = 3) { UiState.lyricsFullscreen = true }
+            UiState.lyricsFullscreen = false
             shoot("13-full-player-queue", seconds = 4) { UiState.fullPlayerMode = FullPlayerMode.Queue }
             // The phone's other player designs, each with one of its backgrounds and seek bars.
             fun design(transform: (com.convx.desktop.data.Settings) -> com.convx.desktop.data.Settings) = AppSettings.update(transform)

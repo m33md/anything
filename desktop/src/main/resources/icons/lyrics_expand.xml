@@ -1,0 +1,13 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+  <!-- SF Symbols' arrow.up.left.and.arrow.down.right, which the phone's full-screen lyrics button draws. -->
+  <path
+      android:strokeColor="#FFFFFFFF"
+      android:strokeWidth="2"
+      android:strokeLineCap="round"
+      android:strokeLineJoin="round"
+      android:pathData="M4,10.5L4,4L10.5,4M4,4L10.5,10.5M20,13.5L20,20L13.5,20M20,20L13.5,13.5" />
+</vector>

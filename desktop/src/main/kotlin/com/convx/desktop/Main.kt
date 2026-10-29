@@ -55,6 +55,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import com.convx.desktop.ui.shell.UiState
+import com.convx.desktop.ui.shell.FullPlayerMode
 import com.convx.desktop.ui.shell.WindowTitleBar
 import com.sun.jna.Library as JnaLibrary
 import com.sun.jna.Native
@@ -195,6 +196,13 @@ private fun shortcut(event: KeyEvent, navigator: Navigator): Boolean {
     if (event.type != KeyEventType.KeyDown) return false
     val ctrl = event.isCtrlPressed
     return when {
+        // Esc steps back out of full-screen lyrics first: to the lyrics beside the cover, or with
+        // one-tap on (where that middle step isn't used) to the cover.
+        event.key == Key.Escape && UiState.fullPlayer && UiState.lyricsFullscreen && UiState.fullPlayerMode == FullPlayerMode.Lyrics -> {
+            UiState.lyricsFullscreen = false
+            if (AppSettings.value.oneTapFullscreenLyrics) UiState.fullPlayerMode = FullPlayerMode.Artwork
+            true
+        }
         event.key == Key.Escape && UiState.fullPlayer -> {
             UiState.fullPlayer = false
             true

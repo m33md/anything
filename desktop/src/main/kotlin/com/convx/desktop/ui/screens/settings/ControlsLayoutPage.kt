@@ -112,6 +112,14 @@ fun ControlsLayoutSettings() {
             icon = "play",
             tint = SystemColors.Pink,
         ) { on -> AppSettings.update { it.copy(lyricsArtworkPlayPause = on) } }
+        RowDivider()
+        SwitchRow(
+            "Collapse controls upward",
+            "In full-screen lyrics, the player's controls fold into a bar along the top. Off, they go away entirely",
+            settings.fullscreenLyricsCollapseTop,
+            icon = "lyrics_expand",
+            tint = SystemColors.Pink,
+        ) { on -> AppSettings.update { it.copy(fullscreenLyricsCollapseTop = on) } }
     }
     SectionGap()
     SettingsSection("Other") {
@@ -195,7 +203,7 @@ fun ControlsLayoutSettings() {
     InfoNote(
         "Not on the PC: Pure Black and the background and text colours (Convx stays red on black), iOS overscroll, " +
             "the mini bar tab style and nav bar melt (there's no phone navigation bar), the comments button (no YouTube " +
-            "comments on the PC yet), collapse controls upward (no full-screen lyrics yet), and the top bar blur style " +
+            "comments on the PC yet), and the top bar blur style " +
             "(the PC's top bar is glass buttons, not a blurred band).",
     )
 }

@@ -338,6 +338,10 @@ data class Settings(
     val showAudioQualityBadge: Boolean = true,
     /** With lyrics open, clicking the cover beside them plays and pauses. */
     val lyricsArtworkPlayPause: Boolean = false,
+    /** The lyrics button opens and closes full-screen lyrics in one click, as the phone's one-tap setting. */
+    val oneTapFullscreenLyrics: Boolean = false,
+    /** Full-screen lyrics keep a compact player bar at the top; off, the controls go away entirely. */
+    val fullscreenLyricsCollapseTop: Boolean = true,
     /** The account button opens a quick popup instead of going straight to Settings. */
     val settingsPopup: Boolean = false,
     /**

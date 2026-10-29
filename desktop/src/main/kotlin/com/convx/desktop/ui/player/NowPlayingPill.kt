@@ -40,6 +40,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.convx.desktop.data.AppSettings
 import com.convx.desktop.data.Library
 import com.convx.desktop.data.RepeatMode
 import com.convx.desktop.player.PlayerController
@@ -189,6 +190,7 @@ fun NowPlayingPill(modifier: Modifier = Modifier) {
             ) { Library.toggleLike(song) }
             GlassGlyph("flamingo_lyrics", "Lyrics", controlSize, iconSize * 1.18f, TransportTint, bounce = true) {
                 UiState.fullPlayerMode = FullPlayerMode.Lyrics
+                UiState.lyricsFullscreen = AppSettings.value.oneTapFullscreenLyrics
                 UiState.fullPlayer = true
             }
             GlassGlyph("flamingo_queue", "Queue", controlSize, iconSize, TransportTint, bounce = true) {

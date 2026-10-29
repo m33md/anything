@@ -69,6 +69,23 @@ object UiState {
     var fullPlayer by mutableStateOf(false)
     var fullPlayerMode by mutableStateOf(FullPlayerMode.Lyrics)
 
+    /** Lyrics across the whole player, the phone's full-screen lyrics; only while the lyrics are open. */
+    var lyricsFullscreen by mutableStateOf(false)
+
+    /**
+     * The lyrics button: opens the lyrics, or with one-tap on opens them full screen; pressed with
+     * them open, it goes back to the cover.
+     */
+    fun toggleLyrics(oneTap: Boolean) {
+        if (fullPlayerMode == FullPlayerMode.Lyrics) {
+            fullPlayerMode = FullPlayerMode.Artwork
+            lyricsFullscreen = false
+        } else {
+            fullPlayerMode = FullPlayerMode.Lyrics
+            lyricsFullscreen = oneTap
+        }
+    }
+
     /** Focus target for the top bar's search field (Ctrl+L / Ctrl+K). */
     val searchFocus = FocusRequester()
 

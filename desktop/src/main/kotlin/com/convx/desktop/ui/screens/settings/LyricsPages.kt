@@ -177,6 +177,12 @@ fun LyricsStyleSettings() {
             "Swipe left or right with two fingers on the song name in full-screen lyrics to change the song",
             settings.lyricsSwipeToChange,
         ) { v -> AppSettings.update { it.copy(lyricsSwipeToChange = v) } }
+        RowDivider(PlainInset)
+        SwitchRow(
+            "One-tap full-screen lyrics",
+            "The lyrics button opens and closes full-screen lyrics in one click. Off uses the classic two steps: open the lyrics, then the expand button for full screen",
+            settings.oneTapFullscreenLyrics,
+        ) { v -> AppSettings.update { it.copy(oneTapFullscreenLyrics = v) } }
     }
 }
 

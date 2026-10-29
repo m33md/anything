@@ -11,6 +11,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import kotlin.math.abs
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -40,10 +42,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -52,6 +57,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -174,6 +180,10 @@ fun PlayerStage(
     val apple = !design.classic
     val background = settings.effectiveBackground()
     val split = mode != FullPlayerMode.Artwork
+    // The phone's full-screen lyrics: the lyrics take the whole player, under a compact bar or alone.
+    val fullscreen = mode == FullPlayerMode.Lyrics && UiState.lyricsFullscreen && !preview
+    val away by animateFloatAsState(if (fullscreen) 1f else 0f, tween(420, easing = FastOutSlowInEasing))
+    if (!preview) DisposableEffect(Unit) { onDispose { UiState.lyricsFullscreen = false } }
 
     Box(
         modifier
@@ -193,7 +203,7 @@ fun PlayerStage(
                 val side = if (split) min(maxHeight.value * 0.82f, leftWidth.value + 160f).dp else min(maxWidth.value, maxHeight.value * 0.82f).dp
                 HeroCover(
                     song?.thumbnail,
-                    Modifier.align(if (split) Alignment.TopStart else Alignment.TopCenter).size(side),
+                    Modifier.align(if (split) Alignment.TopStart else Alignment.TopCenter).size(side).graphicsLayer { alpha = 1f - away },
                     fadeEnd = split,
                     fadeSides = !split && side < maxWidth,
                     hidden = settings.hidePlayerArtwork,
@@ -223,12 +233,25 @@ fun PlayerStage(
                 Spacer(Modifier.weight(1f))
                 // The phone's lyrics menu sits by the lyrics while they're open.
                 if (mode == FullPlayerMode.Lyrics && !preview) {
+                    IconButton(
+                        if (fullscreen) "lyrics_collapse" else "lyrics_expand",
+                        {
+                            UiState.lyricsFullscreen = !UiState.lyricsFullscreen
+                            // One-tap: leaving full screen from here closes the lyrics, as on the phone.
+                            if (settings.oneTapFullscreenLyrics && !UiState.lyricsFullscreen) UiState.fullPlayerMode = FullPlayerMode.Artwork
+                        },
+                        size = 40.dp,
+                        iconSize = 18.dp,
+                        filled = fullscreen,
+                        tooltip = if (fullscreen) "Exit full-screen lyrics" else "Full-screen lyrics",
+                    )
+                    Spacer(Modifier.width(8.dp))
                     LyricsMenuButton(song)
                     Spacer(Modifier.width(8.dp))
                 }
                 IconButton(
                     if (mode == FullPlayerMode.Lyrics) "lyrics_active" else "lyrics",
-                    { UiState.fullPlayerMode = if (mode == FullPlayerMode.Lyrics) FullPlayerMode.Artwork else FullPlayerMode.Lyrics },
+                    { UiState.toggleLyrics(settings.oneTapFullscreenLyrics) },
                     size = 40.dp,
                     iconSize = 22.dp,
                     filled = mode == FullPlayerMode.Lyrics,
@@ -247,119 +270,132 @@ fun PlayerStage(
                 )
             }
 
+            AnimatedVisibility(
+                fullscreen && settings.fullscreenLyricsCollapseTop,
+                enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+                exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
+            ) {
+                LyricsControlBar(state, settings, Modifier.padding(top = 14.dp))
+            }
+
             BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
                 val leftWidth = if (split) min(maxWidth.value * 0.42f, 560f).dp else min(maxWidth.value, 620f).dp
                 // Room for the title, seek bar, controls and the optional rows under the cover.
                 val below = 300f + (if (settings.showVolumeBar) 0f else -40f) + (if (settings.showUpNext && state.upNext.isNotEmpty()) 56f else 0f)
                 val artSize = min(leftWidth.value - 20f, maxHeight.value - below).coerceAtLeast(160f).dp
                 Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = if (split) Arrangement.Start else Arrangement.Center) {
-                    Column(
-                        Modifier.width(leftWidth).fillMaxHeight(),
-                        verticalArrangement = if (hero) Arrangement.Bottom else Arrangement.Center,
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        if (!hero) {
-                            StageCover(
-                                song?.thumbnail,
-                                design,
-                                settings.artworkShadow,
-                                state.isPlaying || state.isLoading,
-                                artSize,
-                                still = preview,
-                                corner = settings.playerArtworkCorner.takeIf { it >= 0 }?.dp,
-                                hidden = settings.hidePlayerArtwork,
-                                onToggle = if (mode == FullPlayerMode.Lyrics && settings.lyricsArtworkPlayPause && !preview && song != null) {
-                                    { PlayerController.togglePlay() }
-                                } else {
-                                    null
-                                },
-                            )
-                            Spacer(Modifier.height(28.dp))
-                        }
-                        Column(Modifier.width(artSize.coerceAtLeast(360.dp))) {
-                            if (song != null) {
-                                val liked = library.liked.any { it.song.id == song.id }
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Column(Modifier.weight(1f).swipeToChangeSong(settings.lyricsSwipeToChange && mode == FullPlayerMode.Lyrics)) {
-                                        // Apple Music v2 sets title and artist at one size, semibold over regular;
-                                        // the other designs have a bold title over a smaller artist line.
-                                        val line = if (v2) ConvxType.Headline.copy(fontSize = 21.sp, lineHeight = 27.sp) else ConvxType.Title2.copy(fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.Bold)
-                                        val artistLine = if (v2) line.copy(color = Color.White.copy(alpha = 0.6f), fontWeight = FontWeight.Normal)
-                                            else ConvxType.Body.copy(fontSize = 16.sp, lineHeight = 21.sp, color = Color.White.copy(alpha = 0.7f))
-                                        Text(song.title, style = line, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        ArtistLinks(song, artistLine)
-                                    }
-                                    // Apple Music v2's heart and more glyphs carry their own faint disc, 28dp in a
-                                    // 40dp button; the other designs set theirs on a glass disc.
-                                    val likeSlot = when {
-                                        v2 && liked -> PlayerIconSlot.V2_LIKED
-                                        v2 -> PlayerIconSlot.V2_LIKE
-                                        liked -> PlayerIconSlot.LIKED
-                                        else -> PlayerIconSlot.LIKE
-                                    }
-                                    val moreSlot = if (v2) PlayerIconSlot.V2_MORE else PlayerIconSlot.MORE
-                                    val actionSize = if (v2) 40.dp else 38.dp
-                                    val actionIcon = if (v2) 28.dp else 22.dp
-                                    IconButton(
-                                        likeSlot.fallback,
-                                        { Library.toggleLike(song) },
-                                        size = actionSize,
-                                        iconSize = actionIcon,
-                                        filled = !v2,
-                                        tooltip = if (liked) "Remove from Liked Songs" else "Add to Liked Songs",
-                                        slot = likeSlot,
-                                    )
-                                    Spacer(Modifier.width(if (v2) 4.dp else 8.dp))
-                                    Box {
-                                        IconButton(moreSlot.fallback, { menu.expanded = true }, size = actionSize, iconSize = actionIcon, filled = !v2, tooltip = "More options", slot = moreSlot)
-                                        AppMenu(menu) {
-                                            SongMenuContent(song, { menu.expanded = false }) { dismiss ->
-                                                // The phone's player menu opens the party from here.
-                                                MenuItem("Listen together", "group") {
-                                                    dismiss()
-                                                    UiState.fullPlayer = false
-                                                    navigator.navigate(Screen.Party)
-                                                }
-                                                MenuItem("Player design", "palette") {
-                                                    dismiss()
-                                                    UiState.fullPlayer = false
-                                                    navigator.navigate(Screen.Settings)
-                                                    com.convx.desktop.ui.screens.settings.SettingsNav.push(com.convx.desktop.ui.screens.settings.SettingsPage.PlayerDesign)
+                    // Going full screen, the cover and controls slide out to the left at their own
+                    // width rather than squeezing, and the lyrics take the room.
+                    Box(Modifier.width(leftWidth * (1f - away)).fillMaxHeight().clipToBounds().graphicsLayer { alpha = 1f - away }) {
+                        if (away < 1f) Column(
+                            Modifier.wrapContentWidth(Alignment.End, unbounded = true).requiredWidth(leftWidth).fillMaxHeight(),
+                            verticalArrangement = if (hero) Arrangement.Bottom else Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            if (!hero) {
+                                StageCover(
+                                    song?.thumbnail,
+                                    design,
+                                    settings.artworkShadow,
+                                    state.isPlaying || state.isLoading,
+                                    artSize,
+                                    still = preview,
+                                    corner = settings.playerArtworkCorner.takeIf { it >= 0 }?.dp,
+                                    hidden = settings.hidePlayerArtwork,
+                                    onToggle = if (mode == FullPlayerMode.Lyrics && settings.lyricsArtworkPlayPause && !preview && song != null) {
+                                        { PlayerController.togglePlay() }
+                                    } else {
+                                        null
+                                    },
+                                )
+                                Spacer(Modifier.height(28.dp))
+                            }
+                            Column(Modifier.width(artSize.coerceAtLeast(360.dp))) {
+                                if (song != null) {
+                                    val liked = library.liked.any { it.song.id == song.id }
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Column(Modifier.weight(1f).swipeToChangeSong(settings.lyricsSwipeToChange && mode == FullPlayerMode.Lyrics)) {
+                                            // Apple Music v2 sets title and artist at one size, semibold over regular;
+                                            // the other designs have a bold title over a smaller artist line.
+                                            val line = if (v2) ConvxType.Headline.copy(fontSize = 21.sp, lineHeight = 27.sp) else ConvxType.Title2.copy(fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.Bold)
+                                            val artistLine = if (v2) line.copy(color = Color.White.copy(alpha = 0.6f), fontWeight = FontWeight.Normal)
+                                                else ConvxType.Body.copy(fontSize = 16.sp, lineHeight = 21.sp, color = Color.White.copy(alpha = 0.7f))
+                                            Text(song.title, style = line, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                            ArtistLinks(song, artistLine)
+                                        }
+                                        // Apple Music v2's heart and more glyphs carry their own faint disc, 28dp in a
+                                        // 40dp button; the other designs set theirs on a glass disc.
+                                        val likeSlot = when {
+                                            v2 && liked -> PlayerIconSlot.V2_LIKED
+                                            v2 -> PlayerIconSlot.V2_LIKE
+                                            liked -> PlayerIconSlot.LIKED
+                                            else -> PlayerIconSlot.LIKE
+                                        }
+                                        val moreSlot = if (v2) PlayerIconSlot.V2_MORE else PlayerIconSlot.MORE
+                                        val actionSize = if (v2) 40.dp else 38.dp
+                                        val actionIcon = if (v2) 28.dp else 22.dp
+                                        IconButton(
+                                            likeSlot.fallback,
+                                            { Library.toggleLike(song) },
+                                            size = actionSize,
+                                            iconSize = actionIcon,
+                                            filled = !v2,
+                                            tooltip = if (liked) "Remove from Liked Songs" else "Add to Liked Songs",
+                                            slot = likeSlot,
+                                        )
+                                        Spacer(Modifier.width(if (v2) 4.dp else 8.dp))
+                                        Box {
+                                            IconButton(moreSlot.fallback, { menu.expanded = true }, size = actionSize, iconSize = actionIcon, filled = !v2, tooltip = "More options", slot = moreSlot)
+                                            AppMenu(menu) {
+                                                SongMenuContent(song, { menu.expanded = false }) { dismiss ->
+                                                    // The phone's player menu opens the party from here.
+                                                    MenuItem("Listen together", "group") {
+                                                        dismiss()
+                                                        UiState.fullPlayer = false
+                                                        navigator.navigate(Screen.Party)
+                                                    }
+                                                    MenuItem("Player design", "palette") {
+                                                        dismiss()
+                                                        UiState.fullPlayer = false
+                                                        navigator.navigate(Screen.Settings)
+                                                        com.convx.desktop.ui.screens.settings.SettingsNav.push(com.convx.desktop.ui.screens.settings.SettingsPage.PlayerDesign)
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 }
-                            }
-                            Spacer(Modifier.height(14.dp))
-                            ProgressRow(
-                                state,
-                                if (apple) null else settings.seekBarStyle,
-                                labelColor = Color.White.copy(alpha = 0.6f),
-                                labelsBelow = true,
-                                showQuality = settings.showAudioQualityBadge,
-                            )
-                            Spacer(Modifier.height(if (v2) 12.dp else 8.dp))
-                            TransportControls(state, compact = false, modifier = Modifier.align(Alignment.CenterHorizontally), v2 = v2)
-                            if (settings.showVolumeBar) {
-                                Spacer(Modifier.height(10.dp))
-                                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                    VolumeControl(state, sliderWidth = 220.dp, slot = if (v2) PlayerIconSlot.V2_VOLUME_DOWN else null)
-                                }
-                            }
-                            val next = state.upNext.firstOrNull()
-                            if (settings.showUpNext && next != null) {
                                 Spacer(Modifier.height(14.dp))
-                                UpNextRow(next.title, onClick = { UiState.fullPlayerMode = FullPlayerMode.Queue })
+                                ProgressRow(
+                                    state,
+                                    if (apple) null else settings.seekBarStyle,
+                                    labelColor = Color.White.copy(alpha = 0.6f),
+                                    labelsBelow = true,
+                                    showQuality = settings.showAudioQualityBadge,
+                                )
+                                Spacer(Modifier.height(if (v2) 12.dp else 8.dp))
+                                TransportControls(state, compact = false, modifier = Modifier.align(Alignment.CenterHorizontally), v2 = v2)
+                                if (settings.showVolumeBar) {
+                                    Spacer(Modifier.height(10.dp))
+                                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                        VolumeControl(state, sliderWidth = 220.dp, slot = if (v2) PlayerIconSlot.V2_VOLUME_DOWN else null)
+                                    }
+                                }
+                                val next = state.upNext.firstOrNull()
+                                if (settings.showUpNext && next != null) {
+                                    Spacer(Modifier.height(14.dp))
+                                    UpNextRow(next.title, onClick = { UiState.fullPlayerMode = FullPlayerMode.Queue })
+                                }
+                                if (hero) Spacer(Modifier.height(24.dp))
                             }
-                            if (hero) Spacer(Modifier.height(24.dp))
                         }
                     }
                     if (split && !preview) {
-                        Spacer(Modifier.width(40.dp))
+                        Spacer(Modifier.width(40.dp * (1f - away)))
                         AnimatedContent(
                             targetState = mode,
                             transitionSpec = { fadeIn(tween(250)) togetherWith fadeOut(tween(150)) },
+                            contentAlignment = Alignment.TopCenter,
                             modifier = Modifier.weight(1f).fillMaxHeight(),
                         ) { m ->
                             when (m) {
@@ -461,6 +497,34 @@ private fun BoxScope.CoverPlayPause(playing: Boolean) {
     Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = dim)))
     AnimatedVisibility(!playing, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.Center)) {
         ConvxIcon("play_applemusic", tint = Color.White, size = 64.dp)
+    }
+}
+
+/**
+ * Full-screen lyrics' compact player along the top, where the phone collapses its controls: the
+ * song on the left, the transport, and the seek bar with its times.
+ */
+@Composable
+private fun LyricsControlBar(state: PlayerState, settings: Settings, modifier: Modifier = Modifier) {
+    val song = state.current ?: return
+    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        val art = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp))
+        if (settings.hidePlayerArtwork) HiddenArtwork(art, markSize = 24.dp)
+        else Artwork(song.thumbnail, art, size = 200, shape = RoundedCornerShape(8.dp), iconSize = 20.dp)
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f).swipeToChangeSong(settings.lyricsSwipeToChange)) {
+            Text(song.title, style = ConvxType.Headline, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            ArtistLinks(song, ConvxType.Subhead.copy(color = Color.White.copy(alpha = 0.7f)))
+        }
+        Spacer(Modifier.width(16.dp))
+        TransportControls(state, compact = true, v2 = settings.playerDesign == PlayerDesign.AppleMusicV2)
+        Spacer(Modifier.width(20.dp))
+        ProgressRow(
+            state,
+            if (settings.playerDesign.classic) settings.seekBarStyle else null,
+            Modifier.weight(1f),
+            labelColor = Color.White.copy(alpha = 0.6f),
+        )
     }
 }
 
