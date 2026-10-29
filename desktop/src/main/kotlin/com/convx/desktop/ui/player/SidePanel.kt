@@ -129,6 +129,7 @@ fun RightPanel(panel: SidePanel, modifier: Modifier = Modifier) {
                 }
             }
             Spacer(Modifier.width(6.dp))
+            if (panel == SidePanel.Lyrics) LyricsMenuButton(state.current, size = 32.dp, iconSize = 18.dp, filled = false)
             IconButton("close", { UiState.closeSidePanel() }, size = 32.dp, iconSize = 18.dp, tooltip = "Close")
         }
         Crossfade(panel, modifier = Modifier.weight(1f)) { p ->

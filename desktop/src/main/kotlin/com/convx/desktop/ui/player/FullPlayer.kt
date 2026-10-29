@@ -216,6 +216,11 @@ fun PlayerStage(
                     }
                 }
                 Spacer(Modifier.weight(1f))
+                // The phone's lyrics menu sits by the lyrics while they're open.
+                if (mode == FullPlayerMode.Lyrics && !preview) {
+                    LyricsMenuButton(song)
+                    Spacer(Modifier.width(8.dp))
+                }
                 IconButton(
                     if (mode == FullPlayerMode.Lyrics) "lyrics_active" else "lyrics",
                     { UiState.fullPlayerMode = if (mode == FullPlayerMode.Lyrics) FullPlayerMode.Artwork else FullPlayerMode.Lyrics },

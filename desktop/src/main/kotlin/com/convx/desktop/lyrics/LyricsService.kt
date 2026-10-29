@@ -30,10 +30,15 @@ import com.music.innertube.YouTube
 import com.music.innertube.models.WatchEndpoint
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -135,7 +140,19 @@ object LyricsService {
     /** A song that found nothing is asked again after this long, in case the network was down. */
     private const val MissingRetryMs = 90_000L
 
-    private class Entry(val state: MutableStateFlow<LyricsState>, var missingAt: Long = 0L)
+    /** One source's answer for one song, as the lyrics menu's source list shows it. */
+    sealed interface SourceResult {
+        data object Asking : SourceResult
+        data class Found(val lyrics: Lyrics) : SourceResult
+        data object NotFound : SourceResult
+        data object Failed : SourceResult
+    }
+
+    private class Entry(val state: MutableStateFlow<LyricsState>, var missingAt: Long = 0L) {
+        /** Every source's answer so far, by id; a source cut short once a better one won is left out. */
+        val results = MutableStateFlow<Map<String, SourceResult>>(emptyMap())
+        var job: Job? = null
+    }
 
     private val entries = object : LinkedHashMap<String, Entry>(64, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Entry>) = size > 120
@@ -155,50 +172,109 @@ object LyricsService {
             System.currentTimeMillis() - existing.missingAt > MissingRetryMs
         if (existing != null && !stale) return existing
         val entry = existing ?: Entry(MutableStateFlow(LyricsState.Loading)).also { entries[song.id] = it }
+        start(song, entry)
+        entry
+    }
+
+    /** Shows the lyrics kept for [song] from the lyrics menu, or starts asking the sources. */
+    private fun start(song: Song, entry: Entry) {
+        entry.job?.cancel()
+        val kept = LyricsTweaks.of(song.id)
+        if (kept.lyrics != null) {
+            entry.state.value = LyricsState.Ready(Lyrics(parseLyricsText(kept.lyrics), kept.source ?: "You"), final = true)
+            return
+        }
         entry.state.value = LyricsState.Loading
-        AppScope.launch(Dispatchers.IO) {
-            val result = runCatching { fetch(song, entry.state) }
+        entry.job = AppScope.launch(Dispatchers.IO) {
+            val result = runCatching { fetch(song, entry) }
                 .onFailure { if (it is CancellationException) throw it else Log.w(Tag, "Lookup failed for ${song.id}", it) }
                 .getOrNull()
             if (result == null) entry.missingAt = System.currentTimeMillis()
             entry.state.value = result?.let { LyricsState.Ready(it, final = true) } ?: LyricsState.Missing
         }
-        entry
     }
 
-    private suspend fun fetch(song: Song, out: MutableStateFlow<LyricsState>): Lyrics? = coroutineScope {
-        val query = Query(
-            song = song,
-            title = song.title.forLyricsSearch(),
-            artist = (song.artists.firstOrNull()?.name ?: "").artistForLyricsSearch(),
-            album = song.album?.name,
-            durationMs = (song.duration ?: 0) * 1000L,
-        )
+    /** What each source answered for [song], for the lyrics menu. */
+    fun results(song: Song): StateFlow<Map<String, SourceResult>> = entry(song).results
+
+    /** The phone's Refetch: forgets lyrics kept for [song] and asks every source again. */
+    fun refetch(song: Song) {
+        LyricsTweaks.update(song.id) { it.copy(lyrics = null, source = null) }
+        val entry = entry(song)
+        entry.results.value = emptyMap()
+        start(song, entry)
+    }
+
+    /** Shows [lyrics] for [song] from now on, as the phone keeps an edit or a chosen result. */
+    fun use(song: Song, lyrics: Lyrics) {
+        LyricsTweaks.update(song.id) { it.copy(lyrics = lyrics.lines.toLyricsText(), source = lyrics.source) }
+        val entry = entry(song)
+        entry.job?.cancel()
+        entry.state.value = LyricsState.Ready(lyrics, final = true)
+    }
+
+    /** Asks one source for [song], as tapping a source the lookup didn't reach does on the phone. */
+    suspend fun ask(song: Song, id: String): Lyrics? {
+        val source = all[id] ?: return null
+        val entry = entry(song)
+        entry.results.update { it + (id to SourceResult.Asking) }
+        val answer = answer(source, query(song))
+        entry.results.update { it + (id to answer) }
+        return (answer as? SourceResult.Found)?.lyrics
+    }
+
+    /**
+     * The phone's Search lyrics: every source switched on asked for [title] by [artist] as typed,
+     * each answer as it lands.
+     */
+    fun search(song: Song, title: String, artist: String): Flow<Lyrics> = channelFlow {
+        val query = Query(song, title.trim(), artist.trim(), song.album?.name, (song.duration ?: 0) * 1000L)
+        for (source in sources()) {
+            launch { (answer(source, query) as? SourceResult.Found)?.let { send(it.lyrics) } }
+        }
+    }.flowOn(Dispatchers.IO)
+
+    private fun query(song: Song) = Query(
+        song = song,
+        title = song.title.forLyricsSearch(),
+        artist = (song.artists.firstOrNull()?.name ?: "").artistForLyricsSearch(),
+        album = song.album?.name,
+        durationMs = (song.duration ?: 0) * 1000L,
+    )
+
+    private suspend fun answer(source: Source, query: Query): SourceResult {
+        val lines = try {
+            withTimeoutOrNull(PerSourceTimeoutMs) { source.fetch(query) ?: emptyList() } ?: return SourceResult.Failed
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return SourceResult.Failed
+        }
+        return lines.takeIf { l -> l.any { it.text.isNotBlank() } }
+            ?.let { SourceResult.Found(Lyrics(it.sortedBy { line -> line.timeMs }, source.name)) }
+            ?: SourceResult.NotFound
+    }
+
+    private suspend fun fetch(song: Song, entry: Entry): Lyrics? = coroutineScope {
+        val query = query(song)
         val sources = sources()
         if (sources.isEmpty()) return@coroutineScope null
+        val out = entry.state
+        entry.results.value = sources.associate { it.id to SourceResult.Asking }
         val started = System.nanoTime()
-        val answers = Channel<Pair<Int, Lyrics?>>(Channel.UNLIMITED)
+        val answers = Channel<Pair<Int, SourceResult>>(Channel.UNLIMITED)
         val jobs = sources.mapIndexed { index, source ->
-            launch {
-                val lines = try {
-                    withTimeoutOrNull(PerSourceTimeoutMs) { source.fetch(query) }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    null
-                }
-                val lyrics = lines?.takeIf { l -> l.any { it.text.isNotBlank() } }
-                    ?.let { Lyrics(it.sortedBy { line -> line.timeMs }, source.name) }
-                answers.send(index to lyrics)
-            }
+            launch { answers.send(index to answer(source, query)) }
         }
 
         var best: Pair<Int, Lyrics>? = null
         val answered = BooleanArray(sources.size)
         try {
             repeat(sources.size) {
-                val (index, lyrics) = answers.receive()
+                val (index, result) = answers.receive()
                 answered[index] = true
+                entry.results.update { it + (sources[index].id to result) }
+                val lyrics = (result as? SourceResult.Found)?.lyrics
                 val ms = (System.nanoTime() - started) / 1_000_000
                 Log.i(Tag, "${sources[index].name}: ${lyrics?.let { listOf("plain", "lines", "words")[it.syncLevel] } ?: "nothing"} after $ms ms")
                 val current = best
@@ -216,6 +292,8 @@ object LyricsService {
         } finally {
             jobs.forEach { it.cancel() }
             answers.cancel()
+            // Sources cut short never answered; the menu offers to ask them.
+            entry.results.update { results -> results.filterValues { it != SourceResult.Asking } }
         }
     }
 

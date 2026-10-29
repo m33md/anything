@@ -66,6 +66,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
@@ -102,6 +103,9 @@ import com.convx.desktop.lyrics.Lyrics
 import com.convx.desktop.lyrics.LyricsService
 import com.convx.desktop.lyrics.Romanizer
 import com.convx.desktop.lyrics.LyricsState
+import com.convx.desktop.lyrics.LyricsTranslator
+import com.convx.desktop.lyrics.LyricsTweaks
+import com.convx.desktop.lyrics.SongLyricsTweaks
 import com.convx.desktop.player.PlayerController
 import com.convx.desktop.ui.components.LoadingState
 import com.convx.desktop.ui.shell.fadingEdge
@@ -161,6 +165,11 @@ fun LyricsView(
     val state by remember(song?.id) { song?.let(LyricsService::state) ?: MutableStateFlow<LyricsState>(LyricsState.Missing) }
         .collectAsState()
     val settings by AppSettings.state.collectAsState()
+    val tweaks = LyricsTweaks.state.collectAsState().value.songs[song?.id]
+    // The song's lyrics offset moves the playhead the lines are matched against, as on the phone.
+    val currentClock by rememberUpdatedState(clock)
+    val offset = rememberUpdatedState((tweaks?.offsetMs ?: 0).toLong())
+    val shifted = remember { { currentClock() + offset.value } }
     val family = rememberLyricsFont(settings.lyricsFont)
     // The chosen size is the full player's; smaller callers (the side panel) keep their proportion.
     val size = settings.lyricsTextSize * (style.fontSize.value / ConvxType.Lyrics.fontSize.value)
@@ -187,39 +196,97 @@ fun LyricsView(
             }
             // A better source landing later (word timing after line timing) cross-fades in.
             is LyricsState.Ready -> {
-                val romanized = rememberRomanized(s.lyrics, settings)
+                val romanized = rememberRomanized(s.lyrics, settings, enabled = tweaks?.romanize != false)
+                val translations = rememberTranslations(song, s.lyrics, settings, tweaks)
                 Crossfade(s.lyrics to settings.lyricsStyle, animationSpec = tween(300)) { (found, chosen) ->
                     // Romanized lines go under the originals, or, as the phone's "as main", over them.
                     val roman = romanized?.takeIf { it.first === found }?.second
-                    val (lyrics, subs) = remember(found, roman, settings.lyricsRomanizeAsMain) {
-                        when {
+                    val translated = translations?.takeIf { it.first === found }?.second
+                    val (lyrics, subs) = remember(found, roman, translated, settings.lyricsRomanizeAsMain) {
+                        val (shown, romanSubs) = when {
                             roman == null -> found to emptyList()
                             settings.lyricsRomanizeAsMain -> found.romanizedAsMain(roman)
                             else -> found to roman
                         }
+                        shown to shown.lines.indices.map { i ->
+                            val r = romanSubs.getOrNull(i)
+                            val t = translated?.getOrNull(i)
+                            if (r == null && t == null) null else LineSubs(r, t)
+                        }
                     }
                     when {
-                        chosen == LyricsStyle.Flamingo && lyrics.synced -> FlamingoLyrics(lyrics, subs, textStyle, settings, horizontalPadding, clock)
+                        chosen == LyricsStyle.Flamingo && lyrics.synced -> FlamingoLyrics(lyrics, subs, textStyle, settings, horizontalPadding, shifted)
                         chosen == LyricsStyle.Flamingo -> PlainLyrics(lyrics, subs, textStyle, horizontalPadding)
                         // Accompanist only earns its cost with word timing; without, the list does the same.
                         chosen == LyricsStyle.KaraokeApple && lyrics.wordSynced && settings.lyricsWordSync ->
-                            KaraokeAppleLyrics(lyrics, textStyle, settings, horizontalPadding, clock)
-                        else -> StyledLyrics(lyrics, subs, chosen, textStyle, settings, horizontalPadding, clock)
+                            KaraokeAppleLyrics(lyrics, translated, textStyle, settings, horizontalPadding, shifted)
+                        else -> StyledLyrics(lyrics, subs, chosen, textStyle, settings, horizontalPadding, shifted)
                     }
                 }
             }
+        }
+        if (song != null) TranslationStatus(song, Modifier.align(Alignment.TopCenter).padding(top = 8.dp))
+    }
+}
+
+/** Each line's translation for [lyrics]: arriving, or kept for the language and mode in Settings. */
+@Composable
+private fun rememberTranslations(song: Song?, lyrics: Lyrics, settings: Settings, tweaks: SongLyricsTweaks?): Pair<Lyrics, List<String?>>? {
+    val partial by LyricsTranslator.partial.collectAsState()
+    return remember(song?.id, lyrics, partial, tweaks?.translation, settings.translateLanguage, settings.translateMode) {
+        if (song == null) return@remember null
+        val arriving = partial?.takeIf { it.songId == song.id && it.key == LyricsTranslator.key(lyrics) }
+        val lines = arriving?.lines ?: LyricsTranslator.saved(song.id, lyrics, settings)?.lines ?: return@remember null
+        lyrics to LyricsTranslator.align(lyrics, lines)
+    }
+}
+
+/**
+ * The phone's translation chip over the lyrics: translating with a spinner, done with a tick,
+ * or what went wrong, which a click puts away.
+ */
+@Composable
+private fun TranslationStatus(song: Song, modifier: Modifier = Modifier) {
+    val status by LyricsTranslator.status.collectAsState()
+    val playing by PlayerController.state.collectAsState()
+    val shown = status.takeIf { it != LyricsTranslator.Status.Idle && playing.current?.id == song.id }
+    AnimatedVisibility(shown != null, modifier, enter = fadeIn() + scaleIn(initialScale = 0.9f), exit = fadeOut() + scaleOut(targetScale = 0.9f)) {
+        // Keeps showing the last status while the chip fades out.
+        val last = remember { arrayOf<LyricsTranslator.Status>(LyricsTranslator.Status.Translating) }
+        if (shown != null) last[0] = shown
+        val (text, icon) = when (val s = last[0]) {
+            is LyricsTranslator.Status.Error -> s.message to "error"
+            LyricsTranslator.Status.Success -> "Lyrics translated" to "check"
+            else -> "Translating lyrics..." to null
+        }
+        Row(
+            Modifier
+                .clip(CircleShape)
+                .background(if (last[0] is LyricsTranslator.Status.Error) Color(0xE6FF453A) else Color(0xCC2C2C2E))
+                .clickable { LyricsTranslator.dismiss() }
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (icon != null) {
+                com.convx.desktop.ui.components.ConvxIcon(icon, tint = Color.White, size = 16.dp)
+            } else {
+                androidx.compose.material3.CircularProgressIndicator(Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
+            }
+            Text(text, style = ConvxType.SubheadStrong, color = Color.White, maxLines = 2)
         }
     }
 }
 
 /** Each line's romanization for [lyrics], worked out off the UI thread; null while there's none. */
 @Composable
-private fun rememberRomanized(lyrics: Lyrics, settings: Settings): Pair<Lyrics, List<String?>>? {
+private fun rememberRomanized(lyrics: Lyrics, settings: Settings, enabled: Boolean): Pair<Lyrics, List<String?>>? {
     val off = settings.lyricsRomanizeOff
     val byLine = settings.lyricsRomanizeCyrillicByLine
-    val result by produceState<Pair<Lyrics, List<String?>>?>(null, lyrics, off, byLine) {
+    val result by produceState<Pair<Lyrics, List<String?>>?>(null, lyrics, off, byLine, enabled) {
         value = null
-        if (Romanizer.languages.all { it in off }) return@produceState
+        // "Romanize current track" off, or every language off.
+        if (!enabled || Romanizer.languages.all { it in off }) return@produceState
         value = runCatching { Romanizer.romanize(lyrics.lines.map { it.text }, off, byLine) }
             .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
             .getOrNull()
@@ -234,6 +301,39 @@ private fun Lyrics.romanizedAsMain(roman: List<String?>): Pair<Lyrics, List<Stri
     val swapped = lines.mapIndexed { i, line -> roman.getOrNull(i)?.let { line.copy(text = it, words = emptyList()) } ?: line }
     val originals = lines.mapIndexed { i, line -> if (roman.getOrNull(i) != null) line.text else null }
     return copy(lines = swapped) to originals
+}
+
+/** What goes under a lyric line: its romanization (or, as main, the original) and its translation. */
+internal data class LineSubs(val roman: String?, val translation: String?)
+
+@Composable
+internal fun SubLines(subs: LineSubs, style: TextStyle, textAlign: TextAlign, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        subs.roman?.let { SubLine(it, style, textAlign) }
+        subs.translation?.let { TranslationLine(it, style, textAlign) }
+    }
+}
+
+/** A line's translation, as the phone sets it: 0.7 of the lyric size, bold, 80% white. */
+@Composable
+internal fun TranslationLine(text: String, style: TextStyle, textAlign: TextAlign, modifier: Modifier = Modifier) {
+    val size = style.fontSize * 0.7f
+    val spacing = if (style.lineHeight.isSp && style.fontSize.isSp) (style.lineHeight.value / style.fontSize.value).coerceAtMost(1.3f) else 1.3f
+    Text(
+        text,
+        style = style.copy(
+            fontSize = size,
+            lineHeight = size * spacing,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = size * -0.012f,
+            brush = null,
+            shadow = null,
+            textAlign = textAlign,
+            lineHeightStyle = null,
+        ),
+        color = Color.White.copy(alpha = 0.8f),
+        modifier = modifier.fillMaxWidth().padding(top = 4.dp),
+    )
 }
 
 /** The romanized (or, as main, original) line under a lyric: the phone's 18 sp at its 34 sp, light, 60% white. */
@@ -324,7 +424,7 @@ internal fun rememberLiveClock(clock: () -> Long): LongState {
 }
 
 @Composable
-private fun FlamingoLyrics(lyrics: Lyrics, subs: List<String?>, style: TextStyle, settings: Settings, horizontalPadding: Dp, clock: () -> Long) {
+private fun FlamingoLyrics(lyrics: Lyrics, subs: List<LineSubs?>, style: TextStyle, settings: Settings, horizontalPadding: Dp, clock: () -> Long) {
     val wordSync = settings.lyricsWordSync
     val blur = settings.lyricsStandardBlur
     val glow = settings.lyricsGlow
@@ -455,7 +555,7 @@ private fun FlamingoLine(
     live: LongState,
     style: TextStyle,
     measurer: TextMeasurer,
-    sub: String?,
+    sub: LineSubs?,
 ) {
     val isCurrent by remember(index) { derivedStateOf { index in focused.value } }
     val otherSide = line.alignment == LyricAlignment.End
@@ -466,7 +566,7 @@ private fun FlamingoLine(
         if (isCurrent) TweenSpec(270, 110, YosEasing) else TweenSpec(300, 45, YosEasing),
     )
     val seek: () -> Unit = {
-        PlayerController.seekTo(line.timeMs)
+        LyricsTweaks.seek(line.timeMs)
         PlayerController.play()
     }
 
@@ -506,7 +606,7 @@ private fun LineBody(
     otherSide: Boolean,
     viewAlign: Alignment.Horizontal,
     seek: () -> Unit,
-    sub: String?,
+    sub: LineSubs?,
 ) {
     // Lines away from the current one soften with distance; off on the phone by default.
     val blurTarget = if (!blur || isCurrent) 0.dp else (abs(index - anchor.value) * 2.5f).coerceAtMost(8f).dp
@@ -572,7 +672,7 @@ private fun LineBody(
         }
         if (sub != null) {
             val subAlpha by animateFloatAsState(if (isCurrent) 1f else 0.4f, TweenSpec(350, 0, YosEasing))
-            SubLine(
+            SubLines(
                 sub,
                 style,
                 if (otherSide) TextAlign.End else TextAlign.Start,
@@ -873,7 +973,7 @@ private fun CountdownDots(progress: () -> Float) {
 
 /** Lyrics with no timing: every line lit, read at your own pace, as Flamingo shows them. */
 @Composable
-private fun PlainLyrics(lyrics: Lyrics, subs: List<String?>, style: TextStyle, horizontalPadding: Dp) {
+private fun PlainLyrics(lyrics: Lyrics, subs: List<LineSubs?>, style: TextStyle, horizontalPadding: Dp) {
     Column(
         Modifier
             .fillMaxSize()
@@ -885,7 +985,7 @@ private fun PlainLyrics(lyrics: Lyrics, subs: List<String?>, style: TextStyle, h
         lyrics.lines.forEachIndexed { index, line ->
             Column(Modifier.padding(horizontal = 30.dp, vertical = 13.dp)) {
                 Text(line.text, style = style, color = Focused)
-                subs.getOrNull(index)?.let { SubLine(it, style, TextAlign.Start) }
+                subs.getOrNull(index)?.let { SubLines(it, style, TextAlign.Start) }
             }
         }
         Text(

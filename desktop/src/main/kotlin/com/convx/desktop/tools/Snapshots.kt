@@ -236,6 +236,37 @@ fun main(args: Array<String>) {
             }
             lyrics(com.convx.desktop.data.LyricsStyle.Flamingo) { it.copy(lyricsFont = "default", lyricsTextSize = 34f) }
 
+            // The lyrics menu: a translation kept for the song (stand-in lines, as CI has no key),
+            // the menu from its button by the lyrics, the offset sheet, and a lyrics search.
+            val playing = songs.first()
+            val found = (com.convx.desktop.lyrics.LyricsService.state(playing).value as? com.convx.desktop.lyrics.LyricsState.Ready)?.lyrics
+            if (found != null) {
+                val count = found.lines.count { it.text.isNotBlank() }
+                com.convx.desktop.lyrics.LyricsTweaks.update(playing.id) {
+                    it.copy(translation = com.convx.desktop.lyrics.SavedTranslation(List(count) { i -> "Línea traducida ${i + 1}" }, "es", "Literal", com.convx.desktop.lyrics.LyricsTranslator.key(found)))
+                }
+                shoot("13l-lyrics-translated", seconds = 4) { AppSettings.update { it.copy(translateLanguage = "es") } }
+            }
+            shoot("13m-lyrics-menu", seconds = 3) {
+                val at = Offset(1284f, 40f)
+                scene.sendPointerEvent(PointerEventType.Move, at)
+                scene.sendPointerEvent(PointerEventType.Press, at, buttons = PointerButtons(isPrimaryPressed = true), button = PointerButton.Primary)
+                scene.sendPointerEvent(PointerEventType.Release, at, buttons = PointerButtons(), button = PointerButton.Primary)
+            }
+            Offset(700f, 40f).let { at ->
+                scene.sendPointerEvent(PointerEventType.Press, at, buttons = PointerButtons(isPrimaryPressed = true), button = PointerButton.Primary)
+                scene.sendPointerEvent(PointerEventType.Release, at, buttons = PointerButtons(), button = PointerButton.Primary)
+            }
+            shoot("13n-lyrics-offset", seconds = 2) {
+                com.convx.desktop.lyrics.LyricsTweaks.update(playing.id) { it.copy(offsetMs = 250) }
+                com.convx.desktop.ui.player.editOffset(playing)
+            }
+            com.convx.desktop.ui.components.Overlays.dismissDialog()
+            shoot("13o-lyrics-search", seconds = 10) { com.convx.desktop.ui.player.searchLyrics(playing, searchNow = true) }
+            com.convx.desktop.ui.components.Overlays.dismissDialog()
+            com.convx.desktop.lyrics.LyricsTweaks.update(playing.id) { it.copy(translation = null, offsetMs = 0) }
+            AppSettings.update { it.copy(translateLanguage = "en") }
+
             // A lived-in library, for the side bar, the library page and the song-list pages.
             UiState.fullPlayer = false
             songs.take(6).forEach { Library.toggleLike(it) }
@@ -288,6 +319,10 @@ fun main(args: Array<String>) {
             shoot("19f-settings-romanization", seconds = 2) {
                 SettingsNav.back()
                 SettingsNav.push(SettingsPage.Romanization)
+            }
+            shoot("19g-settings-ai-translation", seconds = 2) {
+                SettingsNav.back()
+                SettingsNav.push(SettingsPage.AiTranslation)
             }
         }
     }.onFailure { Log.e("Snapshots", "Rendering failed", it) }

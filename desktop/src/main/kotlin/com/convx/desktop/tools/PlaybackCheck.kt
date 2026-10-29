@@ -17,6 +17,7 @@ import com.convx.desktop.core.initYouTube
 import com.convx.desktop.data.ArtistRef
 import com.convx.desktop.data.AudioQuality
 import com.convx.desktop.data.Song
+import com.convx.desktop.lyrics.toLyricsText
 import com.convx.desktop.player.AudioCache
 import com.convx.desktop.player.CachedAudio
 import com.convx.desktop.player.GrowingFileInputStream
@@ -42,7 +43,7 @@ fun main(args: Array<String>) {
             "kJQP7kiw5Fk",
         )
     }
-    val dspOk = dspCheck() and libraryCheck() and partyCheck() and backupCheck() and playlistFileCheck() and downloadsCheck()
+    val dspOk = dspCheck() and libraryCheck() and partyCheck() and backupCheck() and playlistFileCheck() and downloadsCheck() and lyricsMenuCheck()
     partyServerCheck()
     runBlocking(Dispatchers.IO) { initYouTube() }
     var passed = 0
@@ -284,6 +285,72 @@ private fun downloadsCheck(): Boolean {
     } catch (error: Throwable) {
         expect("run", false, "${error::class.simpleName}: ${error.message}")
     }
+    return ok
+}
+
+/**
+ * The lyrics menu's offline parts: lyrics kept as text and read back with their timing, a
+ * translation read while it streams in, and Claude's stream read as the translator reads it.
+ */
+private fun lyricsMenuCheck(): Boolean {
+    var ok = true
+    fun expect(name: String, pass: Boolean, detail: String) {
+        if (!pass) ok = false
+        println("${if (pass) "PASS" else "FAIL"} lyrics menu $name: $detail")
+    }
+    val word = { start: Long, end: Long, text: String -> com.convx.music.lyrics.bitchord.LyricWord(start, end, text) }
+    val timed = listOf(
+        com.convx.music.lyrics.bitchord.LyricLine(12_340, "Hello there", listOf(word(12_340, 12_800, "Hello"), word(12_900, 13_500, "there"))),
+        com.convx.music.lyrics.bitchord.LyricLine(15_000, "Again", listOf(word(15_000, 15_700, "Again"))),
+    )
+    val text = timed.toLyricsText()
+    val back = com.convx.desktop.lyrics.parseLyricsText(text)
+    expect(
+        "word timing kept",
+        back.map { it.text } == listOf("Hello there", "Again") && back.first().words.map { it.startMs } == listOf(12_340L, 12_900L),
+        back.joinToString { "${it.timeMs} ${it.text} ${it.words.map { w -> w.startMs }}" },
+    )
+    val plain = com.convx.desktop.lyrics.parseLyricsText("First line\nSecond line")
+    expect("plain text stays plain", plain.size == 2 && plain.all { it.timeMs == 0L }, plain.joinToString { it.text })
+
+    val partial = com.convx.desktop.lyrics.LyricsTranslator.partialLines("""Sure: ["Hola", "Dijo \"ya\"", "Otra""", 5)
+    expect("partial translation", partial == listOf("Hola", "Dijo \"ya\""), partial.toString())
+    val lyrics = com.convx.desktop.lyrics.Lyrics(
+        listOf("One", "", "Two").map { com.convx.music.lyrics.bitchord.LyricLine(0, it) },
+        "Check",
+    )
+    val aligned = com.convx.desktop.lyrics.LyricsTranslator.align(lyrics, listOf("Uno", "Dos"))
+    expect("translation skips gaps", aligned == listOf("Uno", null, "Dos"), aligned.toString())
+
+    val claude = com.convx.desktop.lyrics.ClaudeTranslator
+    val sse = """
+        event: message_start
+        data: {"type":"message_start","message":{"id":"msg_1","type":"message"}}
+
+        event: content_block_start
+        data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":""}}
+
+        event: content_block_delta
+        data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":""}}
+
+        event: content_block_delta
+        data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"[\"Uno\", "}}
+
+        event: content_block_delta
+        data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\"Dos\"]"}}
+
+        event: message_delta
+        data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":12}}
+
+        event: message_stop
+        data: {"type":"message_stop"}
+    """.trimIndent()
+    var pieces = 0
+    val streamed = claude.read(sse.lineSequence()) { pieces++ }
+    val result = claude.result(streamed, 2)
+    expect("Claude stream", result.getOrNull() == listOf("Uno", "Dos") && pieces == 2 && streamed.stopReason == "end_turn", "${result.getOrNull()} after $pieces pieces, ${streamed.stopReason}")
+    val refused = claude.result(claude.read(sequenceOf("""data: {"type":"message_delta","delta":{"stop_reason":"refusal"}}""")) {}, 2)
+    expect("Claude refusal", refused.isFailure, refused.exceptionOrNull()?.message.orEmpty())
     return ok
 }
 

@@ -117,6 +117,7 @@ fun main() {
             LocalMusic.flush()
             Downloads.flush()
             AppSettings.flush()
+            com.convx.desktop.lyrics.LyricsTweaks.flush()
             exitApplication()
         }
 

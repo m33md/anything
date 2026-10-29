@@ -76,6 +76,7 @@ import com.convx.desktop.data.LyricsPosition
 import com.convx.desktop.data.LyricsStyle
 import com.convx.desktop.data.Settings
 import com.convx.desktop.lyrics.Lyrics
+import com.convx.desktop.lyrics.LyricsTweaks
 import com.convx.desktop.player.PlayerController
 import com.convx.desktop.ui.shell.fadingEdge
 import com.convx.desktop.ui.theme.ConvxColors
@@ -110,7 +111,7 @@ private val WordSpanStyles = setOf(LyricsStyle.None, LyricsStyle.Fade, LyricsSty
  * chosen position places the rest.
  */
 @Composable
-internal fun StyledLyrics(lyrics: Lyrics, subs: List<String?>, lyricsStyle: LyricsStyle, base: TextStyle, settings: Settings, horizontalPadding: Dp, clock: () -> Long) {
+internal fun StyledLyrics(lyrics: Lyrics, subs: List<LineSubs?>, lyricsStyle: LyricsStyle, base: TextStyle, settings: Settings, horizontalPadding: Dp, clock: () -> Long) {
     val lines = lyrics.lines
     val synced = lyrics.synced
     val live = rememberLiveClock(clock)
@@ -172,7 +173,7 @@ internal fun StyledLyrics(lyrics: Lyrics, subs: List<String?>, lyricsStyle: Lyri
                 val distance by remember(index) { derivedStateOf { if (anchor.value < 0) 0 else abs(index - anchor.value) } }
                 val seek: () -> Unit = {
                     if (synced) {
-                        PlayerController.seekTo(line.timeMs)
+                        LyricsTweaks.seek(line.timeMs)
                         PlayerController.play()
                         follow = true
                     }
@@ -288,7 +289,7 @@ private fun StyledLine(
     look: LineLook,
     standardBlur: Boolean,
     seek: () -> Unit,
-    sub: String?,
+    sub: LineSubs?,
 ) {
     val alpha by animateFloatAsState(if (!synced || active) 1f else 0.5f, tween(400))
     val scale by animateFloatAsState(if (active) 1.05f else 1f, tween(400))
@@ -322,7 +323,7 @@ private fun StyledLine(
                 LineContent(bg, nextTimeMs, live, active && synced, index < anchor.value, lyricsStyle, look, background = true)
             }
         }
-        sub?.let { SubLine(it, look.base.copy(fontSize = look.size.sp), look.textAlign(line)) }
+        sub?.let { SubLines(it, look.base.copy(fontSize = look.size.sp), look.textAlign(line)) }
     }
 }
 
@@ -666,7 +667,7 @@ private fun ConvxLine(
     look: LineLook,
     appleBlur: Boolean,
     seek: () -> Unit,
-    sub: String?,
+    sub: LineSubs?,
 ) {
     val blur by animateFloatAsState(
         if (!appleBlur || active || !synced) 0f else when (distance) {
@@ -741,7 +742,7 @@ private fun ConvxLine(
                 )
             }
         }
-        sub?.let { SubLine(it, look.base.copy(fontSize = look.size.sp), look.textAlign(line)) }
+        sub?.let { SubLines(it, look.base.copy(fontSize = look.size.sp), look.textAlign(line)) }
     }
 }
 
@@ -751,8 +752,8 @@ private fun ConvxLine(
  * line they're sung under.
  */
 @Composable
-internal fun KaraokeAppleLyrics(lyrics: Lyrics, base: TextStyle, settings: Settings, horizontalPadding: Dp, clock: () -> Long) {
-    val synced = remember(lyrics) { lyrics.lines.toSyncedLyrics() }
+internal fun KaraokeAppleLyrics(lyrics: Lyrics, translations: List<String?>?, base: TextStyle, settings: Settings, horizontalPadding: Dp, clock: () -> Long) {
+    val synced = remember(lyrics, translations) { lyrics.lines.toSyncedLyrics(translations) }
     val size = base.fontSize.value
     val spacing = settings.lyricsLineSpacing
     val shadow = settings.lyricsGlow
@@ -783,7 +784,7 @@ internal fun KaraokeAppleLyrics(lyrics: Lyrics, base: TextStyle, settings: Setti
                 currentPosition = { live.longValue.toInt() },
                 onLineClicked = { line: ISyncedLine ->
                     if (line.start > 0) {
-                        PlayerController.seekTo(line.start.toLong())
+                        LyricsTweaks.seek(line.start.toLong())
                         PlayerController.play()
                     }
                 },
@@ -793,7 +794,7 @@ internal fun KaraokeAppleLyrics(lyrics: Lyrics, base: TextStyle, settings: Setti
                 accompanimentLineTextStyle = accompaniment,
                 phoneticTextStyle = phonetic,
                 blendMode = BlendMode.SrcOver,
-                showTranslation = false,
+                showTranslation = translations != null,
                 showPhonetic = false,
                 offset = offset,
                 keepAliveZone = 72.dp,
@@ -810,7 +811,7 @@ private const val MaxLineHoldMs = 4_000L
  * Convx's lines in Accompanist's shape: word-timed lines become karaoke lines with their
  * background vocals riding along, the rest plain synced lines; breaks are left out.
  */
-private fun List<LyricLine>.toSyncedLyrics(): SyncedLyrics {
+private fun List<LyricLine>.toSyncedLyrics(translations: List<String?>?): SyncedLyrics {
     val out = ArrayList<ISyncedLine>()
     forEachIndexed { index, line ->
         if (line.isGap || line.text.isBlank() && line.words.isEmpty()) return@forEachIndexed
@@ -819,7 +820,7 @@ private fun List<LyricLine>.toSyncedLyrics(): SyncedLyrics {
         if (syllables.isEmpty()) {
             val next = getOrNull(index + 1)?.timeMs?.minus(1L) ?: (line.timeMs + MaxLineHoldMs)
             val end = minOf(next, line.timeMs + MaxLineHoldMs).coerceAtLeast(line.timeMs + 1L)
-            out += SyncedLine(content = line.text, translation = null, start = line.timeMs.toInt(), end = end.toInt())
+            out += SyncedLine(content = line.text, translation = translations?.getOrNull(index), start = line.timeMs.toInt(), end = end.toInt())
             return@forEachIndexed
         }
         val start = syllables.first().start
@@ -830,7 +831,7 @@ private fun List<LyricLine>.toSyncedLyrics(): SyncedLyrics {
             val bgEnd = bg.last().end
             if (bgEnd <= bgStart) null else listOf(KaraokeLine.AccompanimentKaraokeLine(bg, null, alignment, bgStart, bgEnd, null))
         }
-        out += KaraokeLine.MainKaraokeLine(syllables, null, alignment, start, end, null, background)
+        out += KaraokeLine.MainKaraokeLine(syllables, translations?.getOrNull(index), alignment, start, end, null, background)
     }
     return SyncedLyrics(lines = out.sortedBy { it.start })
 }

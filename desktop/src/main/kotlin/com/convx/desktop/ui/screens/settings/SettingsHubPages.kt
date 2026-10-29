@@ -81,6 +81,10 @@ fun PlayerHub() {
         LinkRow("Romanization", "Show lyrics in Latin letters", icon = "translate", tint = SystemColors.Teal) {
             SettingsNav.push(SettingsPage.Romanization)
         }
+        RowDivider()
+        LinkRow("AI lyrics translation", "Translate lyrics with your own API key", icon = "translate", tint = SystemColors.Indigo, value = settings.aiProvider) {
+            SettingsNav.push(SettingsPage.AiTranslation)
+        }
     }
 }
 

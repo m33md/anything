@@ -226,6 +226,13 @@ data class Settings(
     val lyricsRomanizeCyrillicByLine: Boolean = false,
     /** The lyrics menu's karaoke vocal reduction, 0 to 1, as on the phone for every song until turned back down. */
     val vocalReduction: Float = 0f,
+    // The phone's AI lyrics translation, with its defaults; the keys themselves are in Secrets.
+    val aiProvider: String = "OpenRouter",
+    val aiBaseUrl: String = "https://openrouter.ai/api/v1/chat/completions",
+    val aiModel: String = "google/gemini-3.1-flash-lite",
+    val translateLanguage: String = "en",
+    val translateMode: String = "Literal",
+    val deeplFormality: String = "default",
     val hideExplicit: Boolean = false,
     val hideVideos: Boolean = false,
     val autoRadio: Boolean = true,
