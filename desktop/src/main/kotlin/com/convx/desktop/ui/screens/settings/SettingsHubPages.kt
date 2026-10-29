@@ -17,13 +17,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,18 +31,12 @@ import com.convx.desktop.data.AppSettings
 import com.convx.desktop.data.AudioQuality
 import com.convx.desktop.integrations.DiscordPresence
 import com.convx.desktop.integrations.spotify.SpotifyAccount
-import com.convx.desktop.player.AudioCache
-import com.convx.desktop.player.Downloads
 import com.convx.desktop.ui.components.ConvxIcon
-import com.convx.desktop.ui.components.ImageCache
 import com.convx.desktop.ui.components.Overlays
-import com.convx.desktop.ui.components.PillButton
 import com.convx.desktop.ui.screens.PageCache
 import com.convx.desktop.ui.shapes.ContinuousRoundedRectangle
 import com.convx.desktop.ui.theme.ConvxColors
 import com.convx.desktop.ui.theme.ConvxType
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 private val Countries = listOf(
     "" to "Automatic", "US" to "United States", "GB" to "United Kingdom", "CA" to "Canada", "AU" to "Australia",
@@ -210,86 +199,26 @@ fun AccountsHub() {
 
 @Composable
 fun PrivacyHub() {
-    var audioBytes by remember { mutableLongStateOf(-1L) }
-    var imageBytes by remember { mutableLongStateOf(-1L) }
-    var downloadBytes by remember { mutableLongStateOf(-1L) }
-    var refresh by remember { mutableIntStateOf(0) }
-    val downloaded by Downloads.done.collectAsState()
-    LaunchedEffect(refresh, downloaded.size) {
-        withContext(Dispatchers.IO) {
-            audioBytes = AudioCache.sizeBytes()
-            imageBytes = ImageCache.diskBytes()
-            downloadBytes = Downloads.sizeBytes()
-        }
-    }
-    SettingsSection("Storage") {
-        SettingsRow("Song cache", "Songs you've played are kept so they start instantly next time. Capped at 1 GB.") {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(formatBytes(audioBytes), style = ConvxType.Body, color = ConvxColors.SecondaryLabel)
-                Spacer(Modifier.width(12.dp))
-                PillButton("Clear", {
-                    AudioCache.clear()
-                    refresh++
-                    Overlays.toast("Song cache cleared")
-                })
-            }
-        }
-        RowDivider(PlainInset)
-        SettingsRow("Image cache", "Covers and artist photos.") {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(formatBytes(imageBytes), style = ConvxType.Body, color = ConvxColors.SecondaryLabel)
-                Spacer(Modifier.width(12.dp))
-                PillButton("Clear", {
-                    ImageCache.clearDisk()
-                    refresh++
-                    Overlays.toast("Image cache cleared")
-                })
-            }
-        }
-        RowDivider(PlainInset)
-        SettingsRow(
-            "Downloaded songs",
-            "${downloaded.size} ${if (downloaded.size == 1) "song" else "songs"} kept to play without a connection. Clearing a cache never touches them.",
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(formatBytes(downloadBytes), style = ConvxType.Body, color = ConvxColors.SecondaryLabel)
-                Spacer(Modifier.width(12.dp))
-                PillButton("Clear", {
-                    if (downloaded.isEmpty()) return@PillButton
-                    Overlays.confirm(
-                        "Remove all downloads?",
-                        "${downloaded.size} downloaded ${if (downloaded.size == 1) "song" else "songs"} will be removed from this PC. " +
-                            "They stay in your library, and copies in the Music folder stay too.",
-                        "Remove",
-                    ) {
-                        Downloads.removeAll()
-                        refresh++
-                        Overlays.toast("Downloads removed", "delete")
-                    }
-                })
-            }
-        }
-    }
-    SectionGap()
-    SettingsSection("Backup") {
-        val backup by com.convx.desktop.integrations.Backup.state.collectAsState()
+    val backup by com.convx.desktop.integrations.Backup.state.collectAsState()
+    val settings by AppSettings.state.collectAsState()
+    SettingsSection {
         LinkRow(
-            "Backup and restore",
-            "Your library and settings in a file, playlist imports, and backups from your phone",
-            icon = "backup",
+            "Privacy",
+            "History and screenshots",
+            icon = "security",
             tint = SystemColors.Blue,
+            value = if (settings.pauseListenHistory || settings.pauseSearchHistory) "History paused" else null,
+        ) { SettingsNav.push(SettingsPage.Privacy) }
+        RowDivider()
+        LinkRow("Storage", "Downloads and caches", icon = "storage", tint = SystemColors.Gray) { SettingsNav.push(SettingsPage.Storage) }
+        RowDivider()
+        LinkRow(
+            "Backup & restore",
+            "Save or restore your library",
+            icon = "restore",
+            tint = SystemColors.Green,
             value = if (backup is com.convx.desktop.integrations.Backup.State.Working) "Working" else null,
         ) { SettingsNav.push(SettingsPage.Backup) }
-    }
-    SectionGap()
-    SettingsSection("Your files", footer = "Your library, settings and sign-ins live in the app data folder.") {
-        SettingsRow("App data", AppDirs.data.absolutePath) {
-            PillButton("Open folder", { openFolder(AppDirs.data) })
-        }
-        RowDivider(PlainInset)
-        SettingsRow("Logs", AppDirs.logs.absolutePath) {
-            PillButton("Open folder", { openFolder(AppDirs.logs) })
-        }
     }
 }
 

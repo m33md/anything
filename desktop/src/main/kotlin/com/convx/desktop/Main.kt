@@ -46,6 +46,7 @@ import com.convx.desktop.player.LocalMusic
 import com.convx.desktop.player.AudioEngine
 import com.convx.desktop.player.Downloads
 import com.convx.desktop.player.PlayerController
+import com.convx.desktop.ui.components.ImageCache
 import com.convx.desktop.ui.shell.AppShell
 import com.convx.desktop.ui.shell.Navigator
 import com.convx.desktop.ui.shell.TopBarHeight
@@ -60,6 +61,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import org.jetbrains.skia.Image
 import java.awt.Dimension
@@ -77,6 +80,8 @@ fun main() {
     AppScope.launch(Dispatchers.IO) { initYouTube() }
     AppScope.launch(Dispatchers.IO) {
         AudioCache.cleanupPartials()
+        AudioCache.trim()
+        ImageCache.trimDisk()
         AudioEngine.warmUp()
     }
     PlayerController.restore()
@@ -146,6 +151,10 @@ fun main() {
                     delay(100)
                     WindowTitleBar.updateInsets()
                 }
+            }
+            // The phone's "Disable screenshot": the window drops out of screenshots, recordings and screen shares.
+            LaunchedEffect(Unit) {
+                AppSettings.state.map { it.disableScreenshot }.distinctUntilChanged().collect { WindowsChrome.hideFromCapture(window, it) }
             }
             LaunchedEffect(windowState) {
                 snapshotFlow { Triple(windowState.size, windowState.placement, Unit) }
@@ -249,6 +258,32 @@ private object WindowsChrome {
     private val dwm: Dwm? by lazy {
         if (!System.getProperty("os.name").lowercase().contains("win")) null
         else runCatching { Native.load("dwmapi", Dwm::class.java) }.getOrNull()
+    }
+
+    private interface User32 : JnaLibrary {
+        fun SetWindowDisplayAffinity(hwnd: WinDef.HWND, affinity: Int): Boolean
+    }
+
+    private val user32: User32? by lazy {
+        if (!System.getProperty("os.name").lowercase().contains("win")) null
+        else runCatching { Native.load("user32", User32::class.java) }.getOrNull()
+    }
+
+    private const val WDA_NONE = 0
+    private const val WDA_MONITOR = 1
+    private const val WDA_EXCLUDEFROMCAPTURE = 0x11
+
+    /**
+     * Leaves the window out of captures. Windows 10 2004 and later skip it altogether; older
+     * versions only know how to black it out, which still keeps what's on it private.
+     */
+    fun hideFromCapture(window: AwtWindow, hidden: Boolean) {
+        val api = user32 ?: return
+        runCatching {
+            val hwnd = WinDef.HWND(Native.getWindowPointer(window))
+            val ok = api.SetWindowDisplayAffinity(hwnd, if (hidden) WDA_EXCLUDEFROMCAPTURE else WDA_NONE)
+            if (!ok && hidden && !api.SetWindowDisplayAffinity(hwnd, WDA_MONITOR)) Log.w("Window", "Windows refused to hide the window from captures")
+        }.onFailure { Log.w("Window", "Couldn't change screenshot protection", it) }
     }
 
     fun darken(window: AwtWindow) {

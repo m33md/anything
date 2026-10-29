@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.convx.desktop.core.AppDirs
 import com.convx.desktop.core.Http
+import com.convx.desktop.data.AppSettings
 import com.convx.desktop.ui.theme.ConvxColors
 import com.convx.desktop.ui.theme.ConvxShapes
 import com.convx.desktop.ui.theme.HeroColors
@@ -118,7 +119,10 @@ object ImageCache {
             return SkiaImage.makeFromEncoded(bytes).toComposeImageBitmap()
         }
         val file = File(AppDirs.images, sha1(url))
-        val bytes = if (file.isFile && file.length() > 0) {
+        val keep = AppSettings.value.maxImageCacheMb != 0
+        val bytes = if (keep && file.isFile && file.length() > 0) {
+            // Touched now and then, so trimming drops what hasn't been seen for longest.
+            if (System.currentTimeMillis() - file.lastModified() > TouchAfterMs) file.setLastModified(System.currentTimeMillis())
             file.readBytes()
         } else {
             network.withPermit {
@@ -126,7 +130,12 @@ object ImageCache {
                     // maxres/sd thumbnails don't exist for every video; hq always does.
                     ?: url.takeIf { it.contains("i.ytimg.com") && !it.contains("hqdefault") }
                         ?.let { download(it.replace(Regex("""[a-z0-9_]+default\.jpg"""), "hqdefault.jpg")) }
-            }?.also { runCatching { file.writeBytes(it) } } ?: return null
+            }?.also { data ->
+                if (keep) {
+                    runCatching { file.writeBytes(data) }
+                    if (writes.incrementAndGet() % TrimEvery == 0) trimDisk()
+                }
+            } ?: return null
         }
         return SkiaImage.makeFromEncoded(bytes).toComposeImageBitmap()
     }
@@ -143,6 +152,22 @@ object ImageCache {
     }
 
     fun diskBytes(): Long = AppDirs.images.listFiles()?.sumOf { it.length() } ?: 0L
+
+    private const val TrimEvery = 200
+    private const val TouchAfterMs = 24L * 60 * 60 * 1000
+    private val writes = java.util.concurrent.atomic.AtomicInteger()
+
+    /** The phone's "Max image cache size": the covers seen longest ago go first. */
+    fun trimDisk() {
+        val cap = AppSettings.value.maxImageCacheMb.toLong() * 1024 * 1024
+        val files = AppDirs.images.listFiles()?.sortedBy { it.lastModified() } ?: return
+        var total = files.sumOf { it.length() }
+        for (file in files) {
+            if (total <= cap) break
+            total -= file.length()
+            file.delete()
+        }
+    }
 
     private fun sha1(text: String): String =
         MessageDigest.getInstance("SHA-1").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }

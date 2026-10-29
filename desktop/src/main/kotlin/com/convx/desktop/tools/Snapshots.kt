@@ -154,7 +154,10 @@ fun main(args: Array<String>) {
         com.convx.desktop.ui.components.Overlays.dismissDialog()
         shoot("07k-settings-folders", seconds = 2) { SettingsNav.push(SettingsPage.LocalFolders) }
         shoot("07l-settings-network", seconds = 2) { SettingsNav.push(SettingsPage.Network) }
+        shoot("07la-settings-privacy-hub", seconds = 2) { SettingsNav.openHub(SettingsHubs.privacy.id) }
         shoot("07lb-settings-backup", seconds = 2) { SettingsNav.push(SettingsPage.Backup) }
+        shoot("07ld-settings-privacy", seconds = 2) { SettingsNav.push(SettingsPage.Privacy) }
+        shoot("07le-settings-storage", seconds = 4) { SettingsNav.push(SettingsPage.Storage) }
         val csv = java.io.File.createTempFile("Road trip", ".csv").apply {
             writeText(
                 "Track URI,Track Name,Artist Name(s),Album Name,Duration (ms)\n" +

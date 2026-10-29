@@ -95,6 +95,38 @@ enum class RepeatMode { OFF, ALL, ONE }
 
 enum class AudioQuality { AUTO, HIGH, LOW }
 
+/** The phone's five player designs, in its order. */
+enum class PlayerDesign(val label: String) {
+    Card("Card"),
+    Vinyl("Vinyl"),
+    Clover("Clover"),
+    AppleMusic("Apple Music"),
+    AppleMusicV2("Apple Music v2"),
+    ;
+
+    /** Apple's designs draw Apple's own progress capsule and controls; the rest take a seek bar style. */
+    val classic: Boolean get() = this == Card || this == Vinyl || this == Clover
+}
+
+/** Apple Music v2's two layouts: the cover as a square, or filling the top and fading out. */
+enum class PlayerLook(val label: String) { Squared("Square artwork"), Hero("Full bleed") }
+
+/** The phone's player backgrounds, with its names. */
+enum class PlayerBackground(val label: String) {
+    Theme("Theme"),
+    Gradient("Gradient"),
+    Blur("Blur"),
+    Glow("Glow"),
+    Apple("Apple"),
+    LiveMesh("Live mesh"),
+    ColourMesh("Colour mesh"),
+    Solid("Solid"),
+    Custom("Custom"),
+    Glass("Glass"),
+}
+
+enum class SeekBarStyle(val label: String) { Default("Default"), Wavy("Wavy"), Slim("Slim"), Waveform("Waveform") }
+
 /**
  * The phone's Liquid Glass dials (GlassEffectSettings), with its defaults. Colours stay fixed:
  * Convx is red on black, so only how the glass bends, blurs and catches light can change.
@@ -130,7 +162,21 @@ data class Settings(
     val dynamicBackground: Boolean = true,
     /** No longer read, like [accent]: pages never take a cover's colours. */
     val ambientWindow: Boolean = false,
+    /** Superseded by [seekBarStyle]; kept so older settings files still read. */
     val wavyProgress: Boolean = true,
+    /** The phone's player design sheet, with its defaults: Apple Music v2, square artwork, the cover's edge colours. */
+    val playerDesign: PlayerDesign = PlayerDesign.AppleMusicV2,
+    val playerLook: PlayerLook = PlayerLook.Squared,
+    val playerBackground: PlayerBackground = PlayerBackground.Gradient,
+    val seekBarStyle: SeekBarStyle = SeekBarStyle.Default,
+    /** ARGB of the Solid background. */
+    val playerSolidColor: Long = 0xFF1A1A1A,
+    /** ARGB stops and angle (degrees) of the Custom background. */
+    val playerGradientStops: List<Long> = listOf(0xFF3A1C71, 0xFFD76D77),
+    val playerGradientAngle: Float = 90f,
+    val artworkShadow: Boolean = false,
+    val showUpNext: Boolean = false,
+    val showVolumeBar: Boolean = true,
     val sidebarCollapsed: Boolean = false,
     /** Your Library's pinned items, top first, by [libraryKey]. Liked Songs starts pinned, as on Spotify. */
     val pinnedLibrary: List<String> = listOf("liked"),
@@ -194,6 +240,13 @@ data class Settings(
     /** The phone's Downloads group: download a song when you like it, and copy downloads to Music\Convx. */
     val autoDownloadOnLike: Boolean = false,
     val saveDownloadsToMusic: Boolean = true,
+    /** The phone's Privacy page: stop recording plays or searches, and keep the window out of screenshots. */
+    val pauseListenHistory: Boolean = false,
+    val pauseSearchHistory: Boolean = false,
+    val disableScreenshot: Boolean = false,
+    /** The phone's Storage page, in MB with its defaults; 0 turns a cache off and -1 (songs only) lifts the cap. */
+    val maxSongCacheMb: Int = 1024,
+    val maxImageCacheMb: Int = 512,
     /** The sound output by name; null follows Windows' default. */
     val outputDevice: String? = null,
     // Scrobbling, with the phone's defaults. The accounts themselves live in Secrets.

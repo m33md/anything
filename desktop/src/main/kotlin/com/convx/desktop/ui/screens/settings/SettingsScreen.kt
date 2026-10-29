@@ -84,7 +84,9 @@ enum class SettingsPage(val title: String, val hub: String) {
     ListenBrainz("ListenBrainz", "accounts"),
     Network("Network & proxy", "accounts"),
     LocalFolders("Music folders", "library"),
-    Backup("Backup and restore", "privacy"),
+    Privacy("Privacy", "privacy"),
+    Storage("Storage", "privacy"),
+    Backup("Backup & restore", "privacy"),
 }
 
 object SettingsHubs {
@@ -348,11 +350,16 @@ private val searchEntries: List<SearchEntry> by lazy {
         SearchEntry("Hide music videos", "Only audio tracks", h.library, keywords = "video filter"),
         SearchEntry("Spotify", "Your playlists and Liked Songs", h.accounts, SettingsPage.Spotify, "account login import"),
         SearchEntry("Discord", "Listening status on your profile", h.accounts, SettingsPage.Discord, "rich presence rpc status buttons"),
-        SearchEntry("Song cache", "Songs kept for instant starts", h.privacy, keywords = "storage clear cache"),
-        SearchEntry("Image cache", "Covers and artist photos", h.privacy, keywords = "storage clear cache"),
-        SearchEntry("Downloaded songs", "Songs kept to play offline", h.privacy, keywords = "downloads offline storage clear remove"),
-        SearchEntry("App data", "Where Convx keeps your library", h.privacy, keywords = "folder"),
-        SearchEntry("Backup and restore", "Save or restore your library and settings", h.privacy, SettingsPage.Backup, "backup restore export phone transfer move"),
+        SearchEntry("Max song cache size", "Songs kept for instant starts", h.privacy, SettingsPage.Storage, "storage clear cache limit size"),
+        SearchEntry("Max image cache size", "Covers and artist photos", h.privacy, SettingsPage.Storage, "storage clear cache limit size"),
+        SearchEntry("Clear all downloads", "Songs kept to play offline", h.privacy, SettingsPage.Storage, "downloads offline storage clear remove"),
+        SearchEntry("App data", "Where Convx keeps your library", h.privacy, SettingsPage.Storage, "folder logs"),
+        SearchEntry("Pause listen history", "Stop recording what you play", h.privacy, SettingsPage.Privacy, "history incognito private"),
+        SearchEntry("Clear listen history", null, h.privacy, SettingsPage.Privacy, "history delete recently played"),
+        SearchEntry("Pause search history", null, h.privacy, SettingsPage.Privacy, "search history incognito private"),
+        SearchEntry("Clear search history", null, h.privacy, SettingsPage.Privacy, "search history delete"),
+        SearchEntry("Disable screenshot", "Hide the window from screenshots and screen sharing", h.privacy, SettingsPage.Privacy, "screenshot capture record share obs discord stream"),
+        SearchEntry("Backup & restore", "Save or restore your library and settings", h.privacy, SettingsPage.Backup, "backup restore export phone transfer move"),
         SearchEntry("Import an M3U playlist", null, h.privacy, SettingsPage.Backup, "m3u m3u8 playlist file import winamp foobar musicbee"),
         SearchEntry("Import a CSV playlist", "Spreadsheets and Exportify", h.privacy, SettingsPage.Backup, "csv excel exportify tunemymusic itunes txt takeout import"),
         SearchEntry("About", "Version and licence", h.help, keywords = "version license gpl"),
@@ -484,6 +491,8 @@ private fun PageContent(page: SettingsPage) {
         SettingsPage.ListenBrainz -> ListenBrainzSettings()
         SettingsPage.Network -> NetworkSettings()
         SettingsPage.LocalFolders -> LocalFoldersSettings()
+        SettingsPage.Privacy -> PrivacySettings()
+        SettingsPage.Storage -> StorageSettings()
         SettingsPage.Backup -> BackupSettings()
     }
 }

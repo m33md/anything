@@ -322,6 +322,7 @@ fun SliderRow(
     valueRange: ClosedFloatingPointRange<Float>,
     subtitle: String? = null,
     enabled: Boolean = true,
+    onChangeFinished: (() -> Unit)? = null,
     onChange: (Float) -> Unit,
 ) {
     Column(
@@ -338,6 +339,6 @@ fun SliderRow(
             Text(subtitle, style = ConvxType.Subhead, color = ConvxColors.SecondaryLabel)
         }
         Spacer(Modifier.height(6.dp))
-        com.convx.desktop.ui.glass.GlassSlider(value.coerceIn(valueRange), onChange, valueRange = valueRange, enabled = enabled)
+        com.convx.desktop.ui.glass.GlassSlider(value.coerceIn(valueRange), onChange, valueRange = valueRange, enabled = enabled, onValueChangeFinished = onChangeFinished)
     }
 }

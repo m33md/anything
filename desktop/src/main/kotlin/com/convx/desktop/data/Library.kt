@@ -142,8 +142,9 @@ object Library {
 
     // History
 
-    fun recordPlay(song: Song) = store.update { data ->
-        data.copy(history = (listOf(PlayEvent(song)) + data.history).take(HistoryLimit))
+    fun recordPlay(song: Song) {
+        if (AppSettings.value.pauseListenHistory) return
+        store.update { data -> data.copy(history = (listOf(PlayEvent(song)) + data.history).take(HistoryLimit)) }
     }
 
     fun clearHistory() = store.update { it.copy(history = emptyList()) }
@@ -167,7 +168,7 @@ object Library {
 
     fun addSearch(query: String) {
         val q = query.trim()
-        if (q.isEmpty()) return
+        if (q.isEmpty() || AppSettings.value.pauseSearchHistory) return
         store.update { data ->
             data.copy(searchHistory = (listOf(q) + data.searchHistory.filterNot { it.equals(q, ignoreCase = true) }).take(SearchHistoryLimit))
         }

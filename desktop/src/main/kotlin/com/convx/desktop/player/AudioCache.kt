@@ -8,6 +8,7 @@ package com.convx.desktop.player
 import com.convx.desktop.core.AppDirs
 import com.convx.desktop.core.Http
 import com.convx.desktop.core.Log
+import com.convx.desktop.data.AppSettings
 import com.music.innertube.models.YouTubeClient
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
@@ -30,7 +31,10 @@ import kotlin.concurrent.withLock
 object AudioCache {
     private const val Tag = "AudioCache"
     private const val ChunkBytes = 1024L * 1024L
-    private const val MaxCacheBytes = 1024L * 1024L * 1024L
+
+    /** The phone's "Max song cache size": 1 GB unless changed, -1 for no cap. */
+    private val maxBytes: Long
+        get() = AppSettings.value.maxSongCacheMb.let { if (it < 0) Long.MAX_VALUE else it * 1024L * 1024L }
 
     val dir: File by lazy { File(AppDirs.cache, "audio").apply { mkdirs() } }
 
@@ -128,14 +132,21 @@ object AudioCache {
         dir.listFiles()?.forEach { it.delete() }
     }
 
-    private fun trim() {
+    /**
+     * Removes the songs played longest ago until the cache fits its cap. [keep] is a song that
+     * just finished downloading: something is about to read it, so even a cache that's off
+     * holds it until the next one lands.
+     */
+    fun trim(keep: String? = null) {
         val files = dir.listFiles { f -> f.name.endsWith(".ok") }
             ?.map { File(dir, it.name.removeSuffix(".ok")) }
             ?.sortedBy { it.lastModified() } ?: return
         var total = files.sumOf { it.length() }
+        val cap = maxBytes
         for (file in files) {
-            if (total <= MaxCacheBytes) break
-            if (active.containsKey(file.name.substringBefore('.'))) continue
+            if (total <= cap) break
+            val id = file.name.substringBefore('.')
+            if (id == keep || active.containsKey(id)) continue
             total -= file.length()
             File(dir, file.name + ".ok").delete()
             file.delete()
@@ -219,7 +230,7 @@ object AudioCache {
                     progress.signalAll()
                 }
                 active.remove(videoId, this)
-                trim()
+                trim(keep = videoId)
             } catch (e: Exception) {
                 Log.w(Tag, "Download of $videoId failed at $downloaded/$totalBytes", e)
                 lock.withLock {
