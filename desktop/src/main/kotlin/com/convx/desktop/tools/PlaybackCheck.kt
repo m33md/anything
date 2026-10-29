@@ -43,7 +43,7 @@ fun main(args: Array<String>) {
             "kJQP7kiw5Fk",
         )
     }
-    val dspOk = dspCheck() and libraryCheck() and partyCheck() and backupCheck() and playlistFileCheck() and downloadsCheck() and lyricsMenuCheck() and homeOrderCheck() and statsCheck() and sonicCheck()
+    val dspOk = dspCheck() and libraryCheck() and partyCheck() and backupCheck() and playlistFileCheck() and downloadsCheck() and lyricsMenuCheck() and homeOrderCheck() and statsCheck() and sonicCheck() and autoMixCheck()
     partyServerCheck()
     runBlocking(Dispatchers.IO) { initYouTube() }
     var passed = 0
@@ -59,6 +59,91 @@ fun main(args: Array<String>) {
     }
     println("$passed of ${ids.size} songs played")
     exitProcess(if (passed > 0 && dspOk) 0 else 1)
+}
+
+/**
+ * AutoMix: two made-up songs (a kick on every beat, hats between, a minor chord held) written as
+ * FLAC, read back and measured. The tempo has to come out right, and a mix between them has to
+ * be planned and beat-matched. The key is printed but not held to: a synthetic pad is thin.
+ */
+private fun autoMixCheck(): Boolean {
+    var ok = true
+    fun expect(name: String, pass: Boolean, detail: String) {
+        if (!pass) ok = false
+        println("${if (pass) "PASS" else "FAIL"} automix $name: $detail")
+    }
+    val rate = 44_100
+    fun song(bpm: Double, chord: DoubleArray, seconds: Int): java.io.File {
+        val dir = java.nio.file.Files.createTempDirectory("convx-automix").toFile()
+        val file = java.io.File(dir, "song.flac")
+        val frames = rate * seconds
+        val samples = ShortArray(frames * 2)
+        val beat = 60.0 / bpm
+        val random = java.util.Random(7)
+        for (i in 0 until frames) {
+            val t = i.toDouble() / rate
+            val outro = t > seconds - 12
+            var v = 0.0
+            for (f in chord) v += 0.07 * kotlin.math.sin(2 * Math.PI * f * t)
+            if (!outro && t > 2.0) {
+                val sinceBeat = t % beat
+                val beatIndex = (t / beat).toInt()
+                val kick = if (beatIndex % 4 == 0) 0.75 else 0.55
+                if (sinceBeat < 0.12) v += kick * kotlin.math.exp(-sinceBeat * 30) * kotlin.math.sin(2 * Math.PI * (55 + 60 * kotlin.math.exp(-sinceBeat * 40)) * sinceBeat)
+                val sinceHalf = (t + beat / 2) % beat
+                if (sinceHalf < 0.03) v += 0.12 * (random.nextDouble() * 2 - 1) * (1 - sinceHalf / 0.03)
+            }
+            val sample = (v.coerceIn(-1.0, 1.0) * 30000).toInt().toShort()
+            samples[i * 2] = sample
+            samples[i * 2 + 1] = sample
+        }
+        org.bytedeco.javacv.FFmpegFrameRecorder(file, 2).apply {
+            format = "flac"
+            sampleRate = rate
+            audioCodec = org.bytedeco.ffmpeg.global.avcodec.AV_CODEC_ID_FLAC
+            start()
+            recordSamples(rate, 2, java.nio.ShortBuffer.wrap(samples))
+            stop()
+            release()
+        }
+        return file
+    }
+    val result = runCatching {
+        val aMinor = doubleArrayOf(220.0, 261.63, 329.63)
+        val dMinor = doubleArrayOf(146.83, 174.61, 220.0)
+        val first = song(120.0, aMinor, 90)
+        val second = song(124.0, dMinor, 90)
+        val outgoing = com.convx.desktop.automix.TrackAnalyzer.analyzeNow("check-automix-a", first, 90.0)
+        val incoming = com.convx.desktop.automix.TrackAnalyzer.analyzeNow("check-automix-b", second, 90.0)
+        first.parentFile.deleteRecursively()
+        second.parentFile.deleteRecursively()
+        outgoing to incoming
+    }.onFailure { it.printStackTrace() }.getOrNull()
+    val outgoing = result?.first
+    val incoming = result?.second
+    expect("measured", outgoing?.isUsable == true && incoming?.isUsable == true, "${outgoing?.status} / ${incoming?.status}")
+    if (outgoing == null || incoming == null) return false
+    expect("tempo 120", kotlin.math.abs(outgoing.bpm - 120) < 2, "${"%.2f".format(outgoing.bpm)} BPM, confidence ${"%.2f".format(outgoing.beatConfidence)}")
+    expect("tempo 124", kotlin.math.abs(incoming.bpm - 124) < 2, "${"%.2f".format(incoming.bpm)} BPM, confidence ${"%.2f".format(incoming.beatConfidence)}")
+    expect("outro found", outgoing.outroStartTime in 60.0..85.0, "outro at ${"%.1f".format(outgoing.outroStartTime)}s, content ends ${"%.1f".format(outgoing.contentEndTime)}s")
+    println("INFO automix keys: ${outgoing.key} (${"%.2f".format(outgoing.keyConfidence)}), ${incoming.key} (${"%.2f".format(incoming.keyConfidence)})")
+    val plan = com.convx.desktop.automix.planTransition(
+        analysis = outgoing,
+        nextAnalysis = incoming,
+        currentTrack = com.convx.desktop.automix.TransitionTrackInfo("check-automix-a", 90_000, "Check A", "Convx"),
+        nextTrack = com.convx.desktop.automix.TransitionTrackInfo("check-automix-b", 90_000, "Check B", "Convx"),
+        currentTime = 10.0,
+        duration = 90.0,
+        fadeSeconds = 6.0,
+        mode = com.convx.desktop.automix.CrossfadeMode.SMART,
+    )
+    expect(
+        "plan",
+        !plan.blocked && plan.fadeMs > 0 && plan.transitionStart in 30.0..90.0,
+        "${plan.reason} ${plan.transitionStyle}, ${"%.1f".format(plan.transitionStart)}s to ${"%.1f".format(plan.transitionEnd)}s, " +
+            "cue ${"%.1f".format(plan.incomingCueTime)}s, rate ${"%.3f".format(plan.incomingPlaybackRate)}, ${plan.policyReasons}",
+    )
+    return ok
 }
 
 /**

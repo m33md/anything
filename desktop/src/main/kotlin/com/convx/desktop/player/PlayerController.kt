@@ -6,6 +6,7 @@
 package com.convx.desktop.player
 
 import com.convx.desktop.audio.AudioEffects
+import com.convx.desktop.automix.AutoMix
 import com.convx.desktop.core.Log
 import com.convx.desktop.data.AppSettings
 import com.convx.desktop.integrations.spotify.SpotifyMatcher
@@ -70,6 +71,16 @@ object PlayerController : AudioEngine.Listener {
     private val confined = Dispatchers.Default.limitedParallelism(1)
     private val scope = CoroutineScope(SupervisorJob() + confined)
     private val engine = AudioEngine(this)
+
+    /** What AutoMix reaches of the player; it runs on the player's own thread. */
+    private val autoMixHost = object : AutoMix.Host {
+        override val scope: CoroutineScope get() = this@PlayerController.scope
+        override val engine: AudioEngine get() = this@PlayerController.engine
+        override val engineToken: Long get() = this@PlayerController.engineToken
+        override suspend fun prepare(song: Song): AutoMix.Prepared? = prepareForMix(song)
+        override fun mixedInto(index: Int, prepared: AutoMix.Prepared, deck: AudioEngine.Deck, cueMs: Long) =
+            mixedIntoNow(index, prepared, deck, cueMs)
+    }
 
     private val _state = MutableStateFlow(
         AppSettings.value.let {
@@ -161,8 +172,10 @@ object PlayerController : AudioEngine.Listener {
                 val s = _state.value
                 if (s.current != null && engineToken != 0L) _position.value = engine.positionMs
                 countListen(s)
-                maybeCrossfade()
-                delay(if (s.isPlaying) 100 else 400)
+                val settings = AppSettings.value
+                if (settings.crossfade && settings.autoMix) AutoMix.tick(autoMixHost, _state.value) else maybeCrossfade()
+                // A mix's levels and filters are ridden more finely than the playhead needs.
+                delay(if (AutoMix.busy) 30 else if (s.isPlaying) 100 else 400)
             }
         }
         scope.launch {
@@ -650,6 +663,7 @@ object PlayerController : AudioEngine.Listener {
         val s = _state.value
         if (s.current == null) return null
         val target = if (s.durationMs > 0) positionMs.coerceIn(0, s.durationMs - 500) else positionMs
+        AutoMix.interrupt(autoMixHost)
         _position.value = target
         if (engineToken == 0L) loadCurrent(target, playWhenReady = s.isPlaying) else engine.seek(target)
         return target
@@ -682,6 +696,7 @@ object PlayerController : AudioEngine.Listener {
     }
 
     private fun stopAtEnd() {
+        AutoMix.interrupt(autoMixHost)
         engine.stop()
         engineToken = 0L
         _position.value = 0
@@ -705,6 +720,7 @@ object PlayerController : AudioEngine.Listener {
         val queued = _state.value.current ?: return
         if (!forceRefresh) retriedCurrent = false
         loadJob?.cancel()
+        AutoMix.interrupt(autoMixHost)
         // A crossfade's outgoing song keeps playing under this one; anything else stops now.
         if (fadeInMs == 0) engine.stop()
         engineToken = 0L
@@ -797,6 +813,53 @@ object PlayerController : AudioEngine.Listener {
             if (LocalMusic.isLocal(id) || AudioCache.isCached(id) || Downloads.isDownloaded(id)) return@launch
             StreamResolver.resolve(id, AppSettings.value.audioQuality).onSuccess { AudioCache.prefetch(it) }
         }
+    }
+
+    /** Finds [queued]'s audio as [loadCurrent] would, for AutoMix to open beside the playing song. */
+    private suspend fun prepareForMix(queued: Song): AutoMix.Prepared? {
+        val song = if (SpotifyMatcher.isSpotify(queued)) SpotifyMatcher.resolve(queued) ?: return null else queued
+        val local = LocalMusic.track(song.id).takeIf { LocalMusic.isLocal(song.id) }
+        if (LocalMusic.isLocal(song.id) && (local == null || !java.io.File(local.path).isFile)) return null
+        val offline = if (local == null) Downloads.offline(song.id) else null
+        val stream = when {
+            local != null -> LocalMusic.stream(song.id, local)
+            offline != null -> offline.first
+            else -> StreamResolver.resolve(song.id, AppSettings.value.audioQuality).getOrNull() ?: return null
+        }
+        val source = when {
+            local != null -> CachedAudio.Complete(java.io.File(local.path))
+            offline != null -> CachedAudio.Complete(offline.second)
+            else -> AudioCache.open(stream)
+        }
+        return AutoMix.Prepared(song, stream, source, trackGain(stream))
+    }
+
+    /** AutoMix brought the next song in: it's the current song now, already playing from [cueMs]. */
+    private fun mixedIntoNow(index: Int, prepared: AutoMix.Prepared, deck: AudioEngine.Deck, cueMs: Long) {
+        val song = prepared.song
+        loadJob?.cancel()
+        retriedCurrent = false
+        consecutiveFailures = 0
+        engineToken = deck.token
+        _position.value = cueMs
+        _state.update {
+            it.copy(
+                queue = it.queue.toMutableList().also { queue -> if (index in queue.indices) queue[index] = song },
+                index = index,
+                isLoading = false,
+                isPlaying = true,
+                ended = false,
+                error = null,
+                durationMs = prepared.stream.durationMs ?: deck.durationMs.takeIf { d -> d > 0 } ?: (song.duration ?: 0) * 1000L,
+                stream = prepared.stream,
+            )
+        }
+        if (song.id != announcedId) {
+            announcedId = song.id
+            _changes.tryEmit(Change.Track(song, true))
+        }
+        if (!LocalMusic.isLocal(song.id)) RelatedSongs.ensure(song.id)
+        prefetchNext()
     }
 
     /**

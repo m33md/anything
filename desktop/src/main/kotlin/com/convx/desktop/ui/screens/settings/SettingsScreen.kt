@@ -376,7 +376,7 @@ private val searchEntries: List<SearchEntry> by lazy {
         SearchEntry("Audio quality", "High or low", h.playback, SettingsPage.QualitySound, "bitrate stream data"),
         SearchEntry("Audio normalization", "Even out loud and quiet songs", h.playback, SettingsPage.QualitySound, "loudness volume level"),
         SearchEntry("Skip silence", "Fast forward through silent parts", h.playback, SettingsPage.QualitySound, "silence gap"),
-        SearchEntry("Song transitions", "Crossfade between songs", h.playback, SettingsPage.Transitions, "crossfade fade automix gapless"),
+        SearchEntry("Song transitions", "AutoMix or crossfade between songs", h.playback, SettingsPage.Transitions, "crossfade fade automix gapless dj beat tempo analyze"),
         SearchEntry("Persistent queue", "Restore your last queue", h.playback, SettingsPage.Queue, "queue restore"),
         SearchEntry("Ask before replacing the queue", "Keep or clear the queue", h.playback, SettingsPage.Queue, "queue replace keep clear undo"),
         SearchEntry("Enable similar content", "Keep going when the queue ends", h.playback, SettingsPage.Queue, "radio autoplay queue"),

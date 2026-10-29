@@ -60,7 +60,11 @@ jobs:
       - name: Playback check
         continue-on-error: true
         timeout-minutes: 5
-        run: ./gradlew --no-daemon -q playbackCheck
+        # Kept beside the screenshots, so the results can be read without the run's logs.
+        run: |
+          mkdir -p build/snapshots
+          ./gradlew --no-daemon -q playbackCheck 2>&1 | tee build/snapshots/playback-check.txt
+          exit ${PIPESTATUS[0]}
 
       - name: Screenshots
         id: snapshots

@@ -29,7 +29,13 @@ fun PlaybackHub() {
             SettingsNav.push(SettingsPage.QualitySound)
         }
         RowDivider()
-        LinkRow("Song transitions", "Crossfade between songs", icon = "ic_queue_crossfade", tint = SystemColors.Purple, value = onOff(settings.crossfade)) {
+        LinkRow(
+            "Song transitions",
+            if (settings.autoMix) "AutoMix between songs" else "Crossfade between songs",
+            icon = "ic_queue_crossfade",
+            tint = SystemColors.Purple,
+            value = if (!settings.crossfade) onOff(false) else if (settings.autoMix) "AutoMix" else "Crossfade",
+        ) {
             SettingsNav.push(SettingsPage.Transitions)
         }
     }
@@ -83,11 +89,11 @@ fun QualitySoundSettings() {
     }
 }
 
-/** The phone's Song transitions, with crossfade; AutoMix needs analysis the PC doesn't have yet. */
+/** The phone's Song transitions: AutoMix, planned from each song's measurements, or a plain crossfade. */
 @Composable
 fun SongTransitionsSettings() {
     val settings by AppSettings.state.collectAsState()
-    SettingsSection(footer = "Beginnings and endings of songs blend together. Albums still play without transitions.") {
+    SettingsSection(footer = "Beginnings and endings of songs blend together. Albums and some genres still play without transitions.") {
         SwitchRow("Song transitions", checked = settings.crossfade, icon = "ic_queue_crossfade", tint = SystemColors.Purple) { v ->
             AppSettings.update { it.copy(crossfade = v) }
         }
@@ -96,23 +102,42 @@ fun SongTransitionsSettings() {
     SettingsSection("Transition style") {
         CheckRow(
             "AutoMix",
-            "Songs transition at the perfect moment, based on the tempo and beats. Needs the phone's beat analysis, which isn't on PC yet.",
-            checked = false,
+            "Songs transition at the perfect moment, based on analysis of the tempo and beats of the music.",
+            checked = settings.crossfade && settings.autoMix,
             icon = "equalizer",
             tint = SystemColors.Pink,
-            enabled = false,
-        ) {}
+            enabled = settings.crossfade,
+        ) { AppSettings.update { it.copy(autoMix = true) } }
         RowDivider()
         CheckRow(
             "Crossfade",
             "Simple song transitions from one to the next for a set duration.",
-            checked = settings.crossfade,
+            checked = settings.crossfade && !settings.autoMix,
             icon = "ic_queue_crossfade",
             tint = SystemColors.Purple,
             enabled = settings.crossfade,
-        ) {}
+        ) { AppSettings.update { it.copy(autoMix = false) } }
     }
-    if (settings.crossfade) {
+    if (settings.crossfade && settings.autoMix) {
+        SectionGap()
+        val progress by com.convx.desktop.automix.LibraryAnalysis.progress.collectAsState()
+        val measured by com.convx.desktop.automix.TrackAnalyzer.measured.collectAsState()
+        val stored = androidx.compose.runtime.remember(measured) { com.convx.desktop.automix.TrackAnalyzer.storedCount() }
+        SettingsSection(
+            footer = "AutoMix measures each song once, from the copy on this PC, and remembers it. " +
+                "A song streamed for the first time is measured while it plays; until then its transition is a plain crossfade. " +
+                "$stored songs measured so far.",
+        ) {
+            LinkRow(
+                "Analyze local and downloaded songs for AutoMix",
+                if (progress.running) "Analyzing ${progress.done} of ${progress.total}… Click again to stop."
+                else "Stores beats, key and energy once, so AutoMix uses no CPU to analyze those songs while playing.",
+                icon = "equalizer",
+                tint = SystemColors.Pink,
+            ) { com.convx.desktop.automix.LibraryAnalysis.toggle() }
+        }
+    }
+    if (settings.crossfade && !settings.autoMix) {
         SectionGap()
         SettingsSection("Crossfade duration") {
             val seconds = settings.crossfadeSeconds.coerceIn(1f, 12f).roundToInt()

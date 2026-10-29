@@ -390,6 +390,8 @@ data class Settings(
     val crossfade: Boolean = false,
     /** 1..12, Apple's range. */
     val crossfadeSeconds: Float = 5f,
+    /** The phone's AutoMix transition style: mixes planned from each song's tempo, beats and key. */
+    val autoMix: Boolean = false,
     /** Restore the last queue at launch. */
     val persistentQueue: Boolean = true,
     val rememberShuffleRepeat: Boolean = true,

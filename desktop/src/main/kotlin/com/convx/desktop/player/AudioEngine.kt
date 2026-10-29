@@ -8,6 +8,7 @@ package com.convx.desktop.player
 import com.convx.desktop.audio.AudioEffects
 import com.convx.desktop.audio.EffectsChain
 import com.convx.desktop.audio.Sonic
+import com.convx.desktop.automix.DjFilter
 import com.convx.desktop.audio.softClip
 import com.convx.desktop.core.Log
 import org.bytedeco.ffmpeg.global.avutil
@@ -36,6 +37,24 @@ import kotlin.math.sin
  * system mixes the two.
  */
 class AudioEngine(private val listener: Listener) {
+    /**
+     * One song's controls while AutoMix plays two at once: its level, its filters and its tempo,
+     * all ridden from the mix's clock and glided to in here so no step is heard.
+     */
+    interface Deck {
+        val token: Long
+        val positionMs: Long
+        val durationMs: Long
+        val isReady: Boolean
+
+        /** 0..1 on top of the volume and normalisation. */
+        var mixGain: Float
+
+        /** Tempo matching, on top of Tempo and Pitch. */
+        var rate: Float
+        val filter: DjFilter
+    }
+
     interface Listener {
         fun onReady(token: Long, durationMs: Long)
         fun onEnded(token: Long)
@@ -80,6 +99,9 @@ class AudioEngine(private val listener: Listener) {
     /** Sessions handed off to fade out under the next song. */
     private val fading = CopyOnWriteArraySet<Session>()
 
+    /** The next song, opened and cued but silent, waiting for AutoMix to bring it in. */
+    @Volatile private var standby: Session? = null
+
     /** Linear gain, 0..1, applied to every sample. */
     @Volatile var gain: Float = 1f
 
@@ -94,6 +116,9 @@ class AudioEngine(private val listener: Listener) {
 
     /** The pitch as a ratio (2 is an octave up), with the speed kept. */
     @Volatile var pitch: Float = 1f
+
+    /** The song playing, as AutoMix rides it. */
+    val current: Deck? get() = session
 
     val positionMs: Long get() = session?.positionMs() ?: 0L
     val durationMs: Long get() = session?.durationMs ?: 0L
@@ -116,6 +141,44 @@ class AudioEngine(private val listener: Listener) {
         session = Session(token, source, startMs.coerceAtLeast(0), playWhenReady, durationHintMs ?: 0L, trackGain, fadeInMs)
             .also { it.start() }
         return token
+    }
+
+    /**
+     * Opens [source] at [startMs] silent and paused beside the playing song, so AutoMix can bring
+     * it in on the beat with [promote]. Replaces any song already waiting.
+     */
+    fun prepare(source: CachedAudio, startMs: Long, durationHintMs: Long?, trackGain: Float = 1f): Deck {
+        standby?.close()
+        val token = tokens.incrementAndGet()
+        return Session(token, source, startMs.coerceAtLeast(0), false, durationHintMs ?: 0L, trackGain, 0, initialMixGain = 0f)
+            .also {
+                standby = it
+                it.start()
+            }
+    }
+
+    /**
+     * Starts the waiting [deck] and makes it the playing song; the one that was playing carries on
+     * under it, as it was, until [retire]d. Returns that outgoing song, or null if [deck] isn't the
+     * one waiting any more.
+     */
+    fun promote(deck: Deck): Deck? {
+        val next = standby?.takeIf { it === deck } ?: return null
+        standby = null
+        val outgoing = session
+        if (outgoing != null) fading += outgoing
+        session = next
+        next.setPlayback(outgoing?.playing ?: true)
+        return outgoing
+    }
+
+    /** Stops a song AutoMix is done with: the one mixed out, or one prepared and not used. */
+    fun retire(deck: Deck) {
+        val target = deck as? Session ?: return
+        if (standby === target) standby = null
+        if (session === target) return
+        fading -= target
+        target.close()
     }
 
     /** Lets the current song play on, fading out over [fadeMs], while the next one loads. */
@@ -145,6 +208,8 @@ class AudioEngine(private val listener: Listener) {
     private fun stop(keepFading: Boolean) {
         session?.close()
         session = null
+        standby?.close()
+        standby = null
         if (!keepFading) {
             fading.forEach { it.close() }
             fading.clear()
@@ -152,15 +217,22 @@ class AudioEngine(private val listener: Listener) {
     }
 
     private inner class Session(
-        val token: Long,
+        override val token: Long,
         private val source: CachedAudio,
         startMs: Long,
         @Volatile var playing: Boolean,
         durationHintMs: Long,
         private val trackGain: Float,
         fadeInMs: Int,
-    ) {
-        @Volatile var durationMs: Long = durationHintMs
+        initialMixGain: Float = 1f,
+    ) : Deck {
+        @Volatile override var durationMs: Long = durationHintMs
+        @Volatile override var isReady = false
+        @Volatile override var mixGain: Float = initialMixGain
+        @Volatile override var rate: Float = 1f
+        override val filter = DjFilter(SampleRate)
+        override val positionMs: Long get() = positionMs()
+        private var appliedMix = initialMixGain
         @Volatile var finished = false
         @Volatile private var closed = false
         @Volatile private var pendingSeekMs: Long = -1
@@ -265,6 +337,7 @@ class AudioEngine(private val listener: Listener) {
                 line = l
                 if (closed) return
                 if (playing) l.start()
+                isReady = true
                 listener.onReady(token, durationMs)
 
                 val chain = EffectsChain(SampleRate)
@@ -286,6 +359,7 @@ class AudioEngine(private val listener: Listener) {
                         decodedFrames = 0
                         sonic.flush()
                         chain.reset()
+                        filter.reset()
                         pendingSeekMs = -1
                         if (playing) l.start()
                     }
@@ -309,7 +383,7 @@ class AudioEngine(private val listener: Listener) {
                     decodedFrames += frames
 
                     // Tempo and pitch: untouched (and without Sonic's delay) at the natural speed.
-                    sonic.speed = tempo
+                    sonic.speed = tempo * rate.coerceIn(0.8f, 1.25f)
                     sonic.pitch = pitch
                     var input = floats
                     if (!sonic.isIdentity || sonic.pendingInputFrames > 0 || sonic.availableFrames > 0) {
@@ -330,6 +404,7 @@ class AudioEngine(private val listener: Listener) {
                         synchronized(marks) { marks.addLast(longArrayOf(writtenFrames, reachedMs)) }
                         continue
                     }
+                    filter.process(chain.output, count)
                     if (bytes.size < count * Channels * 2) bytes = ByteArray(count * Channels * 2)
                     val shaped = effects.shapesSound || trackGain > 1f
                     if (!encode(chain.output, count, bytes, gain * trackGain, shaped)) {
@@ -395,10 +470,14 @@ class AudioEngine(private val listener: Listener) {
          */
         private fun encode(input: FloatArray, frames: Int, out: ByteArray, g: Float, shaped: Boolean): Boolean {
             val fadeOut = fadeOutFrames
+            // AutoMix's level glides across the buffer from where the last one left it.
+            val mixFrom = appliedMix
+            val mixTo = mixGain.coerceIn(0f, 1f)
+            appliedMix = mixTo
             var o = 0
             var i = 0
-            repeat(frames) {
-                var f = g
+            for (frame in 0 until frames) {
+                var f = g * (mixFrom + (mixTo - mixFrom) * frame / frames)
                 if (fadeInDone < fadeInFrames) {
                     // Equal power: the two songs together stay as loud as one.
                     f *= sin(PI / 2 * fadeInDone / fadeInFrames).toFloat()
