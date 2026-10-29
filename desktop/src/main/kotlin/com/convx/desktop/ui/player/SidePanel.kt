@@ -156,19 +156,19 @@ private fun NowPlayingPanel(state: PlayerState) {
         return
     }
     val library by Library.state.collectAsState()
+    val settings by com.convx.desktop.data.AppSettings.state.collectAsState()
     val liked = library.liked.any { it.song.id == song.id }
     val navigator = LocalNavigator.current
     val menu = rememberMenuAnchor()
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
-        Artwork(
-            song.thumbnail,
-            Modifier.fillMaxWidth().aspectRatio(1f).shadow(18.dp, RoundedCornerShape(12.dp)).pressable({ UiState.fullPlayer = true }, pressScale = 0.99f),
-            size = 800,
-            shape = RoundedCornerShape(12.dp),
-            iconSize = 56.dp,
-        )
+        val coverModifier = Modifier.fillMaxWidth().aspectRatio(1f).shadow(18.dp, RoundedCornerShape(12.dp)).pressable({ UiState.fullPlayer = true }, pressScale = 0.99f)
+        if (settings.hidePlayerArtwork) {
+            HiddenArtwork(coverModifier.clip(RoundedCornerShape(12.dp)), markSize = 96.dp)
+        } else {
+            Artwork(song.thumbnail, coverModifier, size = 800, shape = RoundedCornerShape(12.dp), iconSize = 56.dp)
+        }
         Spacer(Modifier.height(18.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -186,7 +186,7 @@ private fun NowPlayingPanel(state: PlayerState) {
                 AppMenu(menu) { SongMenuContent(song, { menu.expanded = false }) }
             }
         }
-        state.stream?.let { stream ->
+        state.stream?.takeIf { settings.showAudioQualityBadge }?.let { stream ->
             Spacer(Modifier.height(10.dp))
             QualityBadge(stream.badge, stream.detail, ConvxColors.SecondaryLabel)
         }

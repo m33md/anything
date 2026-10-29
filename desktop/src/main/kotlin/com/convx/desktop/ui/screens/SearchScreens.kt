@@ -49,6 +49,7 @@ import com.convx.desktop.data.Library
 import com.convx.desktop.data.toSong
 import com.convx.desktop.player.PlayerController
 import com.convx.desktop.ui.components.Artwork
+import com.convx.desktop.ui.components.CardGrid
 import com.convx.desktop.ui.components.Chip
 import com.convx.desktop.ui.components.ConvxIcon
 import com.convx.desktop.ui.components.Gutter
@@ -370,13 +371,7 @@ fun SearchResultsScreen(query: String) {
                         }
                     } else {
                         item(key = "grid") {
-                            FlowRow(
-                                Modifier.fillMaxWidth().padding(horizontal = Gutter - 10.dp),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                items.forEach { ItemCard(it) }
-                            }
+                            CardGrid { items.forEach { ItemCard(it) } }
                         }
                     }
                     if (loadingMore) item { LoadingState() }

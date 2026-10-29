@@ -317,6 +317,13 @@ fun main(args: Array<String>) {
             com.convx.desktop.lyrics.LyricsTweaks.update(playing.id) { it.copy(translation = null, offsetMs = 0) }
             AppSettings.update { it.copy(translateLanguage = "en") }
 
+            // Controls & layout in the player: the Convx mark for the cover, and play/pause on it by the lyrics.
+            shoot("13p-player-hidden-artwork", seconds = 3) {
+                AppSettings.update { it.copy(hidePlayerArtwork = true, lyricsArtworkPlayPause = true) }
+                UiState.fullPlayerMode = FullPlayerMode.Lyrics
+            }
+            AppSettings.update { it.copy(hidePlayerArtwork = false, lyricsArtworkPlayPause = false) }
+
             // A lived-in library, for the side bar, the library page and the song-list pages.
             UiState.fullPlayer = false
             songs.take(6).forEach { Library.toggleLike(it) }
@@ -403,6 +410,25 @@ fun main(args: Array<String>) {
                 SettingsNav.push(SettingsPage.AiTranslation)
             }
             shoot("19h-settings-library-hub", seconds = 2) { SettingsNav.openHub(com.convx.desktop.ui.screens.settings.SettingsHubs.library.id) }
+            shoot("19i-settings-controls-layout", seconds = 3) { SettingsNav.push(SettingsPage.ControlsLayout) }
+            // The phone's settings popup, from the account button once it's switched on.
+            AppSettings.update { it.copy(settingsPopup = true) }
+            shoot("19j-settings-popup", seconds = 3) {
+                Snapshot.sendApplyNotifications()
+                render()
+                val at = Offset(1406f, 32f)
+                scene.sendPointerEvent(PointerEventType.Move, at)
+                scene.sendPointerEvent(PointerEventType.Press, at, buttons = PointerButtons(isPrimaryPressed = true), button = PointerButton.Primary)
+                scene.sendPointerEvent(PointerEventType.Release, at, buttons = PointerButtons(), button = PointerButton.Primary)
+            }
+            Offset(1200f, 30f).let { at ->
+                scene.sendPointerEvent(PointerEventType.Press, at, buttons = PointerButtons(isPrimaryPressed = true), button = PointerButton.Primary)
+                scene.sendPointerEvent(PointerEventType.Release, at, buttons = PointerButtons(), button = PointerButton.Primary)
+            }
+            // Four columns and plain icons in Your Library, two of the phone's grid and library choices.
+            AppSettings.update { it.copy(settingsPopup = false, gridColumns = 4, libraryIconsOnly = true) }
+            shoot("14b-library-four-columns", seconds = 4) { navigator.navigate(Screen.Library) }
+            AppSettings.update { it.copy(gridColumns = 0, libraryIconsOnly = false) }
             // Last, as the bottom of Home has hung the run before: the watchdog shows where.
             shoot("20c-home-feed-end", seconds = 6) {
                 navigator.navigate(Screen.Home)

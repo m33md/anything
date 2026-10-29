@@ -48,6 +48,8 @@ import com.convx.desktop.data.Library
 import com.convx.desktop.data.toSong
 import com.convx.desktop.player.PlayerController
 import com.convx.desktop.ui.components.Artwork
+import com.convx.desktop.ui.components.CardGrid
+import com.convx.desktop.ui.components.LocalCardWidth
 import com.convx.desktop.ui.components.Gutter
 import com.convx.desktop.ui.components.ItemCard
 import com.convx.desktop.ui.components.ItemShelf
@@ -142,11 +144,7 @@ fun BrowseScreen(browseId: String, params: String?, title: String?) {
                     val (t, items) = shelves.first()
                     if (t != null) item { Text(t, style = ConvxType.Title2, modifier = Modifier.padding(horizontal = Gutter, vertical = 8.dp)) }
                     item(key = "grid") {
-                        FlowRow(
-                            Modifier.fillMaxWidth().padding(horizontal = Gutter - 10.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) { items.forEach { ItemCard(it) } }
+                        CardGrid { items.forEach { ItemCard(it) } }
                     }
                 } else {
                     shelves.forEachIndexed { index, (t, items) ->
@@ -182,11 +180,7 @@ fun LibraryScreen() {
             Text(tab.title, style = ConvxType.LargeTitle, modifier = Modifier.padding(horizontal = Gutter, vertical = 8.dp))
         }
         item(key = "grid") {
-            FlowRow(
-                Modifier.fillMaxWidth().padding(horizontal = Gutter - 10.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
+            CardGrid(Modifier.padding(vertical = 8.dp)) {
                 if (tab == LibraryTab.All || tab == LibraryTab.Playlists) {
                     // The phone's auto playlists first, each as its Settings switch says.
                     if (settings.showLikedPlaylist) {
@@ -194,7 +188,7 @@ fun LibraryScreen() {
                         SavedCard(
                             "Liked Songs",
                             pluralize(liked.size, "song"),
-                            art = { _ -> GradientTile("favorite", 156.dp, listOf(Color(0xFFFA2D48), Color(0xFF8E2DE2)), RoundedCornerShape(8.dp)) },
+                            art = { size -> GradientTile("favorite", size, listOf(Color(0xFFFA2D48), Color(0xFF8E2DE2)), RoundedCornerShape(8.dp)) },
                             onClick = { navigator.navigate(Screen.Liked) },
                             onPlay = if (liked.isEmpty()) null else ({ PlayerController.playSongs(liked, 0, "Liked Songs") }),
                         )
@@ -204,7 +198,7 @@ fun LibraryScreen() {
                         SavedCard(
                             "Downloaded",
                             pluralize(songs.size, "song"),
-                            art = { _ -> GradientTile("download", 156.dp, com.convx.desktop.ui.shell.DownloadsGradient, RoundedCornerShape(8.dp)) },
+                            art = { size -> GradientTile("download", size, com.convx.desktop.ui.shell.DownloadsGradient, RoundedCornerShape(8.dp)) },
                             onClick = { navigator.navigate(Screen.Downloads) },
                             onPlay = { PlayerController.playSongs(songs, 0, "Downloaded") },
                         )
@@ -214,7 +208,7 @@ fun LibraryScreen() {
                         SavedCard(
                             title,
                             "Playlist",
-                            art = { _ -> GradientTile("trending_up", 156.dp, TopGradient, RoundedCornerShape(8.dp)) },
+                            art = { size -> GradientTile("trending_up", size, TopGradient, RoundedCornerShape(8.dp)) },
                             onClick = { navigator.navigate(Screen.MyTop) },
                             onPlay = { PlayerController.playSongs(myTopSongs(TopFilter.AllTime, settings).map { it.value }, 0, title) },
                         )
@@ -225,7 +219,7 @@ fun LibraryScreen() {
                             SavedCard(
                                 "Cached",
                                 pluralize(cached.size, "song"),
-                                art = { _ -> GradientTile("cloud", 156.dp, CachedGradient, RoundedCornerShape(8.dp)) },
+                                art = { size -> GradientTile("cloud", size, CachedGradient, RoundedCornerShape(8.dp)) },
                                 onClick = { navigator.navigate(Screen.Cached) },
                                 onPlay = { PlayerController.playSongs(cached, 0, "Cached") },
                             )
@@ -235,7 +229,7 @@ fun LibraryScreen() {
                         SavedCard(
                             p.name,
                             "Playlist • ${pluralize(p.songs.size, "song")}",
-                            art = { _ -> MosaicArt(p.songs.mapNotNull { it.thumbnail }.distinct().take(4), 156.dp, RoundedCornerShape(8.dp)) },
+                            art = { size -> MosaicArt(p.songs.mapNotNull { it.thumbnail }.distinct().take(4), size, RoundedCornerShape(8.dp)) },
                             onClick = { navigator.navigate(Screen.LocalPlaylist(p.id)) },
                             onPlay = if (p.songs.isEmpty()) null else ({ PlayerController.playSongs(p.songs, 0, p.name) }),
                         )
@@ -290,10 +284,10 @@ private fun SavedCard(
     subtitle: String,
     thumbnail: String? = null,
     round: Boolean = false,
-    art: (@Composable (Modifier) -> Unit)? = null,
+    art: (@Composable (Dp) -> Unit)? = null,
     onClick: () -> Unit,
     onPlay: (() -> Unit)? = null,
-    width: Dp = 176.dp,
+    width: Dp = LocalCardWidth.current,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
@@ -309,7 +303,7 @@ private fun SavedCard(
         Column(Modifier.padding(10.dp)) {
             Box(Modifier.fillMaxWidth().aspectRatio(1f).shadow(if (hovered) 14.dp else 6.dp, shape)) {
                 if (art != null) {
-                    Box(Modifier.fillMaxSize().clip(shape), contentAlignment = Alignment.Center) { art(Modifier.fillMaxSize()) }
+                    Box(Modifier.fillMaxSize().clip(shape), contentAlignment = Alignment.Center) { art(width - 20.dp) }
                 } else {
                     Artwork(thumbnail, Modifier.fillMaxSize(), size = 400, shape = shape, placeholderIcon = if (round) "person" else "music_note", iconSize = 40.dp)
                 }

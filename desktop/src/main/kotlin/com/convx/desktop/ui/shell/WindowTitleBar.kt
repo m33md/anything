@@ -33,6 +33,9 @@ object WindowTitleBar {
 
     private var bar: WindowDecorations.CustomTitleBar? = null
 
+    /** The app's display density over Windows' scale; the bar and its insets follow it. */
+    private var scale = 1f
+
     /** Whether the app draws the title bar itself; the top bar then leaves room for the buttons. */
     var active by mutableStateOf(false)
         private set
@@ -53,7 +56,7 @@ object WindowTitleBar {
             val decorations = JBR.getWindowDecorations()
             val titleBar = decorations.createCustomTitleBar()
             // Logical pixels, which are Compose's dp on the desktop.
-            titleBar.height = height.value
+            titleBar.height = height.value * scale
             titleBar.putProperty("controls.dark", true)
             decorations.setCustomTitleBar(frame, titleBar)
             bar = titleBar
@@ -71,9 +74,17 @@ object WindowTitleBar {
     fun updateInsets() {
         val titleBar = bar ?: return
         runCatching {
-            rightInset = titleBar.rightInset.dp
-            leftInset = titleBar.leftInset.dp
+            rightInset = (titleBar.rightInset / scale).dp
+            leftInset = (titleBar.leftInset / scale).dp
         }
+    }
+
+    /** Display density changed: the top bar is [height] in the app's dp, so this many of Windows'. */
+    fun rescale(scale: Float, height: Dp) {
+        this.scale = scale
+        val titleBar = bar ?: return
+        runCatching { titleBar.height = height.value * scale }
+        updateInsets()
     }
 
     /** True: the pointer is over a control of ours. False: it is over empty title bar. */

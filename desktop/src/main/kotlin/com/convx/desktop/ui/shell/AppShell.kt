@@ -51,6 +51,7 @@ import com.convx.desktop.integrations.party.Party
 import com.convx.desktop.player.PlayerController
 import kotlinx.coroutines.launch
 import com.convx.desktop.ui.components.DialogCard
+import com.convx.desktop.ui.components.LocalCardWidth
 import com.convx.desktop.ui.components.LocalPageInsets
 import com.convx.desktop.ui.components.LocalPlayback
 import com.convx.desktop.ui.components.OverlayHost
@@ -58,6 +59,7 @@ import com.convx.desktop.ui.components.Overlays
 import com.convx.desktop.ui.components.PageInsets
 import com.convx.desktop.ui.components.PillButton
 import com.convx.desktop.ui.components.Playback
+import com.convx.desktop.ui.components.cardWidth
 import com.convx.desktop.ui.glass.LocalAppBackdrop
 import com.convx.desktop.ui.glass.LocalPagesBackdrop
 import com.convx.desktop.ui.glass.LocalMenuBackdrop
@@ -142,6 +144,7 @@ fun AppShell(navigator: Navigator) {
             LocalPlayback provides playback,
             LocalMenuBackdrop provides appBackdrop,
             LocalGlassConfig provides glass,
+            LocalCardWidth provides settings.cardWidth(),
         ) {
             BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)) {
                 val collapsed = settings.sidebarCollapsed || maxWidth < AutoCollapseWidth

@@ -50,11 +50,13 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.convx.desktop.data.PlayerBackground
 import com.convx.desktop.data.PlayerDesign
 import com.convx.desktop.data.Settings
+import com.convx.desktop.ui.components.ConvxIcon
 import com.convx.desktop.ui.components.ImageCache
 import com.convx.desktop.ui.components.artworkUrl
 import com.convx.desktop.ui.components.rememberImage
@@ -62,6 +64,7 @@ import com.convx.desktop.ui.components.rememberMeshColors
 import com.convx.desktop.ui.glass.LocalGlassConfig
 import com.convx.desktop.ui.glass.LocalPagesBackdrop
 import com.convx.desktop.ui.glass.liquidGlass
+import com.convx.desktop.ui.theme.ConvxColors
 import com.convx.desktop.ui.theme.rgbToHsv
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -445,7 +448,7 @@ private fun LiveMeshBackground(url: String?, playing: Boolean) {
  * hero fade, from 78% down), and towards [fadeEnd] when it sits beside lyrics or the queue.
  */
 @Composable
-fun HeroCover(url: String?, modifier: Modifier = Modifier, fadeEnd: Boolean = false, fadeSides: Boolean = false) {
+fun HeroCover(url: String?, modifier: Modifier = Modifier, fadeEnd: Boolean = false, fadeSides: Boolean = false, hidden: Boolean = false) {
     val foot = remember { heroFadeBrush(vertical = true) }
     val side = remember { heroFadeBrush(vertical = false) }
     val sides = remember {
@@ -461,7 +464,15 @@ fun HeroCover(url: String?, modifier: Modifier = Modifier, fadeEnd: Boolean = fa
                 if (fadeSides) drawRect(sides, blendMode = BlendMode.DstIn)
             },
     ) {
-        CoverImage(url, Modifier.fillMaxSize(), 1200)
+        if (hidden) HiddenArtwork(Modifier.fillMaxSize(), markSize = 160.dp) else CoverImage(url, Modifier.fillMaxSize(), 1200)
+    }
+}
+
+/** The phone's "Hide player thumbnail": the Convx mark on a plain tile where the cover would be. */
+@Composable
+fun HiddenArtwork(modifier: Modifier = Modifier, markSize: Dp = 120.dp) {
+    Box(modifier.background(ConvxColors.CardSecondary), contentAlignment = Alignment.Center) {
+        ConvxIcon("convx_logo", tint = Color.White.copy(alpha = 0.7f), size = markSize)
     }
 }
 

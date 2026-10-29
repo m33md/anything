@@ -735,6 +735,20 @@ private fun LibraryRow(
 @Composable
 private fun EntryArt(entry: LibraryEntry, size: Dp) {
     val shape = if (entry.kind == Kind.Artist) CircleShape else RoundedCornerShape(6.dp)
+    // The phone's "Library icons only": a plain glyph for each saved item, the auto playlists keep their tiles.
+    val iconsOnly = AppSettings.state.collectAsState().value.libraryIconsOnly
+    val glyph = when (entry.kind) {
+        Kind.Album -> "sf_music_note_square_stack"
+        Kind.Artist -> "mic"
+        Kind.LocalPlaylist, Kind.Playlist, Kind.SpotifyPlaylist -> "queue_music"
+        else -> null
+    }
+    if (iconsOnly && glyph != null) {
+        Box(Modifier.size(size).clip(shape).background(Color.White.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
+            ConvxIcon(glyph, tint = Color.White.copy(alpha = 0.6f), size = size * 0.45f)
+        }
+        return
+    }
     when (entry.kind) {
         Kind.Liked -> GradientTile("favorite", size, listOf(Color(0xFFFA2D48), Color(0xFF8E2DE2)), shape)
         Kind.LocalFiles -> GradientTile("storage", size, LocalFilesGradient, shape)

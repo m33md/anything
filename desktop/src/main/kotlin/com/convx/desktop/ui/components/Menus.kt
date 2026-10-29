@@ -32,6 +32,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
+import com.convx.desktop.data.AppSettings
 import com.convx.desktop.data.Library
 import com.convx.desktop.data.Song
 import com.convx.desktop.data.toItem
@@ -69,11 +70,14 @@ fun MenuAnchor.openAtProvider(): (Offset) -> Unit {
 fun AppMenu(anchor: MenuAnchor, content: @Composable () -> Unit) {
     // The phone's menus are liquid glass over the page, lit where the pointer is.
     val backdrop = LocalMenuBackdrop.current
+    // The phone's sheet corner radius, which its menus are drawn on.
+    val corner = AppSettings.state.collectAsState().value.menuCorner
+    val shape = if (corner >= 0) RoundedCornerShape(corner.dp) else MenuShape
     val scope = rememberCoroutineScope()
     val glow = remember(scope) { InteractiveHighlight(scope, radiusScale = 0.6f, sheenAlpha = 0.06f, spotAlpha = 0.32f) }
     val glass = if (backdrop != null) {
         Modifier
-            .liquidGlass(MenuShape, MenuGlass, highlightAlpha = 0.20f, outerShadow = false, backdrop = backdrop)
+            .liquidGlass(shape, MenuGlass, highlightAlpha = 0.20f, outerShadow = false, backdrop = backdrop)
             .then(glow.modifier)
             .then(glow.gestureModifier)
     } else {
@@ -85,7 +89,7 @@ fun AppMenu(anchor: MenuAnchor, content: @Composable () -> Unit) {
             expanded = anchor.expanded,
             onDismissRequest = { anchor.expanded = false },
             modifier = glass.widthIn(min = 220.dp).heightIn(max = 560.dp),
-            shape = MenuShape,
+            shape = shape,
             containerColor = if (backdrop != null) Color.Transparent else Color(0xFF2C2C2E),
             tonalElevation = 0.dp,
             shadowElevation = 16.dp,

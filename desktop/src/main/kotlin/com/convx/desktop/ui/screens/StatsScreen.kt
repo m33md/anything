@@ -360,7 +360,7 @@ private fun StatsChips(
 
 /** True while the list is still or moving back up, the phone's cue to show its floating button. */
 @Composable
-private fun LazyListState.isScrollingUp(): Boolean {
+internal fun LazyListState.isScrollingUp(): Boolean {
     var previousIndex by remember(this) { mutableIntStateOf(firstVisibleItemIndex) }
     var previousOffset by remember(this) { mutableIntStateOf(firstVisibleItemScrollOffset) }
     return remember(this) {

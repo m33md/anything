@@ -10,6 +10,7 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import kotlin.math.abs
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -26,6 +27,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -179,7 +181,8 @@ fun PlayerStage(
             // Swallow clicks so nothing underneath reacts.
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
     ) {
-        PlayerBackdrop(background, song?.thumbnail, state.isPlaying && !preview, settings, hero = hero)
+        // Reduce live blur holds the moving backgrounds still, as the phone's does.
+        PlayerBackdrop(background, song?.thumbnail, state.isPlaying && !preview && !settings.reduceLiveBlur, settings, hero = hero)
 
         BoxWithConstraints(Modifier.fillMaxSize()) {
             // Full bleed: the cover runs off the window's top edge and fades out at its foot, and
@@ -192,6 +195,7 @@ fun PlayerStage(
                     Modifier.align(if (split) Alignment.TopStart else Alignment.TopCenter).size(side),
                     fadeEnd = split,
                     fadeSides = !split && side < maxWidth,
+                    hidden = settings.hidePlayerArtwork,
                 )
             }
         }
@@ -252,7 +256,21 @@ fun PlayerStage(
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         if (!hero) {
-                            StageCover(song?.thumbnail, design, settings.artworkShadow, state.isPlaying || state.isLoading, artSize, still = preview)
+                            StageCover(
+                                song?.thumbnail,
+                                design,
+                                settings.artworkShadow,
+                                state.isPlaying || state.isLoading,
+                                artSize,
+                                still = preview,
+                                corner = settings.playerArtworkCorner.takeIf { it >= 0 }?.dp,
+                                hidden = settings.hidePlayerArtwork,
+                                onToggle = if (mode == FullPlayerMode.Lyrics && settings.lyricsArtworkPlayPause && !preview && song != null) {
+                                    { PlayerController.togglePlay() }
+                                } else {
+                                    null
+                                },
+                            )
                             Spacer(Modifier.height(28.dp))
                         }
                         Column(Modifier.width(artSize.coerceAtLeast(360.dp))) {
@@ -304,7 +322,7 @@ fun PlayerStage(
                                 if (apple) null else settings.seekBarStyle,
                                 labelColor = Color.White.copy(alpha = 0.6f),
                                 labelsBelow = true,
-                                showQuality = true,
+                                showQuality = settings.showAudioQualityBadge,
                             )
                             Spacer(Modifier.height(if (v2) 12.dp else 8.dp))
                             TransportControls(state, compact = false, modifier = Modifier.align(Alignment.CenterHorizontally), modes = !v2, disc = !v2)
@@ -352,31 +370,50 @@ fun PlayerStage(
 /**
  * The cover in the design's shape: Apple Music v2's rounded square, sinking back while paused;
  * a card; a record turning under its grooves; or a clover turning around an upright cover.
+ * [corner] is the phone's thumbnail corner radius, null for the design's own; [hidden] puts the
+ * Convx mark in the cover's place; [onToggle] is the phone's play/pause on the cover by the lyrics.
  */
 @Composable
-private fun StageCover(url: String?, design: PlayerDesign, shadow: Boolean, playing: Boolean, size: Dp, still: Boolean) {
+private fun StageCover(
+    url: String?,
+    design: PlayerDesign,
+    shadow: Boolean,
+    playing: Boolean,
+    size: Dp,
+    still: Boolean,
+    corner: Dp? = null,
+    hidden: Boolean = false,
+    onToggle: (() -> Unit)? = null,
+) {
+    val toggle = if (onToggle != null) {
+        Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onToggle)
+    } else {
+        Modifier
+    }
     if (design == PlayerDesign.AppleMusicV2) {
         // Apple's tell: the cover sinks back a little while paused.
         val artScale by animateFloatAsState(if (playing) 1f else 0.86f, spring(dampingRatio = 0.72f, stiffness = Spring.StiffnessLow))
+        val shape = RoundedCornerShape(corner ?: 14.dp)
         Box(Modifier.size(size), contentAlignment = Alignment.Center) {
-            Artwork(
-                url,
+            Box(
                 Modifier
                     .size(size)
                     .graphicsLayer {
                         scaleX = artScale
                         scaleY = artScale
                     }
-                    .shadow(if (playing) 40.dp else 18.dp, RoundedCornerShape(14.dp)),
-                size = 1000,
-                shape = RoundedCornerShape(14.dp),
-                iconSize = 80.dp,
-            )
+                    .shadow(if (playing) 40.dp else 18.dp, shape)
+                    .clip(shape)
+                    .then(toggle),
+            ) {
+                if (hidden) HiddenArtwork(Modifier.fillMaxSize()) else Artwork(url, Modifier.fillMaxSize(), size = 1000, shape = shape, iconSize = 80.dp)
+                if (onToggle != null) CoverPlayPause(playing)
+            }
         }
         return
     }
     val style = design.coverStyle()
-    val shape = style.shape(16.dp)
+    val shape = style.shape(corner ?: 16.dp)
     val angle by rememberCoverRotation(style, playing && !still)
     Box(
         Modifier
@@ -386,17 +423,29 @@ private fun StageCover(url: String?, design: PlayerDesign, shadow: Boolean, play
                 this.shape = shape
                 clip = true
                 shadowElevation = if (shadow) 24.dp.toPx() else 0f
-            },
+            }
+            .then(toggle),
     ) {
         // A clover turns around the cover; the cover itself stays upright.
-        Artwork(
-            url,
-            Modifier.fillMaxSize().graphicsLayer { rotationZ = if (style.artSpins) 0f else -angle },
-            size = 1000,
-            shape = RectangleShape,
-            iconSize = 80.dp,
-        )
+        val upright = Modifier.fillMaxSize().graphicsLayer { rotationZ = if (style.artSpins) 0f else -angle }
+        if (hidden) {
+            HiddenArtwork(upright)
+        } else {
+            Artwork(url, upright, size = 1000, shape = RectangleShape, iconSize = 80.dp)
+        }
         if (style == CoverStyle.Vinyl) VinylGrooves(Modifier.fillMaxSize())
+        // The glyph stays level while a record or clover has stopped mid-turn.
+        if (onToggle != null) Box(Modifier.fillMaxSize().graphicsLayer { rotationZ = -angle }) { CoverPlayPause(playing) }
+    }
+}
+
+/** The cover dims with a play glyph while paused, as the phone's lyrics thumbnail does. */
+@Composable
+private fun BoxScope.CoverPlayPause(playing: Boolean) {
+    val dim by animateFloatAsState(if (playing) 0f else 0.4f)
+    Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = dim)))
+    AnimatedVisibility(!playing, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.Center)) {
+        ConvxIcon("play_applemusic", tint = Color.White, size = 64.dp)
     }
 }
 

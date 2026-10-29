@@ -5,6 +5,9 @@
 
 package com.convx.desktop.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -16,6 +19,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -52,6 +56,7 @@ import com.convx.desktop.data.toSong
 import com.convx.desktop.integrations.youtube.YouTubeAccount
 import com.convx.desktop.player.PlayerController
 import com.convx.desktop.ui.components.CompactSongRow
+import com.convx.desktop.ui.components.ConvxIcon
 import com.convx.desktop.ui.components.Gutter
 import com.convx.desktop.ui.components.IconButton
 import com.convx.desktop.ui.components.ItemActions
@@ -67,6 +72,7 @@ import com.convx.desktop.ui.components.SongShelf
 import com.convx.desktop.ui.components.TopPickCard
 import com.convx.desktop.ui.components.bleedStart
 import com.convx.desktop.ui.components.pressable
+import com.convx.desktop.ui.glass.GlassCircleButton
 import com.convx.desktop.ui.screens.settings.SettingsNav
 import com.convx.desktop.ui.screens.settings.SettingsPage
 import com.convx.desktop.ui.shell.LocalNavigator
@@ -127,100 +133,127 @@ fun HomeScreen() {
         }
     }
 
-    PageList(state = rememberLazyListState()) {
-        item(key = "greeting") {
-            Row(Modifier.fillMaxWidth().padding(horizontal = Gutter, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(greeting(), style = ConvxType.LargeTitle, modifier = Modifier.weight(1f))
-                // The phone's pull to refresh: new picks, a new order.
-                if (feed.loading) {
-                    CircularProgressIndicator(color = Color.White.copy(alpha = 0.7f), strokeWidth = 2.dp, modifier = Modifier.padding(8.dp).size(20.dp))
-                } else {
-                    IconButton("refresh", {
-                        HomeFeed.load(force = true)
-                        charts.retry()
-                        explore.retry()
-                    }, size = 36.dp, iconSize = 20.dp)
+    val listState = rememberLazyListState()
+    Box(Modifier.fillMaxSize()) {
+        PageList(state = listState) {
+            item(key = "greeting") {
+                Row(Modifier.fillMaxWidth().padding(horizontal = Gutter, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(greeting(), style = ConvxType.LargeTitle, modifier = Modifier.weight(1f))
+                    // The phone's pull to refresh: new picks, a new order.
+                    if (feed.loading) {
+                        CircularProgressIndicator(color = Color.White.copy(alpha = 0.7f), strokeWidth = 2.dp, modifier = Modifier.padding(8.dp).size(20.dp))
+                    } else {
+                        IconButton("refresh", {
+                            HomeFeed.load(force = true)
+                            charts.retry()
+                            explore.retry()
+                        }, size = 36.dp, iconSize = 20.dp)
+                    }
                 }
             }
-        }
 
-        // Apple Music's "Transfer music" card, pointed at the phone's one import: signing in to YouTube Music.
-        if (selectedChip == null && account !is YouTubeAccount.State.SignedIn && !settings.homeSignInCardDismissed) {
-            item(key = "sign_in_card") {
-                HomeSignInCard(
-                    onGetStarted = {
-                        navigator.navigate(Screen.Settings)
-                        SettingsNav.push(SettingsPage.YouTubeMusic)
-                    },
-                    onDismiss = { AppSettings.update { it.copy(homeSignInCardDismissed = true) } },
-                    modifier = Modifier.padding(top = 4.dp, bottom = 20.dp),
-                )
+            // Apple Music's "Transfer music" card, pointed at the phone's one import: signing in to YouTube Music.
+            if (selectedChip == null && account !is YouTubeAccount.State.SignedIn && !settings.homeSignInCardDismissed) {
+                item(key = "sign_in_card") {
+                    HomeSignInCard(
+                        onGetStarted = {
+                            navigator.navigate(Screen.Settings)
+                            SettingsNav.push(SettingsPage.YouTubeMusic)
+                        },
+                        onDismiss = { AppSettings.update { it.copy(homeSignInCardDismissed = true) } },
+                        modifier = Modifier.padding(top = 4.dp, bottom = 20.dp),
+                    )
+                }
             }
-        }
 
-        if (chipPage != null) {
-            val page = chipPage.value
+            if (chipPage != null) {
+                val page = chipPage.value
+                when {
+                    page != null -> chipSections(page.sections, settings)
+                    chipPage.error != null -> item { MessageState("Couldn't load this mood", friendlyError(chipPage.error), actionText = "Try again", onAction = { chipPage.retry() }) }
+                    else -> item { LoadingState() }
+                }
+                return@PageList
+            }
+
+            val chartsPage = charts.value
+            val explorePage = explore.value
+            val topPicks = chartsPage?.sections?.firstOrNull { it.chartType == ChartsPage.ChartType.TOP }?.items.orEmpty().filtered(settings)
+            val trending = chartsPage?.sections?.firstOrNull { it.chartType == ChartsPage.ChartType.TRENDING }?.items.orEmpty().filtered(settings)
+            val newReleases = explorePage?.newReleaseAlbums.orEmpty().filtered(settings)
+            val heroItems = topPicks.ifEmpty { trending }.ifEmpty { newReleases }
+            if (heroItems.isNotEmpty()) {
+                item(key = "top_picks") {
+                    Shelf("Top Picks for You", spacing = 12.dp, onTitleClick = { navigator.navigate(Screen.Browse("FEmusic_charts", null, "Charts")) }) {
+                        items(heroItems.distinctBy { it.id }, key = { it.id }) { TopPickCard(it, Modifier.padding(start = 10.dp, top = 6.dp, bottom = 24.dp)) }
+                    }
+                }
+            }
+            if (heroItems !== newReleases && newReleases.isNotEmpty()) {
+                item(key = "new_releases") {
+                    ItemShelf("New Releases", newReleases, onTitleClick = { navigator.navigate(Screen.Browse("FEmusic_new_releases_albums", null, "New Releases")) })
+                    Spacer(Modifier.height(20.dp))
+                }
+            }
+            if (topPicks.isNotEmpty() && trending.isNotEmpty()) {
+                item(key = "trending") {
+                    TrendingShelf(trending)
+                    Spacer(Modifier.height(20.dp))
+                }
+            }
+
+            // Then the phone's feed, in its order, the order you arranged, or shuffled.
+            val speedDial = HomeFeed.speedDial(feed, library.speedDial)
+            val moods = explorePage?.moodAndGenres?.distinctBy { it.title }
+            val sections = buildHomeSections(feed, settings, pinsShown = speedDial.isNotEmpty(), hasMoods = moods != null)
+            sections.forEach { section ->
+                item(key = section.id) {
+                    HomeSectionView(section, feed, speedDial, moods.orEmpty(), account)
+                }
+            }
+
             when {
-                page != null -> chipSections(page.sections, settings)
-                chipPage.error != null -> item { MessageState("Couldn't load this mood", friendlyError(chipPage.error), actionText = "Try again", onAction = { chipPage.retry() }) }
-                else -> item { LoadingState() }
-            }
-            return@PageList
-        }
-
-        val chartsPage = charts.value
-        val explorePage = explore.value
-        val topPicks = chartsPage?.sections?.firstOrNull { it.chartType == ChartsPage.ChartType.TOP }?.items.orEmpty().filtered(settings)
-        val trending = chartsPage?.sections?.firstOrNull { it.chartType == ChartsPage.ChartType.TRENDING }?.items.orEmpty().filtered(settings)
-        val newReleases = explorePage?.newReleaseAlbums.orEmpty().filtered(settings)
-        val heroItems = topPicks.ifEmpty { trending }.ifEmpty { newReleases }
-        if (heroItems.isNotEmpty()) {
-            item(key = "top_picks") {
-                Shelf("Top Picks for You", spacing = 12.dp, onTitleClick = { navigator.navigate(Screen.Browse("FEmusic_charts", null, "Charts")) }) {
-                    items(heroItems.distinctBy { it.id }, key = { it.id }) { TopPickCard(it, Modifier.padding(start = 10.dp, top = 6.dp, bottom = 24.dp)) }
+                feed.homePage != null || sections.isNotEmpty() -> Unit
+                feed.homeError != null && chartsPage == null -> item(key = "offline") {
+                    MessageState(
+                        "Couldn't reach YouTube Music",
+                        friendlyError(feed.homeError),
+                        icon = "offline",
+                        actionText = "Try again",
+                        onAction = {
+                            HomeFeed.load(force = true)
+                            charts.retry()
+                            explore.retry()
+                        },
+                    )
                 }
-            }
-        }
-        if (heroItems !== newReleases && newReleases.isNotEmpty()) {
-            item(key = "new_releases") {
-                ItemShelf("New Releases", newReleases, onTitleClick = { navigator.navigate(Screen.Browse("FEmusic_new_releases_albums", null, "New Releases")) })
-                Spacer(Modifier.height(20.dp))
-            }
-        }
-        if (topPicks.isNotEmpty() && trending.isNotEmpty()) {
-            item(key = "trending") {
-                TrendingShelf(trending)
-                Spacer(Modifier.height(20.dp))
+                feed.loading -> item(key = "loading") { LoadingState() }
+                else -> Unit
             }
         }
 
-        // Then the phone's feed, in its order, the order you arranged, or shuffled.
-        val speedDial = HomeFeed.speedDial(feed, library.speedDial)
-        val moods = explorePage?.moodAndGenres?.distinctBy { it.title }
-        val sections = buildHomeSections(feed, settings, pinsShown = speedDial.isNotEmpty(), hasMoods = moods != null)
-        sections.forEach { section ->
-            item(key = section.id) {
-                HomeSectionView(section, feed, speedDial, moods.orEmpty(), account)
+        // The phone's Home shuffle: something at random from your feed, as a radio for a song. Its
+        // sound search sits beside it there; the PC has no song recognition, so it's shuffle alone.
+        val canShuffle = feed.quickPicks?.isNotEmpty() == true || feed.keepListening.isNotEmpty() || feed.homePage?.sections?.isNotEmpty() == true
+        AnimatedVisibility(
+            visible = settings.showHomeShuffle && selectedChip == null && canShuffle && listState.isScrollingUp(),
+            enter = slideInVertically { it * 2 },
+            exit = slideOutVertically { it * 2 },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = Gutter, bottom = LocalPageInsets.current.bottom + 16.dp),
+        ) {
+            GlassCircleButton(
+                onClick = {
+                    when (val pick = HomeFeed.randomItem(feed)) {
+                        is SongItem -> PlayerController.startRadio(pick.toSong())
+                        null -> Unit
+                        else -> ItemActions.play(pick)
+                    }
+                },
+                size = 56.dp,
+                tooltip = "Shuffle",
+            ) {
+                ConvxIcon("shuffle", tint = Color.White, size = 24.dp)
             }
-        }
-
-        when {
-            feed.homePage != null || sections.isNotEmpty() -> Unit
-            feed.homeError != null && chartsPage == null -> item(key = "offline") {
-                MessageState(
-                    "Couldn't reach YouTube Music",
-                    friendlyError(feed.homeError),
-                    icon = "offline",
-                    actionText = "Try again",
-                    onAction = {
-                        HomeFeed.load(force = true)
-                        charts.retry()
-                        explore.retry()
-                    },
-                )
-            }
-            feed.loading -> item(key = "loading") { LoadingState() }
-            else -> Unit
         }
     }
 }
@@ -322,7 +355,7 @@ private fun HomeSectionView(
                 Row(Modifier.fillMaxWidth().padding(horizontal = Gutter - 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     songs.withIndex().chunked(4).forEach { column ->
                         Column(Modifier.weight(1f)) {
-                            column.forEach { (index, song) -> CompactSongRow(song, { playOrToggle(songs, index, "Forgotten favorites") }) }
+                            column.forEach { (index, song) -> CompactSongRow(song, { playOrToggle(songs, index, "Forgotten favorites") }, showLiked = !AppSettings.state.collectAsState().value.hideHomeFavoriteIcon) }
                         }
                     }
                     if (songs.size <= 4) Spacer(Modifier.weight(1f))

@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -62,6 +61,7 @@ import com.convx.desktop.data.toSong
 import com.convx.desktop.player.PlayerController
 import com.convx.desktop.ui.components.AppMenu
 import com.convx.desktop.ui.components.Artwork
+import com.convx.desktop.ui.components.CardGrid
 import com.convx.desktop.ui.components.ConvxIcon
 import com.convx.desktop.ui.components.Gutter
 import com.convx.desktop.ui.components.ItemActions
@@ -265,12 +265,14 @@ private fun List<ArtistSection>.featuredRelease(): Pair<String, AlbumItem>? =
 @Composable
 private fun ArtistHeroImage(url: String?, pageColor: Color, modifier: Modifier = Modifier) {
     val image by rememberImage(artworkUrl(url, 1200))
+    val reduced = com.convx.desktop.data.AppSettings.state.collectAsState().value.reduceLiveBlur
     BoxWithConstraints(modifier) {
         val side = maxWidth
         Box(Modifier.width(side).height(side * HeroExtent).clipToBounds()) {
             val bitmap = image
             if (bitmap != null) {
-                Image(
+                // Reduce live blur: no blurred tail, the page colour washes up to the photo instead.
+                if (!reduced) Image(
                     bitmap,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
@@ -468,13 +470,7 @@ fun ArtistItemsScreen(browseId: String, params: String?, title: String) {
                     songTable(mapped, title, "ai")
                 } else {
                     item(key = "grid") {
-                        FlowRow(
-                            Modifier.fillMaxWidth().padding(horizontal = Gutter - 10.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            items.forEach { ItemCard(it) }
-                        }
+                        CardGrid { items.forEach { ItemCard(it) } }
                     }
                 }
                 if (loadingMore) item { LoadingState() }

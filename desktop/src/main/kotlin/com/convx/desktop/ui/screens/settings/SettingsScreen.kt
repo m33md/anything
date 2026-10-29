@@ -72,6 +72,7 @@ class SettingsHub(val id: String, val title: String, val icon: String, val tint:
 /** A page under a category, opened from one of its rows. */
 enum class SettingsPage(val title: String, val hub: String) {
     PlayerDesign("Player design", "player"),
+    ControlsLayout("Controls & layout", "player"),
     LyricsStyle("Lyrics style", "player"),
     LyricsEffects("Lyrics effects", "player"),
     LyricsText("Text & layout", "player"),
@@ -331,6 +332,22 @@ private val searchEntries: List<SearchEntry> by lazy {
         SearchEntry("Seek bar style", "Default, wavy, slim, waveform", h.player, SettingsPage.PlayerDesign, "seek bar slider squiggly wavy progress waveform"),
         SearchEntry("Show next track", "What plays next, under the controls", h.player, SettingsPage.PlayerDesign, "up next"),
         SearchEntry("Volume bar", null, h.player, SettingsPage.PlayerDesign, "volume slider"),
+        SearchEntry("Controls & layout", "Thumbnail, menus, buttons and badges", h.player, SettingsPage.ControlsLayout, "advanced appearance layout controls"),
+        SearchEntry("Hide player thumbnail", "Replace album artwork with the app logo in the player", h.player, SettingsPage.ControlsLayout, "artwork cover logo hide"),
+        SearchEntry("Thumbnail corner radius", null, h.player, SettingsPage.ControlsLayout, "artwork cover corners rounded radius"),
+        SearchEntry("Menu corner radius", "The phone's sheet corner radius", h.player, SettingsPage.ControlsLayout, "sheet menu corners rounded radius"),
+        SearchEntry("Show audio quality badge", null, h.player, SettingsPage.ControlsLayout, "quality badge bitrate codec opus aac"),
+        SearchEntry("Show play/pause on thumbnail", "Click the cover by the lyrics to play or pause", h.player, SettingsPage.ControlsLayout, "lyrics thumbnail cover play pause"),
+        SearchEntry("Enable settings popup", null, h.player, SettingsPage.ControlsLayout, "account popup quick settings"),
+        SearchEntry("Library icons only", null, h.player, SettingsPage.ControlsLayout, "library icons artwork thumbnails"),
+        SearchEntry("Navigation tabs", "Hide Home, Explore or Library from the top bar", h.player, SettingsPage.ControlsLayout, "tabs top bar hide home explore library"),
+        SearchEntry("Default library chip", null, h.player, SettingsPage.ControlsLayout, "library filter chip playlists albums artists"),
+        SearchEntry("Grid cell size", "Big or small cards", h.player, SettingsPage.ControlsLayout, "grid cards size big small"),
+        SearchEntry("Display density", "Make everything smaller", h.player, SettingsPage.ControlsLayout, "density scale compact zoom size"),
+        SearchEntry("Reduce live blur", "For slower PCs", h.player, SettingsPage.ControlsLayout, "blur performance low power motion"),
+        SearchEntry("Show shuffle button", "On Home", h.player, SettingsPage.ControlsLayout, "fab floating shuffle home random"),
+        SearchEntry("Hide favorite icon on Home", null, h.player, SettingsPage.ControlsLayout, "heart liked favorite home"),
+        SearchEntry("Grid & cards", "Columns, card height, spacing and corners", h.player, SettingsPage.ControlsLayout, "grid columns card height spacing hero corner radius"),
         SearchEntry("Lyrics style", "Animation, position, scrolling and swipe", h.player, SettingsPage.LyricsStyle, "lyrics animation karaoke word by word apple music fade glow slide metro fluid chord"),
         SearchEntry("Lyrics text position", "Left, center or right", h.player, SettingsPage.LyricsStyle, "lyrics align alignment left center right"),
         SearchEntry("Auto scroll lyrics", "Keep the current lyric in view", h.player, SettingsPage.LyricsStyle, "lyrics follow scroll"),
@@ -523,6 +540,7 @@ private fun HubContent(hub: SettingsHub) {
 private fun PageContent(page: SettingsPage) {
     when (page) {
         SettingsPage.PlayerDesign -> PlayerDesignSettings()
+        SettingsPage.ControlsLayout -> ControlsLayoutSettings()
         SettingsPage.LyricsStyle -> LyricsStyleSettings()
         SettingsPage.LyricsEffects -> LyricsEffectsSettings()
         SettingsPage.LyricsText -> LyricsTextSettings()

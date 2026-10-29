@@ -57,12 +57,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.times
+import com.convx.desktop.data.AppSettings
 import com.convx.desktop.data.Library
+import com.convx.desktop.ui.components.AppMenu
 import com.convx.desktop.ui.components.ConvxIcon
 import com.convx.desktop.ui.components.Tooltip
+import com.convx.desktop.ui.components.rememberMenuAnchor
 import com.convx.desktop.ui.glass.GlassCircleButton
 import com.convx.desktop.ui.glass.GlassTokens
 import com.convx.desktop.ui.glass.additiveChrome
@@ -109,6 +113,10 @@ fun TopBar(modifier: Modifier = Modifier) {
         Screen.Search, is Screen.SearchResults, Screen.Settings -> null
         else -> sticky
     }
+    val settings by AppSettings.state.collectAsState()
+    // The phone's navigation tabs switches: a hidden section's button goes, and so does its anchor.
+    val hidden = remember(settings.hiddenSections) { Section.entries.filter { it.name in settings.hiddenSections }.toSet() }
+    LaunchedEffect(hidden) { hidden.forEach { TopBarLayout.sectionBounds.remove(it) } }
 
     BoxWithConstraints(
         modifier
@@ -143,13 +151,14 @@ fun TopBar(modifier: Modifier = Modifier) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            SectionButton(Section.Home, lit == Section.Home) { UiState.openSection(Section.Home, navigator) }
+            if (Section.Home !in hidden) SectionButton(Section.Home, lit == Section.Home) { UiState.openSection(Section.Home, navigator) }
             SearchField(
                 width = fieldWidth,
                 exploreLit = lit == Section.Explore,
                 onExplore = { UiState.openSection(Section.Explore, navigator) },
+                showExplore = Section.Explore !in hidden,
             )
-            SectionButton(Section.Library, lit == Section.Library) { UiState.openSection(Section.Library, navigator) }
+            if (Section.Library !in hidden) SectionButton(Section.Library, lit == Section.Library) { UiState.openSection(Section.Library, navigator) }
         }
 
         Row(
@@ -167,12 +176,24 @@ fun TopBar(modifier: Modifier = Modifier) {
             }
             Spacer(Modifier.width(8.dp))
             val inSettings = screen == Screen.Settings
-            GlassCircleButton(
-                onClick = { navigator.navigate(Screen.Settings) },
-                size = NavButtonSize,
-                tooltip = "Settings and account",
-            ) {
-                ConvxIcon("account", tint = if (inSettings) LocalAccent.current else GlassTokens.Icon, size = 22.dp)
+            // The phone's "Enable settings popup": the account button opens a quick popup first.
+            val popup = rememberMenuAnchor()
+            Box {
+                GlassCircleButton(
+                    onClick = {
+                        if (settings.settingsPopup) {
+                            popup.offset = DpOffset(0.dp, NavButtonSize + 6.dp)
+                            popup.expanded = true
+                        } else {
+                            navigator.navigate(Screen.Settings)
+                        }
+                    },
+                    size = NavButtonSize,
+                    tooltip = "Settings and account",
+                ) {
+                    ConvxIcon("account", tint = if (inSettings || popup.expanded) LocalAccent.current else GlassTokens.Icon, size = 22.dp)
+                }
+                AppMenu(popup) { SettingsPopup { popup.expanded = false } }
             }
         }
     }
@@ -209,7 +230,7 @@ private fun NavArrow(icon: String, tooltip: String, enabled: Boolean, onClick: (
  * opens Search; the button at its end is Explore, where Spotify keeps Browse.
  */
 @Composable
-private fun SearchField(width: Dp, exploreLit: Boolean, onExplore: () -> Unit) {
+private fun SearchField(width: Dp, exploreLit: Boolean, onExplore: () -> Unit, showExplore: Boolean = true) {
     val navigator = LocalNavigator.current
     val focusManager = LocalFocusManager.current
     val glow = rememberInteractiveHighlight()
@@ -318,16 +339,18 @@ private fun SearchField(width: Dp, exploreLit: Boolean, onExplore: () -> Unit) {
                 runCatching { UiState.searchFocus.requestFocus() }
             }
         }
-        Box(Modifier.padding(horizontal = 4.dp).width(1.dp).height(22.dp).background(Color.White.copy(alpha = 0.18f)))
-        val bounce = rememberSymbolBounce().onSelected(exploreLit)
-        FieldButton(
-            Section.Explore.icon,
-            Section.Explore.label,
-            if (exploreLit) LocalAccent.current else GlassTokens.Icon,
-            modifier = Modifier.sectionAnchor(Section.Explore),
-            iconModifier = bounce.modifier,
-            onClick = onExplore,
-        )
+        if (showExplore) {
+            Box(Modifier.padding(horizontal = 4.dp).width(1.dp).height(22.dp).background(Color.White.copy(alpha = 0.18f)))
+            val bounce = rememberSymbolBounce().onSelected(exploreLit)
+            FieldButton(
+                Section.Explore.icon,
+                Section.Explore.label,
+                if (exploreLit) LocalAccent.current else GlassTokens.Icon,
+                modifier = Modifier.sectionAnchor(Section.Explore),
+                iconModifier = bounce.modifier,
+                onClick = onExplore,
+            )
+        }
     }
 }
 

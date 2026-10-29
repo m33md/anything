@@ -320,6 +320,43 @@ data class Settings(
     val showTopPlaylist: Boolean = true,
     val showCachedPlaylist: Boolean = true,
     val topSize: Int = 50,
+    // The phone's Controls & layout page, with its defaults where the PC has the same thing.
+    /** The phone's "Hide player thumbnail": the Convx mark where the player's cover would be. */
+    val hidePlayerArtwork: Boolean = false,
+    /** The player's cover corners in dp; -1 keeps each design's own. */
+    val playerArtworkCorner: Int = -1,
+    /** Menus' corners in dp, the phone's sheet corner radius; -1 keeps the PC's own. */
+    val menuCorner: Int = -1,
+    val showAudioQualityBadge: Boolean = true,
+    /** With lyrics open, clicking the cover beside them plays and pauses. */
+    val lyricsArtworkPlayPause: Boolean = false,
+    /** The account button opens a quick popup instead of going straight to Settings. */
+    val settingsPopup: Boolean = false,
+    /**
+     * Your Library's rows show a plain icon instead of each cover. On by default on the phone;
+     * off here, as the PC's Your Library is the cover list you asked for.
+     */
+    val libraryIconsOnly: Boolean = false,
+    /** Top bar sections switched off, by their names; the phone's navigation tabs. */
+    val hiddenSections: List<String> = emptyList(),
+    /** Which of Library's filters it opens on, by name; the phone's default library chip. */
+    val defaultLibraryTab: String = "All",
+    /** The phone's grid cell size: Big, or Small covers on grid pages and shelves. */
+    val gridSmall: Boolean = false,
+    /** 1 is Windows' own scale; the phone's display density goes down to 55%. */
+    val displayDensity: Float = 1f,
+    /** The phone's Reduce live blur: flat colour where hero cards blur, still backgrounds, no zoom. */
+    val reduceLiveBlur: Boolean = false,
+    /** The shuffle button at the bottom of Home. */
+    val showHomeShuffle: Boolean = true,
+    /** Hides the heart on liked songs in Home's rows. */
+    val hideHomeFavoriteIcon: Boolean = false,
+    // The phone's Grid & cards dials. 0 is Auto, as there.
+    val gridColumns: Int = 0,
+    val gridCardHeight: Int = 0,
+    val gridSpacing: Int = 16,
+    val homeHeroHeight: Int = 0,
+    val homeCardCorner: Int = 0,
     /** The phone's app font by its id; Plus Jakarta Sans, its default. */
     val appFont: String = "plus_jakarta_sans",
     /** An imported font (kept with the imported lyrics fonts) used everywhere while this is on. */

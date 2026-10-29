@@ -50,6 +50,10 @@ import com.convx.desktop.ui.components.ImageCache
 import com.convx.desktop.ui.shell.AppShell
 import com.convx.desktop.ui.shell.Navigator
 import com.convx.desktop.ui.shell.TopBarHeight
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import com.convx.desktop.ui.shell.UiState
 import com.convx.desktop.ui.shell.WindowTitleBar
 import com.sun.jna.Library as JnaLibrary
@@ -175,7 +179,13 @@ fun main() {
                         }
                     }
             }
-            AppShell(navigator)
+            // The phone's display density: everything drawn smaller than Windows' own scale, down to 55%.
+            val scale = AppSettings.state.collectAsState().value.displayDensity
+            val base = LocalDensity.current
+            LaunchedEffect(scale) { WindowTitleBar.rescale(scale, TopBarHeight) }
+            CompositionLocalProvider(LocalDensity provides Density(base.density * scale, base.fontScale)) {
+                AppShell(navigator)
+            }
         }
     }
 }

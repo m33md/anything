@@ -84,7 +84,8 @@ object UiState {
         if (focused) typingIn = field else if (typingIn == field) typingIn = null
     }
 
-    var libraryTab by mutableStateOf(LibraryTab.All)
+    /** Opens on the phone's default library chip, from Controls & layout. */
+    var libraryTab by mutableStateOf(LibraryTab.entries.firstOrNull { it.name == AppSettings.value.defaultLibraryTab } ?: LibraryTab.All)
 
     /**
      * The section whose strip is unfolded under the top bar, if any. Clicking a section's button

@@ -42,8 +42,8 @@ private val OpenTabs = listOf("home" to "Home", "search" to "Search", "library" 
 
 /**
  * The phone's Layout & home settings that mean something on a PC: the tab Convx opens on, the
- * featured card, and the Home feed's order and filters. Its app language, density and swipe
- * gestures aren't here: Convx on the PC is in English only and has no swipes.
+ * featured card, and the Home feed's order and filters. Its app language and swipe gestures
+ * aren't here: Convx on the PC is in English only and has no swipes. Density is in Controls & layout.
  */
 @Composable
 fun LayoutHomeSettings() {

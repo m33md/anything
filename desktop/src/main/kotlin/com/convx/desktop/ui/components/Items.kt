@@ -66,6 +66,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.convx.desktop.data.AppSettings
 import com.convx.desktop.core.formatSeconds
 import com.convx.desktop.data.Library
 import com.convx.desktop.data.Song
@@ -317,9 +318,12 @@ fun CompactSongRow(
     song: Song,
     onPlay: () -> Unit,
     modifier: Modifier = Modifier,
+    /** The phone's heart on a liked song; Home's rows can turn it off. */
+    showLiked: Boolean = true,
 ) {
     val playback = LocalPlayback.current
     val accent = LocalAccent.current
+    val liked = showLiked && Library.state.collectAsState().value.liked.any { it.song.id == song.id }
     val isCurrent = playback.currentId == song.id
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
@@ -349,6 +353,7 @@ fun CompactSongRow(
             Column(Modifier.padding(start = 12.dp).weight(1f)) {
                 Text(song.title, style = ConvxType.Body, color = if (isCurrent) accent else Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (liked) ConvxIcon("favorite", tint = accent, size = 13.dp, modifier = Modifier.padding(end = 4.dp))
                     if (song.explicit) ConvxIcon("explicit", tint = ConvxColors.SecondaryLabel, size = 13.dp, modifier = Modifier.padding(end = 4.dp))
                     Text(
                         listOfNotNull(song.artistText.ifBlank { null }, song.album?.name).joinToString(" • "),
@@ -375,7 +380,7 @@ fun CompactSongRow(
 fun ItemCard(
     item: YTItem,
     modifier: Modifier = Modifier,
-    width: Dp = 176.dp,
+    width: Dp = LocalCardWidth.current,
     onClick: (() -> Unit)? = null,
     /** What the card says, where it isn't the item's own: Stats ranks and counts. */
     title: String = item.title,
@@ -455,7 +460,9 @@ fun TopPickCard(item: YTItem, modifier: Modifier = Modifier, onClick: (() -> Uni
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
     val menu = rememberMenuAnchor()
-    val shape = RoundedCornerShape(20.dp)
+    val settings by AppSettings.state.collectAsState()
+    // One of Home's cards, so the phone's Home card corner radius rounds it too.
+    val shape = RoundedCornerShape(if (settings.homeCardCorner > 0) settings.homeCardCorner.dp else 20.dp)
     val image by rememberImage(artworkUrl(item.thumbnail, 544))
     val label = when (item) {
         is SongItem -> item.artists.firstOrNull()?.name
@@ -487,7 +494,8 @@ fun TopPickCard(item: YTItem, modifier: Modifier = Modifier, onClick: (() -> Uni
         val bitmap = image
         if (bitmap != null) {
             // The reflection: the cover flipped, blurred and dimmed, filling the caption strip.
-            Image(
+            // Reduce live blur leaves the strip a flat colour.
+            if (!settings.reduceLiveBlur) Image(
                 bitmap,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
@@ -602,7 +610,7 @@ fun ItemShelf(
     modifier: Modifier = Modifier,
     subtitle: String? = null,
     onTitleClick: (() -> Unit)? = null,
-    cardWidth: Dp = 176.dp,
+    cardWidth: Dp = LocalCardWidth.current,
     thumbnail: String? = null,
     roundThumbnail: Boolean = false,
     onPlayAll: (() -> Unit)? = null,

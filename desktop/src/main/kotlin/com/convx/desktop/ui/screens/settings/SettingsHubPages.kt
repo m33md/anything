@@ -60,6 +60,10 @@ fun PlayerHub() {
         LinkRow("Player design", "Card, Vinyl, Clover, Apple Music, with live previews", icon = "play", tint = SystemColors.Pink, value = settings.playerDesign.label) {
             SettingsNav.push(SettingsPage.PlayerDesign)
         }
+        RowDivider()
+        LinkRow("Controls & layout", "Thumbnail, menus, buttons and badges", icon = "sliders", tint = SystemColors.Indigo) {
+            SettingsNav.push(SettingsPage.ControlsLayout)
+        }
     }
     SectionGap()
     SettingsSection("Lyrics", footer = "Lyrics come from the same sources as on the phone, and are looked up as the song starts.") {

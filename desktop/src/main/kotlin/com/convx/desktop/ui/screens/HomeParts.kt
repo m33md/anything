@@ -32,6 +32,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -69,6 +70,8 @@ import com.convx.desktop.ui.components.rememberImage
 import com.convx.desktop.ui.components.rememberMenuAnchor
 import com.convx.desktop.ui.components.subtitle
 import com.convx.desktop.ui.shapes.ContinuousRoundedRectangle
+import com.convx.desktop.data.AppSettings
+import com.convx.desktop.data.Library
 import com.convx.desktop.ui.theme.ConvxColors
 import com.convx.desktop.ui.theme.ConvxType
 import com.convx.desktop.ui.theme.LocalAccent
@@ -95,21 +98,29 @@ fun HomeHeroCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val settings by AppSettings.state.collectAsState()
+    val reduced = settings.reduceLiveBlur
     val image by rememberImage(artworkUrl(thumbnail, 1200))
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
-    // Zooms in from 112% as it fades in, once the cover is there to show.
+    // Zooms in from 112% as it fades in, once the cover is there to show; Reduce live blur just shows it.
     val scale = remember { Animatable(1.12f) }
     val alpha = remember { Animatable(0f) }
     val ready = image != null
     LaunchedEffect(ready) {
         if (!ready) return@LaunchedEffect
+        if (reduced) {
+            scale.snapTo(1f)
+            alpha.snapTo(1f)
+            return@LaunchedEffect
+        }
         launch { scale.animateTo(1f, tween(340, easing = MorphEasing)) }
         launch { alpha.animateTo(1f, tween(340, easing = MorphEasing)) }
     }
-    val shape = ContinuousRoundedRectangle(18.dp)
+    // The phone's Home card corner radius and Hero card height, when they aren't Auto.
+    val shape = ContinuousRoundedRectangle(if (settings.homeCardCorner > 0) settings.homeCardCorner.dp else 18.dp)
     BoxWithConstraints(modifier.fillMaxWidth()) {
-        val height = (maxWidth * 0.75f).coerceAtMost(420.dp)
+        val height = if (settings.homeHeroHeight > 0) settings.homeHeroHeight.dp else (maxWidth * 0.75f).coerceAtMost(420.dp)
         Box(
             Modifier
                 .fillMaxWidth()
@@ -132,8 +143,21 @@ fun HomeHeroCard(
                         this.alpha = alpha.value
                     },
                 )
-                // The frost: the cover again, blurred, showing only toward the bottom, as the phone bakes it.
-                Image(
+                // The frost: the cover again, blurred, showing only toward the bottom, as the phone bakes it;
+                // with Reduce live blur, flat colour in its place.
+                if (reduced) {
+                    Box(
+                        Modifier.fillMaxSize().background(
+                            Brush.verticalGradient(
+                                0f to Color.Transparent,
+                                0.3f to Color.Transparent,
+                                0.55f to ConvxColors.Card.copy(alpha = 0.65f),
+                                0.75f to ConvxColors.Card,
+                                1f to ConvxColors.Card,
+                            ),
+                        ),
+                    )
+                } else Image(
                     bitmap,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
@@ -301,6 +325,9 @@ private val ListColumnWidth: Dp = 380.dp
 fun CompactItemRow(item: YTItem, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val playback = LocalPlayback.current
     val isCurrent = item is SongItem && playback.currentId == item.id
+    // The phone's heart on liked songs in Home's rows, unless "Hide favorite icon on Home" is on.
+    val liked = item is SongItem && !AppSettings.state.collectAsState().value.hideHomeFavoriteIcon &&
+        Library.state.collectAsState().value.liked.any { it.song.id == item.id }
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
     val menu = rememberMenuAnchor()
@@ -344,6 +371,7 @@ fun CompactItemRow(item: YTItem, onClick: () -> Unit, modifier: Modifier = Modif
                 val subtitle = item.subtitle()
                 if (subtitle.isNotEmpty()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (liked) ConvxIcon("favorite", tint = LocalAccent.current, size = 13.dp, modifier = Modifier.padding(end = 4.dp))
                         if (item.explicit) ConvxIcon("explicit", tint = ConvxColors.SecondaryLabel, size = 13.dp, modifier = Modifier.padding(end = 4.dp))
                         Text(subtitle, style = ConvxType.Subhead, color = ConvxColors.SecondaryLabel, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
