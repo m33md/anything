@@ -92,7 +92,30 @@ fun main(args: Array<String>) {
         Log.i("Snapshots", "Wrote $name.png")
     }
 
+    // A shot that never finishes rendering is a hang: print where the render thread is stuck and
+    // stop, instead of sitting until the build's timeout with nothing in the log.
+    val renderThread = Thread.currentThread()
+    var shotName = ""
+    var shotDeadline = Long.MAX_VALUE
+    Thread({
+        while (true) {
+            Thread.sleep(5_000)
+            if (System.nanoTime() > shotDeadline) {
+                System.err.println("Snapshot $shotName hung. Render thread:")
+                renderThread.stackTrace.take(80).forEach { System.err.println("    at $it") }
+                Thread.getAllStackTraces().filterKeys { it !== renderThread && !it.isDaemon }.forEach { (thread, stack) ->
+                    System.err.println("Thread ${thread.name}:")
+                    stack.take(25).forEach { System.err.println("    at $it") }
+                }
+                System.err.flush()
+                Runtime.getRuntime().halt(3)
+            }
+        }
+    }, "snapshot-watchdog").apply { isDaemon = true }.start()
+
     fun shoot(name: String, seconds: Int = 10, setup: () -> Unit = {}) {
+        shotName = name
+        shotDeadline = System.nanoTime() + (seconds + 60) * 1_000_000_000L
         setup()
         val end = System.nanoTime() + seconds * 1_000_000_000L
         var image = render()
@@ -102,11 +125,14 @@ fun main(args: Array<String>) {
             image = render()
         }
         save(name, image)
+        shotDeadline = Long.MAX_VALUE
     }
 
     // An animation caught at fixed points of its own time, at 60 frames a second, so a slow
     // first frame on the build machine doesn't decide what gets captured.
     fun film(name: String, atMs: List<Long>, setup: () -> Unit) {
+        shotName = name
+        shotDeadline = System.nanoTime() + (atMs.maxOrNull() ?: 0L) * 1_000_000L + 60_000_000_000L
         setup()
         Snapshot.sendApplyNotifications()
         val start = maxOf(System.nanoTime(), clock + 1)
@@ -123,6 +149,7 @@ fun main(args: Array<String>) {
         }
         // Let the wall clock catch up, so the next shot's frames don't go back in time.
         while (System.nanoTime() < clock) Thread.sleep(5)
+        shotDeadline = Long.MAX_VALUE
     }
 
     runCatching {
@@ -323,7 +350,6 @@ fun main(args: Array<String>) {
             shoot("20-home-feed", seconds = 25) { navigator.navigate(Screen.Home) }
             shoot("20a-home-feed-down", seconds = 3) { scroll(10f) }
             shoot("20b-home-feed-further", seconds = 3) { scroll(10f) }
-            shoot("20c-home-feed-end", seconds = 3) { scroll(20f) }
             shoot("21-stats", seconds = 8) { navigator.navigate(Screen.Stats) }
             shoot("21a-stats-months", seconds = 3) {
                 com.convx.desktop.ui.screens.StatsSelection.option = com.convx.desktop.ui.screens.StatsOption.Months
@@ -377,6 +403,13 @@ fun main(args: Array<String>) {
                 SettingsNav.push(SettingsPage.AiTranslation)
             }
             shoot("19h-settings-library-hub", seconds = 2) { SettingsNav.openHub(com.convx.desktop.ui.screens.settings.SettingsHubs.library.id) }
+            // Last, as the bottom of Home has hung the run before: the watchdog shows where.
+            shoot("20c-home-feed-end", seconds = 6) {
+                navigator.navigate(Screen.Home)
+                Snapshot.sendApplyNotifications()
+                render()
+                scroll(40f)
+            }
         }
     }.onFailure { Log.e("Snapshots", "Rendering failed", it) }
 
