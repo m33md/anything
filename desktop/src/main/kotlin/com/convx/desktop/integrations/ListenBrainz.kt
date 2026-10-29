@@ -82,7 +82,9 @@ object ListenBrainz {
                                 song.album?.name?.takeIf { it.isNotBlank() }?.let { put("release_name", it) }
                                 put("additional_info", buildJsonObject {
                                     song.duration?.let { put("duration_ms", it * 1000L) }
-                                    put("origin_url", "https://music.youtube.com/watch?v=${song.id}")
+                                    if (!com.convx.desktop.player.LocalMusic.isLocal(song.id)) {
+                                        put("origin_url", "https://music.youtube.com/watch?v=${song.id}")
+                                    }
                                     put("submission_client", "Convx for Windows")
                                     put("submission_client_version", AppInfo.VERSION)
                                 })

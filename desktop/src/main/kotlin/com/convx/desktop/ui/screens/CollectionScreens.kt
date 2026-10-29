@@ -610,6 +610,56 @@ fun LikedScreen() {
     }
 }
 
+/** The phone's "Local" list: every music file the scan found on this PC. */
+@Composable
+fun LocalFilesScreen() {
+    val navigator = LocalNavigator.current
+    val index by com.convx.desktop.player.LocalMusic.index.collectAsState()
+    val status by com.convx.desktop.player.LocalMusic.status.collectAsState()
+    val playback = com.convx.desktop.ui.components.LocalPlayback.current
+    val songs = remember(index) { com.convx.desktop.player.LocalMusic.songs(index) }
+    val albums = remember(index) { songs.map { index.tracks[it.id]?.album } }
+    val tint = PageBlack
+    val isThisPlaying = playback.isPlaying && songs.any { it.id == playback.currentId }
+    fun openFolders() {
+        navigator.switchTo(Screen.Settings)
+        com.convx.desktop.ui.screens.settings.SettingsNav.push(com.convx.desktop.ui.screens.settings.SettingsPage.LocalFolders)
+    }
+    Box(Modifier.fillMaxSize().background(tint)) {
+        PageList(state = rememberLazyListState(), tint = tint, topPadding = 0.dp) {
+            collectionHeader(
+                title = "Local files",
+                art = { size -> GradientTile("storage", size, com.convx.desktop.ui.shell.LocalFilesGradient, RoundedCornerShape(12.dp)) },
+                metadata = (songs.totalLine() + listOfNotNull((status as? com.convx.desktop.player.LocalMusic.Status.Scanning)?.let { "Scanning…" }))
+                    .joinToString(" · "),
+                playing = isThisPlaying,
+                enabled = songs.isNotEmpty(),
+                onPlay = { if (isThisPlaying) PlayerController.pause() else if (songs.isNotEmpty()) PlayerController.playSongs(songs, 0, "Local files", shuffle = false) },
+                onShuffle = { if (songs.isNotEmpty()) PlayerController.playSongs(songs, 0, "Local files", shuffle = true) },
+            )
+            if (songs.isEmpty()) {
+                item {
+                    MessageState(
+                        "No music files yet",
+                        "Choose the folders with your music, and Convx plays the files from there.",
+                        icon = "storage",
+                        actionText = "Choose folders",
+                        onAction = { openFolders() },
+                    )
+                }
+            } else {
+                songTable(
+                    songs,
+                    "Local files",
+                    "local",
+                    trailingLabel = "Album",
+                    trailing = { i -> albums.getOrNull(i) },
+                )
+            }
+        }
+    }
+}
+
 @Composable
 fun HistoryScreen() {
     val library by Library.state.collectAsState()

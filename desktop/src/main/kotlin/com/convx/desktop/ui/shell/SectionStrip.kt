@@ -323,6 +323,7 @@ private fun rememberStripEntries(section: Section): List<StripEntry> {
                 StripEntry("albums", LibraryTab.Albums.label, "album", on(LibraryTab.Albums)) { openTab(LibraryTab.Albums) },
                 StripEntry("artists", LibraryTab.Artists.label, "artist", on(LibraryTab.Artists)) { openTab(LibraryTab.Artists) },
                 StripEntry("songs", "Songs", "music_note", screen == Screen.Liked) { navigator.switchTo(Screen.Liked) },
+                StripEntry("local", "Local files", "storage", screen == Screen.LocalFiles) { navigator.switchTo(Screen.LocalFiles) },
                 StripEntry("history", "History", "history", screen == Screen.History) { navigator.switchTo(Screen.History) },
                 StripEntry("stats", "Stats", "stats", screen == Screen.TopSongs) { navigator.switchTo(Screen.TopSongs) },
             )

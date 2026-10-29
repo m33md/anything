@@ -83,6 +83,7 @@ enum class SettingsPage(val title: String, val hub: String) {
     LastFm("Last.fm", "accounts"),
     ListenBrainz("ListenBrainz", "accounts"),
     Network("Network & proxy", "accounts"),
+    LocalFolders("Music folders", "library"),
 }
 
 object SettingsHubs {
@@ -330,6 +331,10 @@ private val searchEntries: List<SearchEntry> by lazy {
         SearchEntry("Import from Spotify", "Copy playlists and Liked Songs", h.accounts, SettingsPage.Spotify, "spotify import playlists"),
         SearchEntry("Last.fm", "Scrobbling", h.accounts, SettingsPage.LastFm, "lastfm scrobble love now playing"),
         SearchEntry("ListenBrainz", "Scrobbling with a token", h.accounts, SettingsPage.ListenBrainz, "listenbrainz scrobble musicbrainz"),
+        SearchEntry("Music folders", "Folders with music files", h.library, SettingsPage.LocalFolders, "local files folders scan mp3 flac"),
+        SearchEntry("Scan local files", null, h.library, SettingsPage.LocalFolders, "scan local files"),
+        SearchEntry("Network storage", "SMB and WebDAV shares", h.library, SettingsPage.LocalFolders, "smb webdav nas network share"),
+        SearchEntry("Excluded folders", null, h.library, SettingsPage.LocalFolders, "exclude skip folder"),
         SearchEntry("Network & proxy", "IP version and proxy", h.accounts, SettingsPage.Network, "proxy ipv6 ipv4 network socks http"),
         SearchEntry("Apple Music import", "Import playlists from a link or export", h.accounts, keywords = "apple music playlist import export itunes xml"),
         SearchEntry("Sound output", "Speakers or headphones", h.playback, SettingsPage.Output, "device speaker headphones output"),
@@ -471,6 +476,7 @@ private fun PageContent(page: SettingsPage) {
         SettingsPage.LastFm -> LastFmSettings()
         SettingsPage.ListenBrainz -> ListenBrainzSettings()
         SettingsPage.Network -> NetworkSettings()
+        SettingsPage.LocalFolders -> LocalFoldersSettings()
     }
 }
 

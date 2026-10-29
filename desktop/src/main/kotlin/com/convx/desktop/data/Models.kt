@@ -150,6 +150,10 @@ data class Settings(
     val youtubeMoreContent: Boolean = true,
     /** The phone's "Auto sync with account": likes, albums, artists and playlists follow YouTube Music. */
     val youtubeSync: Boolean = true,
+    /** Folders scanned for music files; the Windows Music folder until you choose. */
+    val localFolders: List<String> = com.convx.desktop.player.LocalMusic.defaultFolders(),
+    val excludedFolders: List<String> = emptyList(),
+    val scanLocalOnStart: Boolean = true,
     /** The phone's Network & proxy page; the proxy password lives in Secrets. */
     val ipVersion: String = "IPV4",
     val proxyEnabled: Boolean = false,

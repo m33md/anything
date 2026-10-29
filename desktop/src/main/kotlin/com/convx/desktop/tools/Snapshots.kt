@@ -150,6 +150,8 @@ fun main(args: Array<String>) {
         shoot("07i-settings-youtube", seconds = 2) { SettingsNav.push(SettingsPage.YouTubeMusic) }
         shoot("07j-apple-import", seconds = 2) { com.convx.desktop.ui.screens.settings.appleMusicImportDialog() }
         com.convx.desktop.ui.components.Overlays.dismissDialog()
+        shoot("07k-settings-folders", seconds = 2) { SettingsNav.push(SettingsPage.LocalFolders) }
+        shoot("07l-settings-network", seconds = 2) { SettingsNav.push(SettingsPage.Network) }
         shoot("08-explore", seconds = 12) { navigator.navigate(Screen.Explore) }
         shoot("08a-explore-strip", seconds = 3) { UiState.openSection(Section.Explore, navigator) }
         shoot("08b-explore-jump", seconds = 3) { UiState.exploreJump = ExploreAnchor.Moods }

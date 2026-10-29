@@ -222,9 +222,10 @@ object DiscordPresence {
             artworkUrl(song.thumbnail, 512)?.let { put("large_image", it) }
             put("large_text", fit(song.album?.name ?: song.title))
         }
-        if (look.button1 != null || look.button2 != null) {
+        if ((look.button1 != null && !com.convx.desktop.player.LocalMusic.isLocal(song.id)) || look.button2 != null) {
             putJsonArray("buttons") {
-                look.button1?.let { label ->
+                // A file on this PC has no page to link to.
+                look.button1?.takeIf { !com.convx.desktop.player.LocalMusic.isLocal(song.id) }?.let { label ->
                     addJsonObject {
                         put("label", button(resolveVariables(label, song)))
                         put("url", SongUrl + song.id)

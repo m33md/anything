@@ -112,6 +112,11 @@ object ImageCache {
     }
 
     private suspend fun fetch(url: String): ImageBitmap? {
+        // Covers of music files on this PC are read where they are.
+        if (url.startsWith("file:")) {
+            val bytes = File(java.net.URI(url)).takeIf { it.isFile }?.readBytes() ?: return null
+            return SkiaImage.makeFromEncoded(bytes).toComposeImageBitmap()
+        }
         val file = File(AppDirs.images, sha1(url))
         val bytes = if (file.isFile && file.length() > 0) {
             file.readBytes()

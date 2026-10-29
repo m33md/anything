@@ -125,11 +125,15 @@ val SideBarMargin: Dp = 12.dp
 val SideBarContentInset: Dp = SideBarMargin + SideBarWidth + 8.dp
 val SideBarCollapsedContentInset: Dp = SideBarMargin + SideBarCollapsedWidth + 8.dp
 
+/** Local files' tile, in the phone's orange for music folders. */
+val LocalFilesGradient = listOf(Color(0xFFFF9F0A), Color(0xFFFF375F))
+
 private val RowHeight = 60.dp
 private val ArtSize = 46.dp
 
 private enum class Kind(val label: String) {
     Liked("Playlist"),
+    LocalFiles("Playlist"),
     LocalPlaylist("Playlist"),
     Playlist("Playlist"),
     Album("Album"),
@@ -139,7 +143,7 @@ private enum class Kind(val label: String) {
     ;
 
     val spotify: Boolean get() = this == SpotifyLiked || this == SpotifyPlaylist
-    val playlist: Boolean get() = this == Liked || this == LocalPlaylist || this == Playlist || spotify
+    val playlist: Boolean get() = this == Liked || this == LocalFiles || this == LocalPlaylist || this == Playlist || spotify
 }
 
 private enum class LibraryFilter(val label: String) { Playlists("Playlists"), Albums("Albums"), Artists("Artists") }
@@ -195,6 +199,19 @@ private fun spotifyEntries(playlists: List<SpotifyPlaylist>, likedCount: Int?): 
             ),
         )
     }
+}
+
+/** The music files on this PC, the phone's "Local" list; shown once a scan has found any. */
+private fun localEntry(count: Int, library: LibraryData): List<LibraryEntry> {
+    if (count == 0) return emptyList()
+    val recent = library.history.firstOrNull { com.convx.desktop.player.LocalMusic.isLocal(it.song.id) }?.at ?: 0L
+    return listOf(
+        LibraryEntry(
+            key = "local-files", kind = Kind.LocalFiles, id = "local-files", title = "Local files",
+            owner = if (count == 1) "1 song" else "$count songs",
+            thumbnail = null, mosaic = emptyList(), screen = Screen.LocalFiles, added = 1L, recent = recent,
+        ),
+    )
 }
 
 /** Everything in the library as one list; [recent] is the last time anything in it played. */
@@ -271,8 +288,9 @@ fun LibraryPanel(collapsed: Boolean, modifier: Modifier = Modifier) {
         spotifyLists = SpotifyApi.playlists().getOrNull()
         spotifyLiked = SpotifyApi.likedSongs().getOrNull()?.size
     }
-    val all = remember(library, spotifyLists, spotifyLiked) {
-        library.entries() + (spotifyLists?.let { spotifyEntries(it, spotifyLiked) } ?: emptyList())
+    val localIndex by com.convx.desktop.player.LocalMusic.index.collectAsState()
+    val all = remember(library, spotifyLists, spotifyLiked, localIndex) {
+        library.entries() + localEntry(localIndex.tracks.size, library) + (spotifyLists?.let { spotifyEntries(it, spotifyLiked) } ?: emptyList())
     }
     val shown = remember(all, filter, query, sort, pins) {
         val matching = all.filter { entry ->
@@ -666,6 +684,7 @@ private fun EntryArt(entry: LibraryEntry, size: Dp) {
     val shape = if (entry.kind == Kind.Artist) CircleShape else RoundedCornerShape(6.dp)
     when (entry.kind) {
         Kind.Liked -> GradientTile("favorite", size, listOf(Color(0xFFFA2D48), Color(0xFF8E2DE2)), shape)
+        Kind.LocalFiles -> GradientTile("storage", size, LocalFilesGradient, shape)
         Kind.LocalPlaylist -> MosaicArt(entry.mosaic, size, shape)
         // Spotify's own Liked Songs tile.
         Kind.SpotifyLiked -> GradientTile("favorite", size, listOf(Color(0xFF450AF5), Color(0xFF8E8EE5)), shape)
@@ -680,6 +699,8 @@ private fun EntryMenu(entry: LibraryEntry, pinned: Boolean, dismiss: () -> Unit)
         dismiss()
         when (entry.kind) {
             Kind.Liked -> Library.state.value.liked.map { it.song }.takeIf { it.isNotEmpty() }
+                ?.let { PlayerController.playSongs(it, 0, entry.title, shuffle = shuffle) }
+            Kind.LocalFiles -> com.convx.desktop.player.LocalMusic.songs().takeIf { it.isNotEmpty() }
                 ?.let { PlayerController.playSongs(it, 0, entry.title, shuffle = shuffle) }
             Kind.LocalPlaylist -> Library.playlist(entry.id)?.songs?.takeIf { it.isNotEmpty() }
                 ?.let { PlayerController.playSongs(it, 0, entry.title, shuffle = shuffle) }
@@ -739,7 +760,7 @@ private fun EntryMenu(entry: LibraryEntry, pinned: Boolean, dismiss: () -> Unit)
             dismiss()
             Library.state.value.artists.firstOrNull { it.id == entry.id }?.let { Library.toggleArtist(it) }
         }
-        Kind.Liked, Kind.SpotifyLiked, Kind.SpotifyPlaylist -> Unit
+        Kind.Liked, Kind.LocalFiles, Kind.SpotifyLiked, Kind.SpotifyPlaylist -> Unit
     }
 }
 

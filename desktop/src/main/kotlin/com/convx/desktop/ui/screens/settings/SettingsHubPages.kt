@@ -98,6 +98,17 @@ fun LibraryHub() {
         RowDivider(PlainInset)
         SwitchRow("Hide music videos", "Show only audio tracks in feeds and search.", settings.hideVideos) { v -> AppSettings.update { it.copy(hideVideos = v) } }
     }
+    SectionGap()
+    val localIndex by com.convx.desktop.player.LocalMusic.index.collectAsState()
+    SettingsSection("Local files") {
+        LinkRow(
+            "Music folders",
+            "Choose folders to scan, including network shares",
+            icon = "storage",
+            tint = SystemColors.Orange,
+            value = localIndex.tracks.size.takeIf { it > 0 }?.let { "$it songs" },
+        ) { SettingsNav.push(SettingsPage.LocalFolders) }
+    }
 }
 
 @Composable

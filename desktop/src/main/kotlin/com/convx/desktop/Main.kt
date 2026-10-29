@@ -41,6 +41,7 @@ import com.convx.desktop.integrations.youtube.YouTubeSync
 import com.convx.desktop.integrations.spotify.SpotifyAccount
 import com.convx.desktop.integrations.spotify.SpotifyMatcher
 import com.convx.desktop.player.AudioCache
+import com.convx.desktop.player.LocalMusic
 import com.convx.desktop.player.AudioEngine
 import com.convx.desktop.player.PlayerController
 import com.convx.desktop.ui.shell.AppShell
@@ -83,6 +84,7 @@ fun main() {
     Scrobbler.start()
     YouTubeSync.start()
     PlaylistImport.init()
+    if (AppSettings.value.scanLocalOnStart) LocalMusic.scan()
 
     val icon = Thread.currentThread().contextClassLoader.getResourceAsStream("convx.png")
         ?.use { BitmapPainter(Image.makeFromEncoded(it.readBytes()).toComposeImageBitmap()) }
@@ -102,6 +104,7 @@ fun main() {
             Library.flush()
             SpotifyMatcher.flush()
             YouTubeSync.flush()
+            LocalMusic.flush()
             AppSettings.flush()
             exitApplication()
         }

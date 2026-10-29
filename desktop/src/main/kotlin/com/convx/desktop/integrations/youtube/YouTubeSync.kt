@@ -182,6 +182,7 @@ object YouTubeSync {
             runCatching {
                 when (change) {
                     is Library.Change.Like -> {
+                        if (com.convx.desktop.player.LocalMusic.isLocal(change.song.id)) return@runCatching
                         touched[change.song.id] = System.currentTimeMillis()
                         YouTube.likeVideo(change.song.id, change.liked).getOrThrow()
                         store.update { it.copy(liked = if (change.liked) it.liked + change.song.id else it.liked - change.song.id) }

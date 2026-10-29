@@ -40,7 +40,7 @@ fun main(args: Array<String>) {
             "kJQP7kiw5Fk",
         )
     }
-    val dspOk = dspCheck()
+    val dspOk = dspCheck() and libraryCheck()
     runBlocking(Dispatchers.IO) { initYouTube() }
     var passed = 0
     for (id in ids) {
@@ -55,6 +55,75 @@ fun main(args: Array<String>) {
     }
     println("$passed of ${ids.size} songs played")
     exitProcess(if (passed > 0 && dspOk) 0 else 1)
+}
+
+/**
+ * Things that need no network: a FLAC file Convx writes itself and then reads back as a local
+ * song, an Apple Music XML export, and proxy addresses.
+ */
+private fun libraryCheck(): Boolean {
+    var ok = true
+    fun expect(name: String, pass: Boolean, detail: String) {
+        if (!pass) ok = false
+        println("${if (pass) "PASS" else "FAIL"} library $name: $detail")
+    }
+
+    val track = runCatching {
+        val dir = java.nio.file.Files.createTempDirectory("convx-local").toFile()
+        val file = java.io.File(dir, "tone.flac")
+        val rate = 44_100
+        org.bytedeco.javacv.FFmpegFrameRecorder(file, 2).apply {
+            format = "flac"
+            sampleRate = rate
+            audioCodec = org.bytedeco.ffmpeg.global.avcodec.AV_CODEC_ID_FLAC
+            setMetadata("title", "Convx Test Tone")
+            setMetadata("artist", "Convx; Second Artist")
+            setMetadata("album", "Checks")
+            setMetadata("track", "3/12")
+            start()
+            val samples = ShortArray(rate * 2 * 2) { i -> (8000 * kotlin.math.sin(2 * Math.PI * 440 * (i / 2) / rate)).toInt().toShort() }
+            recordSamples(rate, 2, java.nio.ShortBuffer.wrap(samples))
+            stop()
+            release()
+        }
+        com.convx.desktop.player.LocalMusic.read(file).also { dir.deleteRecursively() }
+    }.onFailure { it.printStackTrace() }.getOrNull()
+    expect("local file title", track?.title == "Convx Test Tone", "${track?.title}")
+    expect("local file artists", track?.artists == listOf("Convx", "Second Artist"), "${track?.artists}")
+    expect("local file album and track", track?.album == "Checks" && track?.track == 3, "${track?.album} #${track?.track}")
+    expect("local file length", (track?.durationMs ?: 0) in 1900..2100, "${track?.durationMs} ms")
+    expect("local file codec", track?.codec == "flac", "${track?.codec}")
+
+    val export = runCatching {
+        com.convx.music.canvas.ApplePlaylistExport.parse(
+            (
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                    "<!DOCTYPE plist PUBLIC \"-//Apple Computer//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n" +
+                    "<plist version=\"1.0\"><dict><key>Tracks</key><dict>" +
+                    "<key>101</key><dict><key>Track ID</key><integer>101</integer><key>Name</key><string>Blinding Lights</string>" +
+                    "<key>Artist</key><string>The Weeknd</string><key>Total Time</key><integer>200040</integer></dict>" +
+                    "<key>102</key><dict><key>Track ID</key><integer>102</integer><key>Name</key><string>A Video</string>" +
+                    "<key>Artist</key><string>X</string><key>Has Video</key><true/></dict></dict>" +
+                    "<key>Playlists</key><array><dict><key>Name</key><string>Road Trip</string><key>Playlist Items</key><array>" +
+                    "<dict><key>Track ID</key><integer>101</integer></dict><dict><key>Track ID</key><integer>102</integer></dict>" +
+                    "</array></dict></array></dict></plist>"
+                ).toByteArray(),
+        )
+    }.onFailure { it.printStackTrace() }.getOrNull()
+    expect(
+        "Apple Music export",
+        export?.title == "Road Trip" && export?.tracks?.size == 1 && export?.unsupportedTracks == 1 && export?.tracks?.firstOrNull()?.durationMs == 200040,
+        "${export?.title}, ${export?.tracks?.size} tracks, ${export?.unsupportedTracks} skipped",
+    )
+    val http = com.convx.desktop.core.Network.parse("HTTP", "127.0.0.1:8080")
+    val socks = com.convx.desktop.core.Network.parse("SOCKS", "proxy.example.com:1080")
+    expect(
+        "proxy addresses",
+        http?.type() == java.net.Proxy.Type.HTTP && socks?.type() == java.net.Proxy.Type.SOCKS &&
+            com.convx.desktop.core.Network.parse("HTTP", "nohost") == null && com.convx.desktop.core.Network.parse("HTTP", "h:99999") == null,
+        "$http, $socks",
+    )
+    return ok
 }
 
 private fun tryPlay(id: String): String {

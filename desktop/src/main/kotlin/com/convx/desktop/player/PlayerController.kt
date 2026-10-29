@@ -489,13 +489,23 @@ object PlayerController : AudioEngine.Listener {
             } else {
                 queued
             }
-            val stream = StreamResolver.resolve(song.id, quality, forceRefresh).getOrElse { error ->
-                Log.e(Tag, "Couldn't resolve ${song.id}", error)
-                failCurrent(error.message ?: "This song can't be played right now")
+            // A file on this PC plays straight from disk.
+            val local = LocalMusic.track(song.id).takeIf { LocalMusic.isLocal(song.id) }
+            if (LocalMusic.isLocal(song.id) && (local == null || !java.io.File(local.path).isFile)) {
+                failCurrent("\"${song.title}\" isn't on this PC any more")
                 return@launch
             }
+            val stream = if (local != null) {
+                LocalMusic.stream(song.id, local)
+            } else {
+                StreamResolver.resolve(song.id, quality, forceRefresh).getOrElse { error ->
+                    Log.e(Tag, "Couldn't resolve ${song.id}", error)
+                    failCurrent(error.message ?: "This song can't be played right now")
+                    return@launch
+                }
+            }
             if (_state.value.current?.id != song.id) return@launch
-            val source = AudioCache.open(stream)
+            val source = if (local != null) CachedAudio.Complete(java.io.File(local.path)) else AudioCache.open(stream)
             engineToken = engine.load(source, startMs, playWhenReady, stream.durationMs, trackGain(stream), fadeInMs)
             _state.update { it.copy(stream = stream, durationMs = stream.durationMs ?: it.durationMs) }
             if (startMs == 0L) {
@@ -524,7 +534,7 @@ object PlayerController : AudioEngine.Listener {
         prefetchJob = scope.launch {
             delay(3_000)
             val id = SpotifyMatcher.resolve(next)?.id ?: return@launch
-            if (AudioCache.isCached(id)) return@launch
+            if (LocalMusic.isLocal(id) || AudioCache.isCached(id)) return@launch
             StreamResolver.resolve(id, AppSettings.value.audioQuality).onSuccess { AudioCache.prefetch(it) }
         }
     }

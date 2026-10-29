@@ -236,9 +236,10 @@ internal fun appleMusicImportDialog() {
                         style = ConvxType.Subhead,
                         color = ConvxColors.SecondaryLabel,
                     )
+                    Spacer(Modifier.height(10.dp))
+                    PillButton("Import playlist XML", { pickExport()?.let { PlaylistImport.loadAppleExport(it) } }, icon = "playlist_add")
                     Spacer(Modifier.height(20.dp))
                     DialogButtons {
-                        PillButton("Import playlist XML", { pickExport()?.let { PlaylistImport.loadAppleExport(it) } }, icon = "playlist_add")
                         PillButton("Cancel", {
                             PlaylistImport.dismiss()
                             Overlays.dismissDialog()

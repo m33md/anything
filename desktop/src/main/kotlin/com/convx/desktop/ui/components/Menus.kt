@@ -158,9 +158,12 @@ fun SongMenuContent(
         Overlays.toast("Added to queue")
         dismiss()
     }
-    MenuItem("Start radio", "radio") {
-        PlayerController.startRadio(song)
-        dismiss()
+    val local = com.convx.desktop.player.LocalMusic.isLocal(song.id)
+    if (!local) {
+        MenuItem("Start radio", "radio") {
+            PlayerController.startRadio(song)
+            dismiss()
+        }
     }
     MenuDivider()
     MenuItem(if (liked) "Remove from Liked Songs" else "Add to Liked Songs", if (liked) "favorite" else "favorite_border") {
@@ -182,10 +185,20 @@ fun SongMenuContent(
             dismiss()
         }
     }
-    MenuItem("Copy link", "link") {
-        clipboard.setText(AnnotatedString("https://music.youtube.com/watch?v=${song.id}"))
-        Overlays.toast("Link copied", "link")
-        dismiss()
+    if (local) {
+        MenuItem("Show in folder", "storage") {
+            com.convx.desktop.player.LocalMusic.track(song.id)?.let { track ->
+                runCatching { ProcessBuilder("explorer.exe", "/select,", track.path).start() }
+                    .onFailure { Overlays.toast("Couldn't open the folder", "error") }
+            }
+            dismiss()
+        }
+    } else {
+        MenuItem("Copy link", "link") {
+            clipboard.setText(AnnotatedString("https://music.youtube.com/watch?v=${song.id}"))
+            Overlays.toast("Link copied", "link")
+            dismiss()
+        }
     }
     if (extra != null) {
         MenuDivider()
