@@ -118,7 +118,7 @@ private fun editKey() {
         DialogCard("Last.fm API key") {
             DialogField("API key", key) { key = it }
             Spacer(Modifier.height(12.dp))
-            DialogField("Shared secret", secret) { secret = it }
+            DialogField("Shared secret", secret, secret = true) { secret = it }
             Spacer(Modifier.height(10.dp))
             Text(
                 "Both are 32 letters and numbers, on the page Last.fm shows after you create the key.",

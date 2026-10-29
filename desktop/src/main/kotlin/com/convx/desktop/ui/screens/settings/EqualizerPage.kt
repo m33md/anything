@@ -559,7 +559,7 @@ private fun editBand(index: Int, band: EqBand, onApplied: () -> Unit) {
 }
 
 @Composable
-internal fun DialogField(label: String, value: String, lines: Int = 1, onChange: (String) -> Unit) {
+internal fun DialogField(label: String, value: String, lines: Int = 1, secret: Boolean = false, onChange: (String) -> Unit) {
     DisposableEffect(label) { onDispose { UiState.typingFocusChanged(label, false) } }
     Column {
         Text(label, style = ConvxType.Subhead, color = ConvxColors.SecondaryLabel, modifier = Modifier.padding(start = 4.dp, bottom = 6.dp))
@@ -578,6 +578,7 @@ internal fun DialogField(label: String, value: String, lines: Int = 1, onChange:
                 maxLines = lines,
                 textStyle = (if (lines == 1) ConvxType.Body else ConvxType.Subhead).copy(color = Color.White),
                 cursorBrush = SolidColor(Color.White),
+                visualTransformation = if (secret) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
                 modifier = Modifier.fillMaxWidth().onFocusChanged { UiState.typingFocusChanged(label, it.isFocused) },
             )
         }

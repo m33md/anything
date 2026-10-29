@@ -99,6 +99,17 @@ object Library {
         return id
     }
 
+    /** Makes the playlist [id] hold exactly [songs], creating it if needed; imports use stable ids. */
+    fun upsertPlaylist(id: String, name: String, songs: List<Song>) = store.update { data ->
+        if (data.localPlaylists.any { it.id == id }) {
+            data.copy(localPlaylists = data.localPlaylists.map {
+                if (it.id == id) it.copy(name = name, songs = songs, updatedAt = System.currentTimeMillis()) else it
+            })
+        } else {
+            data.copy(localPlaylists = data.localPlaylists + LocalPlaylist(id, name, songs))
+        }
+    }
+
     fun renamePlaylist(id: String, name: String) = updatePlaylist(id) { it.copy(name = name) }
 
     fun deletePlaylist(id: String) = store.update { data ->

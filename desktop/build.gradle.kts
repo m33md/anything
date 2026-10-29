@@ -30,6 +30,7 @@ kotlin {
         // Shared with the phone app, compiled as-is.
         "../innertube/src/main/kotlin",
         "../lyrics/src/main/kotlin",
+        "../canvas/src/main/kotlin",
     )
 }
 

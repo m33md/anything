@@ -29,11 +29,13 @@ import androidx.compose.ui.window.rememberWindowState
 import com.convx.desktop.core.AppInfo
 import com.convx.desktop.core.AppScope
 import com.convx.desktop.core.Log
+import com.convx.desktop.core.Network
 import com.convx.desktop.core.initYouTube
 import com.convx.desktop.data.AppSettings
 import com.convx.desktop.data.Library
 import com.convx.desktop.integrations.DiscordPresence
 import com.convx.desktop.integrations.LastFm
+import com.convx.desktop.integrations.PlaylistImport
 import com.convx.desktop.integrations.Scrobbler
 import com.convx.desktop.integrations.youtube.YouTubeSync
 import com.convx.desktop.integrations.spotify.SpotifyAccount
@@ -67,6 +69,8 @@ fun main() {
     Log.i("Startup", "Convx ${AppInfo.VERSION} on ${System.getProperty("os.name")} ${System.getProperty("os.arch")}, Java ${System.getProperty("java.version")}")
     Thread.setDefaultUncaughtExceptionHandler { thread, error -> Log.e("Crash", "Uncaught on ${thread.name}", error) }
 
+    // Before any HTTP client exists, so they all go through the proxy if one is set.
+    Network.apply(AppSettings.value)
     AppScope.launch(Dispatchers.IO) { initYouTube() }
     AppScope.launch(Dispatchers.IO) {
         AudioCache.cleanupPartials()
@@ -78,6 +82,7 @@ fun main() {
     AppScope.launch(Dispatchers.IO) { LastFm.restore() }
     Scrobbler.start()
     YouTubeSync.start()
+    PlaylistImport.init()
 
     val icon = Thread.currentThread().contextClassLoader.getResourceAsStream("convx.png")
         ?.use { BitmapPainter(Image.makeFromEncoded(it.readBytes()).toComposeImageBitmap()) }

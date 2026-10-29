@@ -135,6 +135,13 @@ fun AccountsHub() {
         ) { SettingsNav.push(SettingsPage.Spotify) }
         RowDivider()
         LinkRow(
+            "Apple Music import",
+            "Import playlists from a link or export",
+            icon = "playlist_add",
+            tint = SystemColors.Red,
+        ) { appleMusicImportDialog() }
+        RowDivider()
+        LinkRow(
             "Discord",
             "Listening status on your profile",
             icon = "discord",
@@ -170,7 +177,13 @@ fun AccountsHub() {
         ) { SettingsNav.push(SettingsPage.ListenBrainz) }
     }
     SectionGap()
-    InfoNote("Imports from other apps are on their way, as on the phone. On the phone ListenBrainz sits inside the YouTube Music account page; here it has its own row.")
+    SettingsSection("Services") {
+        LinkRow("Network & proxy", "IP version and proxy", icon = "wifi_proxy", tint = SystemColors.Gray) {
+            SettingsNav.push(SettingsPage.Network)
+        }
+    }
+    SectionGap()
+    InfoNote("On the phone ListenBrainz sits inside the YouTube Music account page; here it has its own row.")
 }
 
 @Composable

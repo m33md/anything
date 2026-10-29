@@ -6,12 +6,14 @@ on:
       - "desktop/**"
       - "innertube/**"
       - "lyrics/**"
+      - "canvas/**"
       - ".github/workflows/desktop.yml"
   pull_request:
     paths:
       - "desktop/**"
       - "innertube/**"
       - "lyrics/**"
+      - "canvas/**"
       - ".github/workflows/desktop.yml"
   workflow_dispatch:
 

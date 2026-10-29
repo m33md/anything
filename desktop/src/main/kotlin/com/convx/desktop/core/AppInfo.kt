@@ -9,7 +9,6 @@ import com.convx.desktop.data.AppSettings
 import com.convx.desktop.data.Settings
 import com.convx.desktop.integrations.youtube.YouTubeAccount
 import com.music.innertube.YouTube
-import com.music.innertube.models.IpVersion
 import com.music.innertube.models.YouTubeLocale
 import java.util.Locale
 
@@ -30,7 +29,6 @@ fun applyLocale(settings: Settings) {
 suspend fun initYouTube() {
     val settings = AppSettings.value
     applyLocale(settings)
-    YouTube.ipVersion = IpVersion.IPV4
     // A signed-in account brings its own cookie and visitor data; the guest's is only a fallback.
     YouTubeAccount.restore()
     if (YouTubeAccount.hasVisitorData) return

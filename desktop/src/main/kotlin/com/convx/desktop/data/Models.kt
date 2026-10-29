@@ -150,6 +150,12 @@ data class Settings(
     val youtubeMoreContent: Boolean = true,
     /** The phone's "Auto sync with account": likes, albums, artists and playlists follow YouTube Music. */
     val youtubeSync: Boolean = true,
+    /** The phone's Network & proxy page; the proxy password lives in Secrets. */
+    val ipVersion: String = "IPV4",
+    val proxyEnabled: Boolean = false,
+    val proxyType: String = "HTTP",
+    val proxyUrl: String = "",
+    val proxyUsername: String = "",
     /** "Listening to" on Discord, through the Discord app on this PC. Off until connected in Settings. */
     val discordPresence: Boolean = false,
     /** Discord's member list shows the song after "Listening to" instead of the artists. */

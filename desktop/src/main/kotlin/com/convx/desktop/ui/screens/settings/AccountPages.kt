@@ -140,6 +140,8 @@ fun SpotifySettings() {
                 reloads++
             }
         }
+        SectionGap()
+        SpotifyImportSection()
     }
     SectionGap()
     InfoNote(

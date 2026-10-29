@@ -20,6 +20,8 @@ object Http {
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)
+            // A proxy's password comes from Network's authenticator (Settings, Network & proxy).
+            .proxyAuthenticator(okhttp3.Authenticator.JAVA_NET_AUTHENTICATOR)
             .dispatcher(Dispatcher().apply { maxRequestsPerHost = 12 })
             .connectionPool(ConnectionPool(12, 5, TimeUnit.MINUTES))
             .build()

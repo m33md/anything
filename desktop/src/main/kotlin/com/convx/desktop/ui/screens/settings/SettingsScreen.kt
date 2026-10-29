@@ -82,6 +82,7 @@ enum class SettingsPage(val title: String, val hub: String) {
     YouTubeMusic("YouTube Music", "accounts"),
     LastFm("Last.fm", "accounts"),
     ListenBrainz("ListenBrainz", "accounts"),
+    Network("Network & proxy", "accounts"),
 }
 
 object SettingsHubs {
@@ -261,7 +262,7 @@ private fun ProfileCard(onClick: () -> Unit) {
         Column(Modifier.weight(1f).padding(start = 16.dp)) {
             Text(name ?: "Sign in", style = ConvxType.Title3, color = ConvxColors.Label, maxLines = 1)
             Text(
-                youtubeProfile?.let { it.email ?: it.handle } ?: "YouTube Music, Spotify, Discord and more",
+                youtubeProfile?.let { it.email ?: it.handle } ?: "YouTube Music, Spotify and more",
                 style = ConvxType.Subhead,
                 color = ConvxColors.SecondaryLabel,
                 maxLines = 1,
@@ -326,8 +327,11 @@ private val searchEntries: List<SearchEntry> by lazy {
         SearchEntry("Login with token", null, h.accounts, SettingsPage.YouTubeMusic, "token cookie"),
         SearchEntry("More content", "Recommendations from your account", h.accounts, SettingsPage.YouTubeMusic, "login browse personalized"),
         SearchEntry("Auto sync with account", null, h.accounts, SettingsPage.YouTubeMusic, "sync likes playlists"),
+        SearchEntry("Import from Spotify", "Copy playlists and Liked Songs", h.accounts, SettingsPage.Spotify, "spotify import playlists"),
         SearchEntry("Last.fm", "Scrobbling", h.accounts, SettingsPage.LastFm, "lastfm scrobble love now playing"),
         SearchEntry("ListenBrainz", "Scrobbling with a token", h.accounts, SettingsPage.ListenBrainz, "listenbrainz scrobble musicbrainz"),
+        SearchEntry("Network & proxy", "IP version and proxy", h.accounts, SettingsPage.Network, "proxy ipv6 ipv4 network socks http"),
+        SearchEntry("Apple Music import", "Import playlists from a link or export", h.accounts, keywords = "apple music playlist import export itunes xml"),
         SearchEntry("Sound output", "Speakers or headphones", h.playback, SettingsPage.Output, "device speaker headphones output"),
         SearchEntry("Liquid Glass", "Blur, lens and highlights", h.appearance, SettingsPage.LiquidGlass, "glass blur lens refraction vibrancy chromatic aberration rim"),
         SearchEntry("Content country", "Charts and recommendations", h.library, keywords = "region location"),
@@ -466,6 +470,7 @@ private fun PageContent(page: SettingsPage) {
         SettingsPage.YouTubeMusic -> YouTubeAccountSettings()
         SettingsPage.LastFm -> LastFmSettings()
         SettingsPage.ListenBrainz -> ListenBrainzSettings()
+        SettingsPage.Network -> NetworkSettings()
     }
 }
 
