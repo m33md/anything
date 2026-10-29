@@ -304,7 +304,8 @@ private fun lyricsMenuCheck(): Boolean {
         com.convx.music.lyrics.bitchord.LyricLine(15_000, "Again", listOf(word(15_000, 15_700, "Again"))),
     )
     val text = timed.toLyricsText()
-    val back = com.convx.desktop.lyrics.parseLyricsText(text)
+    // The parser gives a long intro its own blank break, as it does for fetched lyrics.
+    val back = com.convx.desktop.lyrics.parseLyricsText(text).filter { it.text.isNotBlank() }
     expect(
         "word timing kept",
         back.map { it.text } == listOf("Hello there", "Again") && back.first().words.map { it.startMs } == listOf(12_340L, 12_900L),
