@@ -170,17 +170,17 @@ fun LyricsMenuContent(song: Song, dismiss: () -> Unit) {
             }
         } else {
             // The phone hides the switch until there's a key; here it says where the key goes.
-            MenuRow("AI lyrics translation", "translate", subtitle = "Add an API key in Settings") {
+            MenuRow("AI lyrics translation", "translate", subtitle = "Add an API key in Settings", onClick = {
                 dismiss()
                 UiState.fullPlayer = false
                 navigator.navigate(Screen.Settings)
                 SettingsNav.push(SettingsPage.AiTranslation)
-            }
+            })
         }
-        MenuRow("Lyrics offset", "fast_forward", value = offsetLabel(tweaks.offsetMs)) {
+        MenuRow("Lyrics offset", "fast_forward", value = offsetLabel(tweaks.offsetMs), onClick = {
             dismiss()
             editOffset(song)
-        }
+        })
         SwitchMenuRow("Romanize current track", "language_korean_latin", tweaks.romanize) { on ->
             LyricsTweaks.update(song.id) { it.copy(romanize = on) }
         }
