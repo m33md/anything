@@ -37,6 +37,8 @@ sealed interface Screen {
     data object SpotifyLiked : Screen
     data class Browse(val browseId: String, val params: String? = null, val title: String? = null) : Screen
     data class ArtistItems(val browseId: String, val params: String?, val title: String) : Screen
+    /** The phone's AI DJ Mix, from a song or from nothing. */
+    data class AiDj(val seed: com.convx.desktop.data.Song? = null, val concert: Boolean = false) : Screen
 }
 
 private var nextEntryKey = 0L

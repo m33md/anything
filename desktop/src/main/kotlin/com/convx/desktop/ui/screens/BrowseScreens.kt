@@ -225,6 +225,13 @@ fun LibraryScreen() {
                             )
                         }
                     }
+                    // The phone's AI DJ Mix sits with the auto playlists, though it opens a builder, not songs.
+                    SavedCard(
+                        "AI DJ Mix",
+                        "Build a set from a vibe or a song",
+                        art = { size -> GradientTile("sparks", size, AiDjGradient, RoundedCornerShape(8.dp)) },
+                        onClick = { navigator.navigate(Screen.AiDj()) },
+                    )
                     library.localPlaylists.forEach { p ->
                         SavedCard(
                             p.name,

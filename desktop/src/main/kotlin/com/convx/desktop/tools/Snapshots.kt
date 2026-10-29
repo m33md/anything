@@ -378,12 +378,20 @@ fun main(args: Array<String>) {
                 Replay.show()
                 Replay.stopped = true
             }
-            film("21c-replay-minutes", listOf(2_400L)) { Replay.go(ReplayPage.Minutes.ordinal) }
+            shoot("21c-replay-minutes", seconds = 2) { Replay.go(ReplayPage.Minutes.ordinal) }
             shoot("21d-replay-top-song", seconds = 3) { Replay.go(ReplayPage.TopSong.ordinal) }
             shoot("21e-replay-top-artists", seconds = 4) { Replay.go(ReplayPage.ArtistTable.ordinal) }
             shoot("21f-replay-summary", seconds = 3) { Replay.go(ReplayPage.Summary.ordinal) }
             Replay.close()
             shoot("22-my-top", seconds = 4) { navigator.navigate(Screen.MyTop) }
+            // The phone's AI DJ Mix from a song; with no AI key it's that song's related songs.
+            shoot("23-ai-dj", seconds = 3) { navigator.navigate(Screen.AiDj(seed = songs.first())) }
+            shoot("23a-ai-dj-set", seconds = 12) {
+                com.convx.desktop.ui.screens.AiDj.generate(null, songs.first(), 12, null, concert = false)
+            }
+            shoot("23b-track-insights", seconds = 2) { com.convx.desktop.ui.screens.trackInsights(songs.first()) }
+            com.convx.desktop.ui.components.Overlays.dismissDialog()
+            com.convx.desktop.ui.screens.AiDj.reset()
             AppSettings.update { it.copy(homeRandomOrder = true) }
             shoot("14-library", seconds = 8) { navigator.navigate(Screen.Library) }
             shoot("15-liked", seconds = 6) { navigator.navigate(Screen.Liked) }

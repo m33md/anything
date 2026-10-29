@@ -23,7 +23,9 @@ import com.convx.desktop.player.Downloads
 import com.convx.desktop.player.LocalMusic
 import com.convx.desktop.player.PlayerController
 import com.convx.desktop.player.StreamResolver
+import com.convx.desktop.ui.components.ImageCache
 import com.convx.desktop.ui.components.Overlays
+import com.convx.desktop.ui.components.artworkUrl
 import com.music.innertube.YouTube
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -45,7 +47,7 @@ class ReplayArtist(val ref: ArtistRef, val picture: String?, val playedMs: Long)
  * A year of your listening, as the phone's Wrapped reads it from its database: the top 30 songs,
  * the top 5 artists and albums, how many of each you played and for how many minutes.
  */
-class ReplayData(
+data class ReplayData(
     val year: Int,
     val minutes: Long,
     val songs: List<Library.Ranked<Song>>,
@@ -115,6 +117,14 @@ object Replay {
             val built = withContext(Dispatchers.IO) { build(year) }
             data = built
             ReplayAudio.cue(built.cues[ReplayPage.entries[page]])
+            // The opening page's covers, fetched now so they're there when it cycles through them.
+            launch(Dispatchers.IO) { built.songs.take(6).forEach { song -> artworkUrl(song.value.thumbnail, 544)?.let { ImageCache.load(it) } } }
+            // Pictures of artists you don't follow come later, rather than holding the story up.
+            val missing = built.artists.filter { it.picture == null }.mapNotNull { it.ref.id }
+            if (missing.isNotEmpty()) {
+                val found = withContext(Dispatchers.IO) { lookUpPictures(missing) }
+                if (found.isNotEmpty()) data = built.copy(artists = built.artists.map { ReplayArtist(it.ref, it.picture ?: found[it.ref.id], it.playedMs) })
+            }
         }
     }
 
@@ -181,14 +191,13 @@ object Replay {
         }
     }
 
-    private suspend fun build(year: Int): ReplayData {
+    private fun build(year: Int): ReplayData {
         val (from, to) = bounds(year)
         val stats = Library.listeningStats(from, to, limit = Int.MAX_VALUE)
         val events = Library.value.history.filter { it.at > from && it.at <= to }
         val songs = stats.songs.take(30)
         val topArtists = stats.artists.take(5)
-        val pictures = artistPictures(topArtists.map { it.value.id!! })
-        val artists = topArtists.map { ReplayArtist(it.value, pictures[it.value.id], it.playedMs) }
+        val artists = topArtists.map { ReplayArtist(it.value, it.value.id?.let(Library::artistPicture), it.playedMs) }
         val albums = stats.albums.take(5)
         val everySong = stats.songs.map { it.value }
         return ReplayData(
@@ -206,18 +215,15 @@ object Replay {
         )
     }
 
-    /** Pictures for the top artists, looked up for any you've played but don't follow. */
-    private suspend fun artistPictures(ids: List<String>): Map<String, String> {
-        val known = ids.mapNotNull { id -> Library.artistPicture(id)?.let { id to it } }.toMap()
-        val missing = ids.filter { it !in known }
-        if (missing.isEmpty()) return known
-        val found = withTimeoutOrNull(8_000) {
+    /** Pictures for top artists you've played but don't follow, kept for next time as Stats keeps them. */
+    private suspend fun lookUpPictures(ids: List<String>): Map<String, String> {
+        val found = withTimeoutOrNull(10_000) {
             coroutineScope {
-                missing.map { id -> async { YouTube.artist(id).getOrNull()?.artist?.thumbnail?.let { id to it } } }.awaitAll()
+                ids.map { id -> async { YouTube.artist(id).getOrNull()?.artist?.thumbnail?.let { id to it } } }.awaitAll()
             }
         }.orEmpty().filterNotNull().toMap()
         Library.rememberArtistPictures(found)
-        return known + found
+        return found
     }
 
     /** The phone's track map: which of your songs plays under each page. */

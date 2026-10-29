@@ -170,6 +170,15 @@ fun SongMenuContent(
             dismiss()
         }
     }
+    // The phone's two AI actions on a song, through the provider set up for translation.
+    MenuItem("AI DJ Mix from this song", "sparks") {
+        navigator.navigate(Screen.AiDj(seed = song))
+        dismiss()
+    }
+    MenuItem("Track insights", "info") {
+        dismiss()
+        com.convx.desktop.ui.screens.trackInsights(song)
+    }
     MenuDivider()
     MenuItem(if (liked) "Remove from Liked Songs" else "Add to Liked Songs", if (liked) "favorite" else "favorite_border") {
         Library.toggleLike(song)

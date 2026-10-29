@@ -593,6 +593,10 @@ fun LocalPlaylistScreen(id: String) {
                         Overlays.toast("Added to queue")
                         dismiss()
                     }
+                    MenuItem("Modify with AI", "sparks") {
+                        dismiss()
+                        editPlaylistWithAi(id)
+                    }
                     MenuItem("Delete playlist", "delete", destructive = true) {
                         dismiss()
                         Overlays.confirm("Delete playlist?", "\"${playlist.name}\" will be removed from your library.", "Delete") {
@@ -800,6 +804,9 @@ val TopGradient = listOf(Color(0xFFFF9F0A), Color(0xFFB2361B))
 
 /** Cached's colours. */
 val CachedGradient = listOf(Color(0xFF64D2FF), Color(0xFF5E5CE6))
+
+/** The AI DJ Mix card's colours. */
+val AiDjGradient = listOf(Color(0xFFBF5AF2), Color(0xFF5E5CE6))
 
 /** The periods the phone's My top can be sorted by, under its names for them. */
 enum class TopFilter(val label: String) {

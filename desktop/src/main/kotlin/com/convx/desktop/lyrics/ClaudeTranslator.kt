@@ -74,6 +74,35 @@ internal object ClaudeTranslator {
         }
     }
 
+    /**
+     * One answer to [user] under [system], for the AI features beyond translation: DJ mixes,
+     * playlist edits and track insights. Streamed like a translation, so a long one isn't cut off
+     * by a read timeout.
+     */
+    suspend fun complete(system: String, user: String, apiKey: String, model: String): Result<String> = withContext(Dispatchers.IO) {
+        val call = client.newCall(messages(system, user, apiKey, model.ifBlank { models.first() }, 16_000))
+        val cancel = currentCoroutineContext()[Job]?.invokeOnCompletion { call.cancel() }
+        try {
+            call.execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(Exception(errorMessage(response.code, response.body.string())))
+                }
+                val streamed = read(response.body.charStream().buffered().lineSequence()) {}
+                when {
+                    streamed.error != null -> Result.failure(Exception(streamed.error))
+                    streamed.stopReason == "refusal" -> Result.failure(Exception("Claude declined this request"))
+                    streamed.text.isBlank() -> Result.failure(Exception("Claude sent an empty answer"))
+                    else -> Result.success(streamed.text)
+                }
+            }
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Result.failure(e)
+        } finally {
+            cancel?.dispose()
+        }
+    }
+
     /** What a Messages stream said: its text, why it stopped, and an error if it sent one. */
     class Streamed(val text: String, val stopReason: String?, val error: String?)
 
@@ -121,12 +150,16 @@ internal object ClaudeTranslator {
             "Translate each of these $count lines into $language. Keep each line's meaning and feel, " +
                 "with punctuation that suits $language, and keep the lines as they are split."
         }
+        return messages(system, "$ask\n\n$text", apiKey, model, 64_000)
+    }
+
+    private fun messages(system: String, user: String, apiKey: String, model: String, maxTokens: Int): Request {
         val body = JSONObject().apply {
             put("model", model)
-            put("max_tokens", 64_000)
+            put("max_tokens", maxTokens)
             put("stream", true)
             put("system", system)
-            put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", "$ask\n\n$text")))
+            put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", user)))
             if (model in withFallback) put("fallbacks", "default")
         }
         return Request.Builder()
@@ -143,7 +176,7 @@ internal object ClaudeTranslator {
         return when {
             code == 401 -> "Claude didn't accept the API key"
             !message.isNullOrBlank() -> message
-            else -> "Translation failed (HTTP $code)"
+            else -> "Claude failed (HTTP $code)"
         }
     }
 }
