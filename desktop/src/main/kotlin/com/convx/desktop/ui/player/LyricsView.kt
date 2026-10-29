@@ -385,7 +385,7 @@ fun rememberLyricsFont(selection: String): FontFamily? {
     return family
 }
 
-/** Where imported lyrics fonts live, as on the phone: one file each, named by when they came. */
+/** Where imported fonts live, for lyrics or the whole app, as on the phone: one file each, named by when they came. */
 object LyricsFonts {
     val dir: java.io.File get() = com.convx.desktop.core.AppDirs.data.resolve("lyrics-fonts")
 

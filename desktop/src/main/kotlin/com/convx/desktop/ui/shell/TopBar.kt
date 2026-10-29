@@ -264,7 +264,7 @@ private fun SearchField(width: Dp, exploreLit: Boolean, onExplore: () -> Unit) {
             if (query.isEmpty()) {
                 Text(
                     "What do you want to play?",
-                    style = TextStyle(fontFamily = ConvxFonts.SfPro, fontSize = 16.sp),
+                    style = TextStyle(fontFamily = ConvxType.family, fontSize = 16.sp),
                     color = Color.White.copy(alpha = 0.6f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -279,7 +279,7 @@ private fun SearchField(width: Dp, exploreLit: Boolean, onExplore: () -> Unit) {
                     if (now != Screen.Search && !(now is Screen.SearchResults && now.query == text)) navigator.navigate(Screen.Search)
                 },
                 singleLine = true,
-                textStyle = TextStyle(fontFamily = ConvxFonts.SfPro, fontSize = 16.sp, color = Color.White),
+                textStyle = TextStyle(fontFamily = ConvxType.family, fontSize = 16.sp, color = Color.White),
                 cursorBrush = SolidColor(Color.White),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { submit() }),

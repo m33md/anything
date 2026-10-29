@@ -18,10 +18,15 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.platform.Font
 import androidx.compose.ui.unit.TextUnit
@@ -59,13 +64,26 @@ object ConvxShapes {
 }
 
 object ConvxFonts {
-    private fun font(path: String, weight: FontWeight) = Font(
-        identity = path,
-        data = ConvxFonts::class.java.classLoader.getResourceAsStream(path)!!.use { it.readBytes() },
-        weight = weight,
-    )
+    private fun bytes(path: String) = ConvxFonts::class.java.classLoader.getResourceAsStream(path)!!.use { it.readBytes() }
 
-    /** SF Pro Text — the phone's title and body face. */
+    private fun font(path: String, weight: FontWeight) = Font(identity = path, data = bytes(path), weight = weight)
+
+    /** A variable font at the weights the phone sets on it, with any other axes it sets. */
+    private fun variable(path: String, vararg axes: FontVariation.Setting): FontFamily {
+        val data = bytes(path)
+        return FontFamily(
+            listOf(FontWeight.Normal, FontWeight.Medium, FontWeight.Bold).map { weight ->
+                Font(
+                    identity = path,
+                    data = data,
+                    weight = weight,
+                    variationSettings = FontVariation.Settings(FontVariation.weight(weight.weight), *axes),
+                )
+            },
+        )
+    }
+
+    /** SF Pro Text — the phone's "System Default" app font. */
     val SfPro: FontFamily by lazy {
         FontFamily(
             font("fonts/sf_pro_text_regular.otf", FontWeight.Normal),
@@ -74,6 +92,12 @@ object ConvxFonts {
             font("fonts/sf_pro_text_bold.otf", FontWeight.Bold),
         )
     }
+
+    /** Plus Jakarta Sans — the phone's default app font. */
+    val PlusJakartaSans: FontFamily by lazy { variable("fonts/plus_jakarta_sans.ttf") }
+    val GoogleSans: FontFamily by lazy { variable("fonts/google_sans_flex.ttf", FontVariation.width(100f), FontVariation.Setting("ROND", 100f)) }
+    val SansFlex: FontFamily by lazy { variable("fonts/sans_flex.ttf", FontVariation.width(100f), FontVariation.Setting("ROND", 100f)) }
+    val Outfit: FontFamily by lazy { variable("fonts/outfit.ttf") }
 
     /** Chillax — the brand display face (wordmark). */
     val Chillax: FontFamily by lazy {
@@ -87,31 +111,90 @@ object ConvxFonts {
     }
 }
 
-/** Design-pinned text styles from AppleTokens; sizes carry their own line heights. */
-object ConvxType {
-    private fun sf(size: TextUnit, line: TextUnit, weight: FontWeight, tracking: TextUnit = 0.sp) = TextStyle(
-        fontFamily = ConvxFonts.SfPro,
-        fontSize = size,
-        lineHeight = line,
-        fontWeight = weight,
-        letterSpacing = tracking,
-    )
+/** The phone's app fonts (its AppFont), as its Font page lists them. */
+enum class AppFont(val id: String, val label: String, val description: String) {
+    System("system", "System Default", "Use the default system typeface."),
+    GoogleSans("google_sans", "Google Sans", "Google's signature geometric sans-serif."),
+    SansFlex("sans_flex", "Sans Flex", "A modern versatile flexible sans-serif."),
+    Outfit("outfit", "Outfit", "A clean and modern geometric sans-serif."),
+    PlusJakartaSans("plus_jakarta_sans", "Plus Jakarta Sans", "A premium warm geometric sans-serif typeface."),
+    ;
 
-    val LargeTitle by lazy { sf(34.sp, 41.sp, FontWeight.Bold, (-0.6).sp) }
-    val Hero by lazy { sf(56.sp, 60.sp, FontWeight.Bold, (-1.2).sp) }
-    val Title1 by lazy { sf(28.sp, 34.sp, FontWeight.Bold, (-0.4).sp) }
-    val Title2 by lazy { sf(22.sp, 28.sp, FontWeight.Bold, (-0.3).sp) }
-    val Title3 by lazy { sf(20.sp, 25.sp, FontWeight.SemiBold, (-0.2).sp) }
-    val Headline by lazy { sf(17.sp, 22.sp, FontWeight.SemiBold, (-0.43).sp) }
-    val Body by lazy { sf(15.sp, 20.sp, FontWeight.Normal, (-0.2).sp) }
-    val BodyStrong by lazy { sf(15.sp, 20.sp, FontWeight.SemiBold, (-0.2).sp) }
-    val Subhead by lazy { sf(13.sp, 18.sp, FontWeight.Normal, (-0.08).sp) }
-    val SubheadStrong by lazy { sf(13.sp, 18.sp, FontWeight.SemiBold, (-0.08).sp) }
-    val Caption by lazy { sf(12.sp, 16.sp, FontWeight.Normal) }
-    val CaptionStrong by lazy { sf(12.sp, 16.sp, FontWeight.SemiBold) }
-    val Footnote by lazy { sf(11.sp, 13.sp, FontWeight.Medium, 0.06.sp) }
-    val Lyrics by lazy { sf(34.sp, 42.sp, FontWeight.Bold, (-0.5).sp) }
-    val LyricsCompact by lazy { sf(22.sp, 29.sp, FontWeight.Bold, (-0.3).sp) }
+    /** The phone draws "System Default" in SF Pro, not the platform's own face. */
+    val family: FontFamily
+        get() = when (this) {
+            System -> ConvxFonts.SfPro
+            GoogleSans -> ConvxFonts.GoogleSans
+            SansFlex -> ConvxFonts.SansFlex
+            Outfit -> ConvxFonts.Outfit
+            PlusJakartaSans -> ConvxFonts.PlusJakartaSans
+        }
+
+    companion object {
+        /** The phone's default. */
+        val Default = PlusJakartaSans
+
+        fun of(id: String) = entries.firstOrNull { it.id == id } ?: System
+    }
+}
+
+/** Design-pinned text styles from AppleTokens, in the app font; sizes carry their own line heights. */
+object ConvxType {
+    private class Styles(val family: FontFamily) {
+        private fun style(size: TextUnit, line: TextUnit, weight: FontWeight, tracking: TextUnit = 0.sp) = TextStyle(
+            fontFamily = family,
+            fontSize = size,
+            lineHeight = line,
+            fontWeight = weight,
+            letterSpacing = tracking,
+        )
+
+        val LargeTitle = style(34.sp, 41.sp, FontWeight.Bold, (-0.6).sp)
+        val Hero = style(56.sp, 60.sp, FontWeight.Bold, (-1.2).sp)
+        val Title1 = style(28.sp, 34.sp, FontWeight.Bold, (-0.4).sp)
+        val Title2 = style(22.sp, 28.sp, FontWeight.Bold, (-0.3).sp)
+        val Title3 = style(20.sp, 25.sp, FontWeight.SemiBold, (-0.2).sp)
+        val Headline = style(17.sp, 22.sp, FontWeight.SemiBold, (-0.43).sp)
+        val Body = style(15.sp, 20.sp, FontWeight.Normal, (-0.2).sp)
+        val BodyStrong = style(15.sp, 20.sp, FontWeight.SemiBold, (-0.2).sp)
+        val Subhead = style(13.sp, 18.sp, FontWeight.Normal, (-0.08).sp)
+        val SubheadStrong = style(13.sp, 18.sp, FontWeight.SemiBold, (-0.08).sp)
+        val Caption = style(12.sp, 16.sp, FontWeight.Normal)
+        val CaptionStrong = style(12.sp, 16.sp, FontWeight.SemiBold)
+        val Footnote = style(11.sp, 13.sp, FontWeight.Medium, 0.06.sp)
+        val Lyrics = style(34.sp, 42.sp, FontWeight.Bold, (-0.5).sp)
+        val LyricsCompact = style(22.sp, 29.sp, FontWeight.Bold, (-0.3).sp)
+    }
+
+    private val default by lazy { Styles(AppFont.Default.family) }
+
+    // State, so text drawn with these styles follows a new font straight away.
+    private var chosen by mutableStateOf<Styles?>(null)
+    private val styles get() = chosen ?: default
+
+    /** The app font chosen in Settings, for text that sets its own sizes. */
+    val family: FontFamily get() = styles.family
+
+    /** Draws every style in [family] from now on. */
+    fun use(family: FontFamily) {
+        if (family != styles.family) chosen = Styles(family)
+    }
+
+    val LargeTitle get() = styles.LargeTitle
+    val Hero get() = styles.Hero
+    val Title1 get() = styles.Title1
+    val Title2 get() = styles.Title2
+    val Title3 get() = styles.Title3
+    val Headline get() = styles.Headline
+    val Body get() = styles.Body
+    val BodyStrong get() = styles.BodyStrong
+    val Subhead get() = styles.Subhead
+    val SubheadStrong get() = styles.SubheadStrong
+    val Caption get() = styles.Caption
+    val CaptionStrong get() = styles.CaptionStrong
+    val Footnote get() = styles.Footnote
+    val Lyrics get() = styles.Lyrics
+    val LyricsCompact get() = styles.LyricsCompact
 }
 
 /** The user's accent; only interactive highlights take it, like the phone. */
@@ -141,8 +224,10 @@ fun ConvxTheme(accent: Color, content: @Composable () -> Unit) {
         outlineVariant = ConvxColors.Separator,
         error = Color(0xFFFF453A),
     )
-    val base = TextStyle(fontFamily = ConvxFonts.SfPro)
-    val typography = Typography().let { t ->
+    val family = ConvxType.family
+    val typography = remember(family) {
+        val base = TextStyle(fontFamily = family)
+        val t = Typography()
         Typography(
             displayLarge = t.displayLarge.merge(base), displayMedium = t.displayMedium.merge(base), displaySmall = t.displaySmall.merge(base),
             headlineLarge = t.headlineLarge.merge(base), headlineMedium = t.headlineMedium.merge(base), headlineSmall = t.headlineSmall.merge(base),

@@ -60,6 +60,7 @@ import com.convx.desktop.ui.glass.glassSaturation
 import com.convx.desktop.ui.glass.liquidGlass
 import com.convx.desktop.ui.glass.of
 import com.convx.desktop.ui.shapes.ContinuousRoundedRectangle
+import com.convx.desktop.ui.theme.AppFont
 import com.convx.desktop.ui.theme.ConvxColors
 import com.convx.desktop.ui.theme.ConvxType
 import com.kyant.backdrop.backdrops.layerBackdrop
@@ -71,10 +72,21 @@ private const val MaxBlur = 20f
 
 @Composable
 fun AppearanceHub() {
-    SettingsSection(footer = "Convx keeps its red on black everywhere; pages don't take on a cover's colours.") {
+    val settings by AppSettings.state.collectAsState()
+    SettingsSection("Theme & colors", footer = "Convx keeps its red on black everywhere; pages don't take on a cover's colours.") {
         LinkRow("Liquid Glass", "Blur, lens and highlights, with a live preview", icon = "palette", tint = SystemColors.Cyan) {
             SettingsNav.push(SettingsPage.LiquidGlass)
         }
+    }
+    SectionGap()
+    SettingsSection("App") {
+        LinkRow(
+            "Font",
+            "App typeface",
+            icon = "alphabet_cyrillic",
+            tint = SystemColors.Gray,
+            value = if (settings.customFontEnabled && settings.customFont.isNotBlank()) "Custom" else AppFont.of(settings.appFont).label,
+        ) { SettingsNav.push(SettingsPage.Font) }
     }
 }
 

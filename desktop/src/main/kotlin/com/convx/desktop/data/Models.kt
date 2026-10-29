@@ -273,6 +273,12 @@ data class Settings(
     /** Blank for "Visit Convx". */
     val discordButton2Text: String = "",
     val glass: GlassSettings = GlassSettings(),
+    /** The phone's app font by its id; Plus Jakarta Sans, its default. */
+    val appFont: String = "plus_jakarta_sans",
+    /** An imported font (kept with the imported lyrics fonts) used everywhere while this is on. */
+    val customFontEnabled: Boolean = false,
+    val customFont: String = "",
+    val customFontName: String = "",
     val equalizer: com.convx.desktop.audio.EqualizerSettings = com.convx.desktop.audio.EqualizerSettings(),
     /** Evens out loud and quiet songs with YouTube's loudness for each one, as the phone does. */
     val normalizeAudio: Boolean = true,

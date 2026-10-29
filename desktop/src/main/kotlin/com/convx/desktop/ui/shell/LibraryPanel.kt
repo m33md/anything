@@ -101,7 +101,7 @@ import com.convx.desktop.ui.glass.GlassShapes
 import com.convx.desktop.ui.glass.GlassTokens
 import com.convx.desktop.ui.glass.liquidGlass
 import com.convx.desktop.ui.glass.rememberInteractiveHighlight
-import com.convx.desktop.ui.theme.ConvxFonts
+import com.convx.desktop.ui.theme.ConvxType
 import com.convx.desktop.ui.theme.LocalAccent
 import com.music.innertube.YouTube
 import kotlinx.coroutines.Dispatchers
@@ -367,7 +367,7 @@ fun LibraryPanel(collapsed: Boolean, modifier: Modifier = Modifier) {
                 item(key = "empty") {
                     Text(
                         if (query.isNotBlank()) "Nothing in your library matches \"${query.trim()}\"" else "Nothing here yet",
-                        style = TextStyle(fontFamily = ConvxFonts.SfPro, fontSize = 13.sp, lineHeight = 18.sp),
+                        style = TextStyle(fontFamily = ConvxType.family, fontSize = 13.sp, lineHeight = 18.sp),
                         color = Color.White.copy(alpha = 0.5f),
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 16.dp),
                     )
@@ -415,7 +415,7 @@ private fun PanelHeader(collapsed: Boolean) {
                 Spacer(Modifier.width(10.dp))
                 Text(
                     "Your Library",
-                    style = TextStyle(fontFamily = ConvxFonts.SfPro, fontSize = 17.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.43).sp),
+                    style = TextStyle(fontFamily = ConvxType.family, fontSize = 17.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.43).sp),
                     color = if (hovered) Color.White else Color.White.copy(alpha = 0.92f),
                 )
             }
@@ -440,7 +440,7 @@ private fun PanelHeader(collapsed: Boolean) {
             ) {
                 ConvxIcon("add", tint = Color.White, size = 18.dp)
                 Spacer(Modifier.width(6.dp))
-                Text("Create", style = TextStyle(fontFamily = ConvxFonts.SfPro, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold), color = Color.White)
+                Text("Create", style = TextStyle(fontFamily = ConvxType.family, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold), color = Color.White)
             }
             AppMenu(createMenu) {
                 MenuItem("Playlist", "playlist_add") {
@@ -517,7 +517,7 @@ private fun FilterChip(label: String?, selected: Boolean, icon: String? = null, 
         if (label != null) {
             Text(
                 label,
-                style = TextStyle(fontFamily = ConvxFonts.SfPro, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium),
+                style = TextStyle(fontFamily = ConvxType.family, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium),
                 color = Color.White,
             )
         }
@@ -548,13 +548,13 @@ private fun ToolsRow(query: String, onQuery: (String) -> Unit, sort: LibrarySort
                 Spacer(Modifier.width(6.dp))
                 Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                     if (query.isEmpty()) {
-                        Text("Search in Your Library", style = TextStyle(fontFamily = ConvxFonts.SfPro, fontSize = 13.sp), color = Color.White.copy(alpha = 0.5f), maxLines = 1)
+                        Text("Search in Your Library", style = TextStyle(fontFamily = ConvxType.family, fontSize = 13.sp), color = Color.White.copy(alpha = 0.5f), maxLines = 1)
                     }
                     BasicTextField(
                         value = query,
                         onValueChange = onQuery,
                         singleLine = true,
-                        textStyle = TextStyle(fontFamily = ConvxFonts.SfPro, fontSize = 13.sp, color = Color.White),
+                        textStyle = TextStyle(fontFamily = ConvxType.family, fontSize = 13.sp, color = Color.White),
                         cursorBrush = SolidColor(Color.White),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -605,7 +605,7 @@ private fun ToolsRow(query: String, onQuery: (String) -> Unit, sort: LibrarySort
             ) {
                 Text(
                     sort.label,
-                    style = TextStyle(fontFamily = ConvxFonts.SfPro, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium),
+                    style = TextStyle(fontFamily = ConvxType.family, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium),
                     color = if (hovered) Color.White else Color.White.copy(alpha = 0.7f),
                 )
                 Spacer(Modifier.width(6.dp))
@@ -664,7 +664,7 @@ private fun LibraryRow(
                     Column(Modifier.weight(1f)) {
                         Text(
                             entry.title,
-                            style = TextStyle(fontFamily = ConvxFonts.SfPro, fontSize = 15.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.23).sp),
+                            style = TextStyle(fontFamily = ConvxType.family, fontSize = 15.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.23).sp),
                             color = if (playing) accent else Color.White,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -680,7 +680,7 @@ private fun LibraryRow(
                             }
                             Text(
                                 entry.subtitle,
-                                style = TextStyle(fontFamily = ConvxFonts.SfPro, fontSize = 13.sp, lineHeight = 17.sp),
+                                style = TextStyle(fontFamily = ConvxType.family, fontSize = 13.sp, lineHeight = 17.sp),
                                 color = Color.White.copy(alpha = 0.6f),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,

@@ -81,6 +81,7 @@ enum class SettingsPage(val title: String, val hub: String) {
     Spotify("Spotify", "accounts"),
     Discord("Discord", "accounts"),
     LiquidGlass("Liquid Glass", "appearance"),
+    Font("App Font", "appearance"),
     Equalizer("Convx Equalizer", "playback"),
     QualitySound("Quality & sound", "playback"),
     Transitions("Song transitions", "playback"),
@@ -372,6 +373,8 @@ private val searchEntries: List<SearchEntry> by lazy {
         SearchEntry("Apple Music import", "Import playlists from a link or export", h.accounts, keywords = "apple music playlist import export itunes xml"),
         SearchEntry("Sound output", "Speakers or headphones", h.playback, SettingsPage.Output, "device speaker headphones output"),
         SearchEntry("Liquid Glass", "Blur, lens and highlights", h.appearance, SettingsPage.LiquidGlass, "glass blur lens refraction vibrancy chromatic aberration rim"),
+        SearchEntry("App Font", "App typeface", h.appearance, SettingsPage.Font, "font typeface jakarta outfit google sans flex sf pro"),
+        SearchEntry("Custom font", "Install a .ttf or .otf font", h.appearance, SettingsPage.Font, "font import ttf otf"),
         SearchEntry("Content country", "Charts and recommendations", h.library, keywords = "region location"),
         SearchEntry("Content language", "The language YouTube Music answers in", h.library, keywords = "locale"),
         SearchEntry("Hide explicit content", null, h.library, keywords = "explicit filter"),
@@ -516,6 +519,7 @@ private fun PageContent(page: SettingsPage) {
         SettingsPage.Spotify -> SpotifySettings()
         SettingsPage.Discord -> DiscordSettings()
         SettingsPage.LiquidGlass -> LiquidGlassSettings()
+        SettingsPage.Font -> AppFontSettings()
         SettingsPage.Equalizer -> EqualizerPage()
         SettingsPage.QualitySound -> QualitySoundSettings()
         SettingsPage.Transitions -> SongTransitionsSettings()

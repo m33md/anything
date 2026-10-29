@@ -70,6 +70,7 @@ fun main(args: Array<String>) {
         .filterIsInstance<PlaylistItem>().firstOrNull()
 
     AppSettings.update { it.copy(rightPanel = null, sidebarCollapsed = false) }
+    com.convx.desktop.ui.theme.AppFonts.start()
     val navigator = Navigator()
     val scene = ImageComposeScene(1440, 900, Density(1f)) { AppShell(navigator) }
 
@@ -143,6 +144,11 @@ fun main(args: Array<String>) {
         }
         AppSettings.update { it.copy(discordPresence = false) }
         shoot("07d-settings-glass", seconds = 3) { SettingsNav.push(SettingsPage.LiquidGlass) }
+        shoot("07da-settings-appearance", seconds = 2) { SettingsNav.openHub(SettingsHubs.appearance.id) }
+        shoot("07db-settings-font", seconds = 2) { SettingsNav.push(SettingsPage.Font) }
+        // The whole app in another of the phone's fonts, then back to its default.
+        shoot("07dc-settings-font-outfit", seconds = 2) { AppSettings.update { it.copy(appFont = "outfit") } }
+        AppSettings.update { it.copy(appFont = com.convx.desktop.ui.theme.AppFont.Default.id) }
         shoot("07e-settings-playback", seconds = 2) { SettingsNav.openHub(SettingsHubs.playback.id) }
         shoot("07f-settings-eq", seconds = 3) {
             AppSettings.update { it.copy(equalizer = it.equalizer.copy(enabled = true)) }

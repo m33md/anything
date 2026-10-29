@@ -84,6 +84,7 @@ fun main() {
         ImageCache.trimDisk()
         AudioEngine.warmUp()
     }
+    com.convx.desktop.ui.theme.AppFonts.start()
     PlayerController.restore()
     DiscordPresence.start()
     SpotifyAccount.restore()

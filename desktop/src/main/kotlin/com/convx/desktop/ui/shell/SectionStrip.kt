@@ -70,7 +70,7 @@ import com.convx.desktop.ui.glass.glassPuck
 import com.convx.desktop.ui.glass.liquidGlass
 import com.convx.desktop.ui.glass.rememberInteractiveHighlight
 import com.convx.desktop.ui.shapes.NavContinuousCapsule
-import com.convx.desktop.ui.theme.ConvxFonts
+import com.convx.desktop.ui.theme.ConvxType
 import com.convx.desktop.ui.theme.LocalAccent
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -273,7 +273,7 @@ private fun StripChip(entry: StripEntry, modifier: Modifier = Modifier) {
         Text(
             entry.label,
             style = androidx.compose.ui.text.TextStyle(
-                fontFamily = ConvxFonts.SfPro,
+                fontFamily = ConvxType.family,
                 fontSize = 15.sp,
                 lineHeight = 20.sp,
                 fontWeight = if (entry.selected) FontWeight.SemiBold else FontWeight.Medium,
