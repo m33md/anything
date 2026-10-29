@@ -64,7 +64,7 @@ private val DiscordBlurple = Color(0xFF5865F2)
  * one button that connects or disconnects.
  */
 @Composable
-private fun AccountHeader(
+internal fun AccountHeader(
     avatar: @Composable () -> Unit,
     title: String,
     status: String,

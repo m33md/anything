@@ -131,9 +131,31 @@ fun AccountsHub() {
                 else -> "On"
             },
         ) { SettingsNav.push(SettingsPage.Discord) }
+        RowDivider()
+        val lastFm by com.convx.desktop.integrations.LastFm.state.collectAsState()
+        LinkRow(
+            "Last.fm",
+            "Scrobbling",
+            icon = "music_note",
+            tint = SystemColors.Red,
+            value = when (lastFm) {
+                is com.convx.desktop.integrations.LastFm.State.SignedIn -> if (settings.lastFmScrobble) "On" else "Paused"
+                com.convx.desktop.integrations.LastFm.State.WaitingForBrowser -> "Signing in"
+                else -> "Off"
+            },
+        ) { SettingsNav.push(SettingsPage.LastFm) }
+        RowDivider()
+        val brainz by com.convx.desktop.core.Secrets.values.collectAsState()
+        LinkRow(
+            "ListenBrainz",
+            "Open scrobbling with a token",
+            icon = "music_history",
+            tint = SystemColors.Orange,
+            value = if (brainz.containsKey("listenbrainz.token") && settings.listenBrainzScrobble) "On" else "Off",
+        ) { SettingsNav.push(SettingsPage.ListenBrainz) }
     }
     SectionGap()
-    InfoNote("Signing in to YouTube Music, Last.fm scrobbling and imports from other apps are on their way, as on the phone.")
+    InfoNote("Signing in to YouTube Music and imports from other apps are on their way, as on the phone. On the phone ListenBrainz sits in the YouTube Music account page; here it has its own row until that page exists.")
 }
 
 @Composable

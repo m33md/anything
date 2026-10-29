@@ -33,6 +33,8 @@ import com.convx.desktop.core.initYouTube
 import com.convx.desktop.data.AppSettings
 import com.convx.desktop.data.Library
 import com.convx.desktop.integrations.DiscordPresence
+import com.convx.desktop.integrations.LastFm
+import com.convx.desktop.integrations.Scrobbler
 import com.convx.desktop.integrations.spotify.SpotifyAccount
 import com.convx.desktop.integrations.spotify.SpotifyMatcher
 import com.convx.desktop.player.AudioCache
@@ -72,6 +74,8 @@ fun main() {
     PlayerController.restore()
     DiscordPresence.start()
     SpotifyAccount.restore()
+    AppScope.launch(Dispatchers.IO) { LastFm.restore() }
+    Scrobbler.start()
 
     val icon = Thread.currentThread().contextClassLoader.getResourceAsStream("convx.png")
         ?.use { BitmapPainter(Image.makeFromEncoded(it.readBytes()).toComposeImageBitmap()) }

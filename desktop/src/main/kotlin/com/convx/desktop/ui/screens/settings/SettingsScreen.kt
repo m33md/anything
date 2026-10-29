@@ -79,6 +79,8 @@ enum class SettingsPage(val title: String, val hub: String) {
     Transitions("Song transitions", "playback"),
     Queue("Queue & autoplay", "playback"),
     Output("Sound output", "playback"),
+    LastFm("Last.fm", "accounts"),
+    ListenBrainz("ListenBrainz", "accounts"),
 }
 
 object SettingsHubs {
@@ -315,6 +317,8 @@ private val searchEntries: List<SearchEntry> by lazy {
         SearchEntry("Persistent queue", "Restore your last queue", h.playback, SettingsPage.Queue, "queue restore"),
         SearchEntry("Enable similar content", "Keep going when the queue ends", h.playback, SettingsPage.Queue, "radio autoplay queue"),
         SearchEntry("Remember shuffle and repeat", null, h.playback, SettingsPage.Queue, "shuffle repeat"),
+        SearchEntry("Last.fm", "Scrobbling", h.accounts, SettingsPage.LastFm, "lastfm scrobble love now playing"),
+        SearchEntry("ListenBrainz", "Scrobbling with a token", h.accounts, SettingsPage.ListenBrainz, "listenbrainz scrobble musicbrainz"),
         SearchEntry("Sound output", "Speakers or headphones", h.playback, SettingsPage.Output, "device speaker headphones output"),
         SearchEntry("Liquid Glass", "Blur, lens and highlights", h.appearance, SettingsPage.LiquidGlass, "glass blur lens refraction vibrancy chromatic aberration rim"),
         SearchEntry("Content country", "Charts and recommendations", h.library, keywords = "region location"),
@@ -450,6 +454,8 @@ private fun PageContent(page: SettingsPage) {
         SettingsPage.Transitions -> SongTransitionsSettings()
         SettingsPage.Queue -> QueueSettings()
         SettingsPage.Output -> OutputSettings()
+        SettingsPage.LastFm -> LastFmSettings()
+        SettingsPage.ListenBrainz -> ListenBrainzSettings()
     }
 }
 

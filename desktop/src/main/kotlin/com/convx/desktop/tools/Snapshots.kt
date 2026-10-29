@@ -146,6 +146,7 @@ fun main(args: Array<String>) {
             AppSettings.update { it.copy(equalizer = it.equalizer.copy(advanced = true)) }
         }
         AppSettings.update { it.copy(equalizer = com.convx.desktop.audio.EqualizerSettings()) }
+        shoot("07h-settings-lastfm", seconds = 2) { SettingsNav.push(SettingsPage.LastFm) }
         shoot("08-explore", seconds = 12) { navigator.navigate(Screen.Explore) }
         shoot("08a-explore-strip", seconds = 3) { UiState.openSection(Section.Explore, navigator) }
         shoot("08b-explore-jump", seconds = 3) { UiState.exploreJump = ExploreAnchor.Moods }

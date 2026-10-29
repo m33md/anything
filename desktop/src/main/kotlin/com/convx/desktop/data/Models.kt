@@ -174,6 +174,16 @@ data class Settings(
     val skipOnError: Boolean = true,
     /** The sound output by name; null follows Windows' default. */
     val outputDevice: String? = null,
+    // Scrobbling, with the phone's defaults. The accounts themselves live in Secrets.
+    val lastFmScrobble: Boolean = true,
+    val lastFmNowPlaying: Boolean = false,
+    val lastFmSendLikes: Boolean = false,
+    val listenBrainzScrobble: Boolean = true,
+    /** Songs this long or shorter are never scrobbled. */
+    val scrobbleMinSeconds: Int = 30,
+    /** A song counts after this share of it, or [scrobbleDelaySeconds], whichever comes first. */
+    val scrobbleDelayPercent: Float = 0.5f,
+    val scrobbleDelaySeconds: Int = 180,
     /** YouTube's guest session id; kept so recommendations stay consistent between launches. */
     val visitorData: String? = null,
     val lastQueue: List<Song> = emptyList(),

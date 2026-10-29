@@ -6,7 +6,10 @@
 package com.convx.desktop.data
 
 import com.convx.desktop.core.AppDirs
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import java.io.File
 import java.util.UUID
 
@@ -26,9 +29,17 @@ object Library {
 
     fun isLiked(id: String): Boolean = value.liked.any { it.song.id == id }
 
-    fun toggleLike(song: Song) = store.update { data ->
-        if (data.liked.any { it.song.id == song.id }) data.copy(liked = data.liked.filterNot { it.song.id == song.id })
-        else data.copy(liked = listOf(LikedSong(song)) + data.liked)
+    /** Each like (true) or unlike (false) as it happens, for Last.fm's loves. */
+    private val _likeChanges = MutableSharedFlow<Pair<Song, Boolean>>(extraBufferCapacity = 16)
+    val likeChanges: SharedFlow<Pair<Song, Boolean>> = _likeChanges.asSharedFlow()
+
+    fun toggleLike(song: Song) {
+        val liked = !isLiked(song.id)
+        store.update { data ->
+            if (data.liked.any { it.song.id == song.id }) data.copy(liked = data.liked.filterNot { it.song.id == song.id })
+            else data.copy(liked = listOf(LikedSong(song)) + data.liked)
+        }
+        _likeChanges.tryEmit(song to liked)
     }
 
     fun setLiked(song: Song, liked: Boolean) {
