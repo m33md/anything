@@ -41,6 +41,7 @@ import com.convx.desktop.core.formatDuration
 import com.convx.desktop.data.AppSettings
 import com.convx.desktop.data.Library
 import com.convx.desktop.data.RepeatMode
+import com.convx.desktop.data.SeekBarStyle
 import com.convx.desktop.data.Song
 import com.convx.desktop.player.PlayerController
 import com.convx.desktop.player.PlayerState
@@ -73,6 +74,10 @@ fun TransportControls(
     compact: Boolean,
     tint: Color = Color.White,
     modifier: Modifier = Modifier,
+    /** Apple Music v2 leaves shuffle and repeat to the queue, as Apple does. */
+    modes: Boolean = true,
+    /** The phone's classic designs set play in a white disc; Apple Music v2 draws a bare glyph. */
+    disc: Boolean = false,
 ) {
     val accent = LocalAccent.current
     val small = if (compact) 34.dp else 48.dp
@@ -85,7 +90,7 @@ fun TransportControls(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 22.dp),
     ) {
-        IconButton(
+        if (modes) IconButton(
             if (state.shuffle) "shuffle_on" else "shuffle",
             { PlayerController.toggleShuffle() },
             size = small,
@@ -96,7 +101,7 @@ fun TransportControls(
             tooltip = if (state.shuffle) "Disable shuffle" else "Enable shuffle",
         )
         IconButton("apple_skip_previous", { PlayerController.previous() }, size = skip, iconSize = skipIcon, tint = tint, enabled = state.current != null, tooltip = "Previous")
-        if (compact) {
+        if (compact || disc) {
             PlayButton(
                 isPlaying = state.isPlaying,
                 onClick = { PlayerController.togglePlay() },
@@ -115,7 +120,7 @@ fun TransportControls(
             )
         }
         IconButton("apple_skip_next", { PlayerController.next() }, size = skip, iconSize = skipIcon, tint = tint, enabled = state.current != null, tooltip = "Next")
-        IconButton(
+        if (modes) IconButton(
             when (state.repeat) {
                 RepeatMode.ONE -> "repeat_one_on"
                 RepeatMode.ALL -> "repeat_on"
@@ -140,7 +145,8 @@ fun TransportControls(
 @Composable
 fun ProgressRow(
     state: PlayerState,
-    wavy: Boolean,
+    /** The classic designs' seek bar; null for Apple's capsule. */
+    style: SeekBarStyle?,
     modifier: Modifier = Modifier,
     labelColor: Color = ConvxColors.SecondaryLabel,
     labelsBelow: Boolean = false,
@@ -151,15 +157,21 @@ fun ProgressRow(
     val duration = state.durationMs.takeIf { it > 0 } ?: ((state.current?.duration ?: 0) * 1000L)
     val elapsed = formatDuration(seconds * 1000)
     val bar = @Composable { m: Modifier ->
-        SeekBar(
-            positionMs = { position.value },
-            durationMs = duration,
-            onSeek = { PlayerController.seekTo(it) },
-            wavy = wavy,
-            playing = state.isPlaying,
-            hoverColor = LocalAccent.current,
-            modifier = m,
-        )
+        when (style) {
+            null -> AppleSeekBar({ position.value }, duration, { PlayerController.seekTo(it) }, m)
+            SeekBarStyle.Waveform -> WaveformSeekBar({ position.value }, duration, { PlayerController.seekTo(it) }, seed = state.current?.id.hashCode(), modifier = m)
+            else -> SeekBar(
+                positionMs = { position.value },
+                durationMs = duration,
+                onSeek = { PlayerController.seekTo(it) },
+                wavy = style == SeekBarStyle.Wavy,
+                playing = state.isPlaying,
+                hoverColor = LocalAccent.current,
+                strokeWidth = if (style == SeekBarStyle.Slim) 3.dp else 4.dp,
+                thumb = style == SeekBarStyle.Default,
+                modifier = m,
+            )
+        }
     }
     if (labelsBelow) {
         Column(modifier.fillMaxWidth()) {

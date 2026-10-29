@@ -19,6 +19,10 @@ import com.convx.desktop.data.AppSettings
 import com.convx.desktop.data.Library
 import com.convx.desktop.data.toSaved
 import com.convx.desktop.data.toSong
+import com.convx.desktop.data.PlayerBackground
+import com.convx.desktop.data.PlayerDesign
+import com.convx.desktop.data.PlayerLook
+import com.convx.desktop.data.SeekBarStyle
 import com.convx.desktop.player.Downloads
 import com.convx.desktop.player.PlayerController
 import com.convx.desktop.player.ResolvedStream
@@ -189,6 +193,32 @@ fun main(args: Array<String>) {
                 UiState.fullPlayer = true
             }
             shoot("13-full-player-queue", seconds = 4) { UiState.fullPlayerMode = FullPlayerMode.Queue }
+            // The phone's other player designs, each with one of its backgrounds and seek bars.
+            fun design(transform: (com.convx.desktop.data.Settings) -> com.convx.desktop.data.Settings) = AppSettings.update(transform)
+            shoot("13a-player-v2", seconds = 4) { UiState.fullPlayerMode = FullPlayerMode.Artwork }
+            shoot("13b-player-card-glow", seconds = 4) {
+                design { it.copy(playerDesign = PlayerDesign.Card, playerBackground = PlayerBackground.Glow, seekBarStyle = SeekBarStyle.Wavy) }
+            }
+            shoot("13c-player-vinyl-blur", seconds = 4) {
+                design { it.copy(playerDesign = PlayerDesign.Vinyl, playerBackground = PlayerBackground.Blur, seekBarStyle = SeekBarStyle.Waveform, artworkShadow = true) }
+            }
+            shoot("13d-player-clover-mesh", seconds = 4) {
+                design { it.copy(playerDesign = PlayerDesign.Clover, playerBackground = PlayerBackground.ColourMesh, seekBarStyle = SeekBarStyle.Slim, showUpNext = true) }
+            }
+            shoot("13e-player-apple", seconds = 4) { design { it.copy(playerDesign = PlayerDesign.AppleMusic, showUpNext = false) } }
+            shoot("13f-player-v2-hero-lyrics", seconds = 6) {
+                design { it.copy(playerDesign = PlayerDesign.AppleMusicV2, playerLook = PlayerLook.Hero) }
+                UiState.fullPlayerMode = FullPlayerMode.Lyrics
+            }
+            design {
+                it.copy(
+                    playerDesign = PlayerDesign.AppleMusicV2,
+                    playerLook = PlayerLook.Squared,
+                    playerBackground = PlayerBackground.Gradient,
+                    seekBarStyle = SeekBarStyle.Default,
+                    artworkShadow = false,
+                )
+            }
 
             // A lived-in library, for the side bar, the library page and the song-list pages.
             UiState.fullPlayer = false
@@ -220,6 +250,10 @@ fun main(args: Array<String>) {
                 scene.sendPointerEvent(PointerEventType.Release, at, buttons = PointerButtons(), button = PointerButton.Secondary)
             }
             AppSettings.update { it.copy(sidebarCollapsed = false) }
+            shoot("19-settings-player-design", seconds = 6) {
+                navigator.navigate(Screen.Settings)
+                SettingsNav.push(SettingsPage.PlayerDesign)
+            }
         }
     }.onFailure { Log.e("Snapshots", "Rendering failed", it) }
 

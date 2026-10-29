@@ -56,8 +56,8 @@ private val Languages = listOf(
 fun PlayerHub() {
     val settings by AppSettings.state.collectAsState()
     SettingsSection("Player") {
-        SwitchRow("Wavy progress bar", "The phone's squiggly progress line while music plays.", settings.wavyProgress) { v ->
-            AppSettings.update { it.copy(wavyProgress = v) }
+        LinkRow("Player design", "Card, Vinyl, Clover, Apple Music, with live previews", icon = "play", tint = SystemColors.Pink, value = settings.playerDesign.label) {
+            SettingsNav.push(SettingsPage.PlayerDesign)
         }
     }
     SectionGap()

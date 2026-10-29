@@ -51,6 +51,7 @@ import com.convx.desktop.ui.components.Overlays
 import com.convx.desktop.ui.components.PageInsets
 import com.convx.desktop.ui.components.Playback
 import com.convx.desktop.ui.glass.LocalAppBackdrop
+import com.convx.desktop.ui.glass.LocalPagesBackdrop
 import com.convx.desktop.ui.glass.LocalMenuBackdrop
 import com.convx.desktop.ui.player.FullPlayer
 import com.convx.desktop.ui.player.NowPlayingPill
@@ -185,7 +186,7 @@ fun AppShell(navigator: Navigator) {
                 ) {
                     // Menus over the player would refract the pages hidden under it. Its top edge
                     // is the window's title bar while it covers the window.
-                    CompositionLocalProvider(LocalMenuBackdrop provides null) {
+                    CompositionLocalProvider(LocalMenuBackdrop provides null, LocalPagesBackdrop provides appBackdrop) {
                         Box(Modifier.fillMaxSize().windowDragArea()) { FullPlayer() }
                     }
                 }

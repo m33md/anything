@@ -31,7 +31,15 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -47,7 +55,9 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlin.math.PI
+import kotlin.math.floor
 import kotlin.math.sin
+import kotlin.random.Random
 
 /**
  * Playback position at frame rate. The controller reports every 100 ms; between
@@ -92,6 +102,8 @@ fun SeekBar(
     trackColor: Color = Color.White.copy(alpha = 0.22f),
     height: Dp = 18.dp,
     strokeWidth: Dp = 4.dp,
+    /** The phone's Default style keeps its thumb showing; the others show one only under the pointer. */
+    thumb: Boolean = false,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
@@ -159,8 +171,144 @@ fun SeekBar(
             drawLine(color, Offset(inset, cy), Offset(x, cy), stroke, StrokeCap.Round)
         }
 
-        if (engaged) {
-            drawCircle(Color.White, radius = 6.5.dp.toPx(), center = Offset(x, cy))
+        if (engaged || thumb) {
+            drawCircle(Color.White, radius = (if (thumb) 8.dp else 6.5.dp).toPx(), center = Offset(x, cy))
+        }
+    }
+}
+
+/**
+ * Apple Music's progress capsule, which both Apple designs draw: thin and quiet, thicker under
+ * the pointer or a drag, as Apple's swells under a finger.
+ */
+@Composable
+fun AppleSeekBar(
+    positionMs: () -> Long,
+    durationMs: Long,
+    onSeek: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+    color: Color = Color.White,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    var dragFraction by remember { mutableStateOf<Float?>(null) }
+    val currentDuration by rememberUpdatedState(durationMs)
+    val currentOnSeek by rememberUpdatedState(onSeek)
+    val thickness by animateFloatAsState(if (hovered || dragFraction != null) 11f else 7f, tween(180))
+    Canvas(
+        modifier
+            .fillMaxWidth()
+            .height(18.dp)
+            .hoverable(interaction)
+            .pointerHoverIcon(PointerIcon.Hand)
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    val width = size.width.toFloat().coerceAtLeast(1f)
+                    dragFraction = (down.position.x / width).coerceIn(0f, 1f)
+                    down.consume()
+                    drag(down.id) { change ->
+                        dragFraction = (change.position.x / width).coerceIn(0f, 1f)
+                        change.consume()
+                    }
+                    val target = dragFraction
+                    if (target != null && currentDuration > 0) currentOnSeek((target * currentDuration).toLong())
+                    dragFraction = null
+                }
+            },
+    ) {
+        val fraction = dragFraction ?: if (durationMs > 0) (positionMs().toFloat() / durationMs).coerceIn(0f, 1f) else 0f
+        val h = thickness.dp.toPx()
+        val top = (size.height - h) / 2f
+        val corner = CornerRadius(h / 2f)
+        drawRoundRect(color.copy(alpha = 0.22f), Offset(0f, top), Size(size.width, h), corner)
+        clipRect(right = size.width * fraction) {
+            drawRoundRect(color.copy(alpha = 0.85f), Offset(0f, top), Size(size.width, h), corner)
+        }
+    }
+}
+
+/** A random walk, so neighbouring bars relate and it reads like audio rather than noise (the phone's waveformBars). */
+private fun waveformBars(seed: Int, count: Int): FloatArray {
+    val random = Random(seed)
+    var previous = 0.5f
+    return FloatArray(count) {
+        previous = (previous + (random.nextFloat() - 0.5f) * 0.6f).coerceIn(0.12f, 1f)
+        previous
+    }
+}
+
+/**
+ * The phone's Waveform seek bar: a window of rounded bars that glides with the song, centred on
+ * the playhead and fading out at both ends. Drag it sideways to scrub, or click a bar.
+ */
+@Composable
+fun WaveformSeekBar(
+    positionMs: () -> Long,
+    durationMs: Long,
+    onSeek: (Long) -> Unit,
+    seed: Int,
+    modifier: Modifier = Modifier,
+    playedColor: Color = Color.White,
+    trackColor: Color = Color.White.copy(alpha = 0.22f),
+    totalBars: Int = 160,
+    visibleBars: Int = 44,
+) {
+    val heights = remember(seed, totalBars) { waveformBars(seed, totalBars) }
+    var dragProgress by remember { mutableStateOf<Float?>(null) }
+    val currentDuration by rememberUpdatedState(durationMs)
+    val currentOnSeek by rememberUpdatedState(onSeek)
+    fun progress(): Float = if (durationMs > 0) (positionMs().toFloat() / durationMs).coerceIn(0f, 1f) else 0f
+    Canvas(
+        modifier
+            .fillMaxWidth()
+            .height(40.dp)
+            .pointerHoverIcon(PointerIcon.Hand)
+            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+            .drawWithContent {
+                drawContent()
+                drawRect(
+                    Brush.horizontalGradient(0f to Color.Transparent, 0.22f to Color.Black, 0.78f to Color.Black, 1f to Color.Transparent),
+                    blendMode = BlendMode.DstIn,
+                )
+            }
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    val width = size.width.toFloat().coerceAtLeast(1f)
+                    val start = dragProgress ?: (if (currentDuration > 0) (positionMs().toFloat() / currentDuration).coerceIn(0f, 1f) else 0f)
+                    // A click lands on the bar under the pointer; a drag scrubs from where the song is.
+                    dragProgress = (start + (down.position.x / width - 0.5f) * visibleBars / totalBars).coerceIn(0f, 1f)
+                    down.consume()
+                    drag(down.id) { change ->
+                        val delta = change.position.x - change.previousPosition.x
+                        dragProgress = ((dragProgress ?: start) - delta / width * visibleBars / totalBars).coerceIn(0f, 1f)
+                        change.consume()
+                    }
+                    dragProgress?.let { if (currentDuration > 0) currentOnSeek((it * currentDuration).toLong()) }
+                    dragProgress = null
+                }
+            },
+    ) {
+        val n = heights.size
+        if (n == 0 || size.width <= 0f) return@Canvas
+        val current = (dragProgress ?: progress()).coerceIn(0f, 1f)
+        val mid = size.height / 2f
+        val slot = size.width / visibleBars
+        val barWidth = slot * 0.55f
+        val centerBar = current * (n - 1)
+        val firstBar = centerBar - visibleBars / 2f
+        val startIndex = floor(firstBar).toInt()
+        for (i in startIndex..(startIndex + visibleBars + 1)) {
+            if (i !in 0 until n) continue
+            val x = (i - firstBar) * slot + slot / 2f
+            val h = (heights[i] * size.height * 0.9f).coerceAtLeast(size.height * 0.15f)
+            drawRoundRect(
+                if (i <= centerBar) playedColor else trackColor,
+                Offset(x - barWidth / 2f, mid - h / 2f),
+                Size(barWidth, h),
+                CornerRadius(barWidth / 2f),
+            )
         }
     }
 }

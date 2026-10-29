@@ -50,12 +50,21 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.convx.desktop.data.AppSettings
 import com.convx.desktop.data.Library
+import com.convx.desktop.data.PlayerBackground
+import com.convx.desktop.data.PlayerDesign
+import com.convx.desktop.data.RepeatMode
+import com.convx.desktop.data.Settings
+import com.convx.desktop.player.PlayerState
+import com.convx.desktop.ui.components.Tooltip
 import com.convx.desktop.ui.components.AppMenu
 import com.convx.desktop.ui.components.ArtistLinks
 import com.convx.desktop.ui.components.Artwork
@@ -129,22 +138,59 @@ fun MeshBackground(colors: List<Color>?, trackKey: Any?, modifier: Modifier = Mo
 @Composable
 fun FullPlayer(modifier: Modifier = Modifier) {
     val state by PlayerController.state.collectAsState()
-    val navigator = LocalNavigator.current
     val settings by AppSettings.state.collectAsState()
+    PlayerStage(state, settings, UiState.fullPlayerMode, modifier)
+}
+
+/**
+ * The player in the chosen design, as the phone's player draws each one: Apple Music v2 (a square
+ * cover or a full-bleed one) with Apple's capsule and bare controls, Apple Music with a full-bleed
+ * cover, and Card, Vinyl and Clover with their own cover shapes, background and seek bar.
+ *
+ * [preview] draws it for the design page: nothing reacts and the side panes stay shut.
+ */
+@Composable
+fun PlayerStage(
+    state: PlayerState,
+    settings: Settings,
+    mode: FullPlayerMode,
+    modifier: Modifier = Modifier,
+    preview: Boolean = false,
+) {
+    val navigator = LocalNavigator.current
     val library by Library.state.collectAsState()
     val song = state.current
-    val mesh by rememberMeshColors(song?.thumbnail?.let { com.convx.desktop.ui.components.artworkUrl(it, 226) })
-    val mode = UiState.fullPlayerMode
     val menu = rememberMenuAnchor()
+    val design = settings.playerDesign
+    val v2 = design == PlayerDesign.AppleMusicV2
+    val hero = settings.heroLayout
+    val apple = !design.classic
+    val background = settings.effectiveBackground()
+    val split = mode != FullPlayerMode.Artwork
 
     Box(
         modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .then(if (background == PlayerBackground.Glass) Modifier else Modifier.background(Color.Black))
             // Swallow clicks so nothing underneath reacts.
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
     ) {
-        MeshBackground(mesh, song?.id)
+        PlayerBackdrop(background, song?.thumbnail, state.isPlaying && !preview, settings, hero = hero)
+
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            // Full bleed: the cover runs off the window's top edge and fades out at its foot, and
+            // towards the lyrics or queue beside it; alone, it's centred and fades at both sides.
+            if (hero) {
+                val leftWidth = min((maxWidth.value - 80f) * 0.42f, 560f).dp
+                val side = if (split) min(maxHeight.value * 0.82f, leftWidth.value + 160f).dp else min(maxWidth.value, maxHeight.value * 0.82f).dp
+                HeroCover(
+                    song?.thumbnail,
+                    Modifier.align(if (split) Alignment.TopStart else Alignment.TopCenter).size(side),
+                    fadeEnd = split,
+                    fadeSides = !split && side < maxWidth,
+                )
+            }
+        }
 
         Column(Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 20.dp)) {
             // Top row
@@ -186,45 +232,32 @@ fun FullPlayer(modifier: Modifier = Modifier) {
             }
 
             BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
-                val split = mode != FullPlayerMode.Artwork
                 val leftWidth = if (split) min(maxWidth.value * 0.42f, 560f).dp else min(maxWidth.value, 620f).dp
-                val artSize = min(leftWidth.value - 20f, maxHeight.value - 300f).coerceAtLeast(160f).dp
+                // Room for the title, seek bar, controls and the optional rows under the cover.
+                val below = 300f + (if (settings.showVolumeBar) 0f else -40f) + (if (settings.showUpNext && state.upNext.isNotEmpty()) 56f else 0f)
+                val artSize = min(leftWidth.value - 20f, maxHeight.value - below).coerceAtLeast(160f).dp
                 Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = if (split) Arrangement.Start else Arrangement.Center) {
                     Column(
                         Modifier.width(leftWidth).fillMaxHeight(),
-                        verticalArrangement = Arrangement.Center,
+                        verticalArrangement = if (hero) Arrangement.Bottom else Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        // Apple's tell: the cover sinks back a little while paused.
-                        val artScale by animateFloatAsState(
-                            if (state.isPlaying || state.isLoading) 1f else 0.86f,
-                            spring(dampingRatio = 0.72f, stiffness = Spring.StiffnessLow),
-                        )
-                        Box(Modifier.size(artSize), contentAlignment = Alignment.Center) {
-                            Artwork(
-                                song?.thumbnail,
-                                Modifier
-                                    .size(artSize)
-                                    .graphicsLayer {
-                                        scaleX = artScale
-                                        scaleY = artScale
-                                    }
-                                    .shadow(if (state.isPlaying) 40.dp else 18.dp, RoundedCornerShape(14.dp)),
-                                size = 1000,
-                                shape = RoundedCornerShape(14.dp),
-                                iconSize = 80.dp,
-                            )
+                        if (!hero) {
+                            StageCover(song?.thumbnail, design, settings.artworkShadow, state.isPlaying || state.isLoading, artSize, still = preview)
+                            Spacer(Modifier.height(28.dp))
                         }
-                        Spacer(Modifier.height(28.dp))
                         Column(Modifier.width(artSize.coerceAtLeast(360.dp))) {
                             if (song != null) {
                                 val liked = library.liked.any { it.song.id == song.id }
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Column(Modifier.weight(1f)) {
-                                        // The phone sets title and artist at one size, semibold over regular.
-                                        val line = ConvxType.Headline.copy(fontSize = 21.sp, lineHeight = 27.sp)
+                                        // Apple Music v2 sets title and artist at one size, semibold over regular;
+                                        // the other designs have a bold title over a smaller artist line.
+                                        val line = if (v2) ConvxType.Headline.copy(fontSize = 21.sp, lineHeight = 27.sp) else ConvxType.Title2.copy(fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.Bold)
+                                        val artistLine = if (v2) line.copy(color = Color.White.copy(alpha = 0.6f), fontWeight = FontWeight.Normal)
+                                            else ConvxType.Body.copy(fontSize = 16.sp, lineHeight = 21.sp, color = Color.White.copy(alpha = 0.7f))
                                         Text(song.title, style = line, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        ArtistLinks(song, line.copy(color = Color.White.copy(alpha = 0.6f), fontWeight = androidx.compose.ui.text.font.FontWeight.Normal))
+                                        ArtistLinks(song, artistLine)
                                     }
                                     IconButton(
                                         if (liked) "favorite" else "favorite_border",
@@ -245,22 +278,42 @@ fun FullPlayer(modifier: Modifier = Modifier) {
                                                     UiState.fullPlayer = false
                                                     navigator.navigate(Screen.Party)
                                                 }
+                                                MenuItem("Player design", "palette") {
+                                                    dismiss()
+                                                    UiState.fullPlayer = false
+                                                    navigator.navigate(Screen.Settings)
+                                                    com.convx.desktop.ui.screens.settings.SettingsNav.push(com.convx.desktop.ui.screens.settings.SettingsPage.PlayerDesign)
+                                                }
                                             }
                                         }
                                     }
                                 }
                             }
                             Spacer(Modifier.height(14.dp))
-                            ProgressRow(state, settings.wavyProgress, labelColor = Color.White.copy(alpha = 0.6f), labelsBelow = true, showQuality = true)
-                            Spacer(Modifier.height(8.dp))
-                            TransportControls(state, compact = false, modifier = Modifier.align(Alignment.CenterHorizontally))
-                            Spacer(Modifier.height(10.dp))
-                            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                VolumeControl(state, sliderWidth = 220.dp)
+                            ProgressRow(
+                                state,
+                                if (apple) null else settings.seekBarStyle,
+                                labelColor = Color.White.copy(alpha = 0.6f),
+                                labelsBelow = true,
+                                showQuality = true,
+                            )
+                            Spacer(Modifier.height(if (v2) 12.dp else 8.dp))
+                            TransportControls(state, compact = false, modifier = Modifier.align(Alignment.CenterHorizontally), modes = !v2, disc = !v2)
+                            if (settings.showVolumeBar) {
+                                Spacer(Modifier.height(10.dp))
+                                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                    VolumeControl(state, sliderWidth = 220.dp)
+                                }
                             }
+                            val next = state.upNext.firstOrNull()
+                            if (settings.showUpNext && next != null) {
+                                Spacer(Modifier.height(14.dp))
+                                UpNextRow(next.title, onClick = { UiState.fullPlayerMode = FullPlayerMode.Queue })
+                            }
+                            if (hero) Spacer(Modifier.height(24.dp))
                         }
                     }
-                    if (split) {
+                    if (split && !preview) {
                         Spacer(Modifier.width(40.dp))
                         AnimatedContent(
                             targetState = mode,
@@ -273,12 +326,136 @@ fun FullPlayer(modifier: Modifier = Modifier) {
                                     Modifier.fillMaxSize().widthIn(max = 900.dp),
                                     style = ConvxType.Lyrics,
                                 )
-                                FullPlayerMode.Queue -> QueueList(state, Modifier.fillMaxSize().padding(vertical = 12.dp), onDark = true)
+                                FullPlayerMode.Queue -> Column(Modifier.fillMaxSize().padding(vertical = 12.dp)) {
+                                    QueueModes(state, settings)
+                                    QueueList(state, Modifier.fillMaxWidth().weight(1f), onDark = true)
+                                }
                                 FullPlayerMode.Artwork -> Spacer(Modifier.fillMaxSize())
                             }
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * The cover in the design's shape: Apple Music v2's rounded square, sinking back while paused;
+ * a card; a record turning under its grooves; or a clover turning around an upright cover.
+ */
+@Composable
+private fun StageCover(url: String?, design: PlayerDesign, shadow: Boolean, playing: Boolean, size: Dp, still: Boolean) {
+    if (design == PlayerDesign.AppleMusicV2) {
+        // Apple's tell: the cover sinks back a little while paused.
+        val artScale by animateFloatAsState(if (playing) 1f else 0.86f, spring(dampingRatio = 0.72f, stiffness = Spring.StiffnessLow))
+        Box(Modifier.size(size), contentAlignment = Alignment.Center) {
+            Artwork(
+                url,
+                Modifier
+                    .size(size)
+                    .graphicsLayer {
+                        scaleX = artScale
+                        scaleY = artScale
+                    }
+                    .shadow(if (playing) 40.dp else 18.dp, RoundedCornerShape(14.dp)),
+                size = 1000,
+                shape = RoundedCornerShape(14.dp),
+                iconSize = 80.dp,
+            )
+        }
+        return
+    }
+    val style = design.coverStyle()
+    val shape = style.shape(16.dp)
+    val angle by rememberCoverRotation(style, playing && !still)
+    Box(
+        Modifier
+            .size(size)
+            .graphicsLayer {
+                rotationZ = angle
+                this.shape = shape
+                clip = true
+                shadowElevation = if (shadow) 24.dp.toPx() else 0f
+            },
+    ) {
+        // A clover turns around the cover; the cover itself stays upright.
+        Artwork(
+            url,
+            Modifier.fillMaxSize().graphicsLayer { rotationZ = if (style.artSpins) 0f else -angle },
+            size = 1000,
+            shape = RectangleShape,
+            iconSize = 80.dp,
+        )
+        if (style == CoverStyle.Vinyl) VinylGrooves(Modifier.fillMaxSize())
+    }
+}
+
+/** The phone's "Show next track": what plays next, under the controls. */
+@Composable
+private fun UpNextRow(title: String, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color.White.copy(alpha = 0.12f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("UP NEXT", style = ConvxType.CaptionStrong, color = Color.White.copy(alpha = 0.6f))
+        Spacer(Modifier.width(10.dp))
+        Text(title, style = ConvxType.Subhead, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/**
+ * The phone's queue buttons: shuffle, repeat, keep playing similar songs when the queue ends, and
+ * crossfade. Apple Music v2 has no shuffle or repeat under the cover, so this is where they live.
+ */
+@Composable
+private fun QueueModes(state: PlayerState, settings: Settings) {
+    Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        QueueModeButton(if (state.shuffle) "shuffle_on" else "shuffle", "Shuffle", state.shuffle, Modifier.weight(1f)) { PlayerController.toggleShuffle() }
+        QueueModeButton(
+            when (state.repeat) {
+                RepeatMode.ONE -> "repeat_one_on"
+                RepeatMode.ALL -> "repeat_on"
+                RepeatMode.OFF -> "repeat"
+            },
+            when (state.repeat) {
+                RepeatMode.ONE -> "Repeat one"
+                else -> "Repeat"
+            },
+            state.repeat != RepeatMode.OFF,
+            Modifier.weight(1f),
+        ) { PlayerController.cycleRepeat() }
+        QueueModeButton("ic_queue_infinity", "Autoplay", settings.autoRadio, Modifier.weight(1f)) {
+            AppSettings.update { it.copy(autoRadio = !it.autoRadio) }
+        }
+        QueueModeButton("ic_queue_crossfade", "Crossfade", settings.crossfade, Modifier.weight(1f)) {
+            AppSettings.update { it.copy(crossfade = !it.crossfade) }
+        }
+    }
+}
+
+@Composable
+private fun QueueModeButton(icon: String, label: String, active: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val fill by animateColorAsState(if (active) Color.White.copy(alpha = 0.9f) else Color.White.copy(alpha = 0.14f), tween(180))
+    val tint = if (active) Color.Black else Color.White
+    // The row's weight goes on this outer box; the tooltip wraps whatever it is given.
+    Box(modifier) {
+        Tooltip(label) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(36.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(fill)
+                    .clickable(onClick = onClick),
+                contentAlignment = Alignment.Center,
+            ) {
+                ConvxIcon(icon, tint = tint, size = 20.dp)
             }
         }
     }

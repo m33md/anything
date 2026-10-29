@@ -71,6 +71,7 @@ class SettingsHub(val id: String, val title: String, val icon: String, val tint:
 
 /** A page under a category, opened from one of its rows. */
 enum class SettingsPage(val title: String, val hub: String) {
+    PlayerDesign("Player design", "player"),
     Spotify("Spotify", "accounts"),
     Discord("Discord", "accounts"),
     LiquidGlass("Liquid Glass", "appearance"),
@@ -316,7 +317,11 @@ private class SearchEntry(
 private val searchEntries: List<SearchEntry> by lazy {
     val h = SettingsHubs
     listOf(
-        SearchEntry("Wavy progress bar", "The squiggly line while music plays", h.player, keywords = "seek bar slider squiggly"),
+        SearchEntry("Player design", "Card, Vinyl, Clover, Apple Music", h.player, SettingsPage.PlayerDesign, "player look style theme vinyl record clover apple full bleed"),
+        SearchEntry("Player background", "Gradient, blur, glow, mesh, glass", h.player, SettingsPage.PlayerDesign, "background gradient blur glow mesh solid colour color glass"),
+        SearchEntry("Seek bar style", "Default, wavy, slim, waveform", h.player, SettingsPage.PlayerDesign, "seek bar slider squiggly wavy progress waveform"),
+        SearchEntry("Show next track", "What plays next, under the controls", h.player, SettingsPage.PlayerDesign, "up next"),
+        SearchEntry("Volume bar", null, h.player, SettingsPage.PlayerDesign, "volume slider"),
         SearchEntry("Word-by-word lyrics", "Light up each word as it's sung", h.player, keywords = "karaoke synced lyrics"),
         SearchEntry("Equalizer", "Shape the sound", h.playback, SettingsPage.Equalizer, "eq bass treble mids preset parametric autoeq dolby dirac"),
         SearchEntry("Spatial audio", "Wider stereo for headphones", h.playback, SettingsPage.Equalizer, "3d surround headphones widen"),
@@ -478,6 +483,7 @@ private fun HubContent(hub: SettingsHub) {
 @Composable
 private fun PageContent(page: SettingsPage) {
     when (page) {
+        SettingsPage.PlayerDesign -> PlayerDesignSettings()
         SettingsPage.Spotify -> SpotifySettings()
         SettingsPage.Discord -> DiscordSettings()
         SettingsPage.LiquidGlass -> LiquidGlassSettings()

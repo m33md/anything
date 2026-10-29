@@ -161,6 +161,9 @@ val LocalAppBackdrop = staticCompositionLocalOf<Backdrop?> { null }
  */
 val LocalMenuBackdrop = staticCompositionLocalOf<Backdrop?> { null }
 
+/** The pages under the full player, for its Glass background only; null everywhere else. */
+val LocalPagesBackdrop = staticCompositionLocalOf<Backdrop?> { null }
+
 /** The phone's menu material: its glass with a charcoal tint at 82% and a softer blur. */
 val MenuGlass = GlassConfig.Default.copy(surfaceTint = Color(0xFF1C1C1E), surfaceOpacity = 0.82f, blurRadius = 8f)
 
