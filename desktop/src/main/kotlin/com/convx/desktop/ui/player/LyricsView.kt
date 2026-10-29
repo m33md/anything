@@ -115,6 +115,7 @@ import kotlin.math.abs
 import kotlin.math.max
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.platform.SystemFont
 import androidx.compose.ui.text.platform.Font as PlatformFont
@@ -199,6 +200,7 @@ fun LyricsView(
 }
 
 /** The phone's lyrics fonts: the app's own, rounded, serif, mono, or one you imported. Null is the app's. */
+@OptIn(ExperimentalTextApi::class)
 @Composable
 fun rememberLyricsFont(selection: String): FontFamily? {
     val family by produceState<FontFamily?>(null, selection) {
@@ -213,7 +215,7 @@ fun rememberLyricsFont(selection: String): FontFamily? {
                         require(selection.matches(Regex("custom-\\d+\\.font")))
                         val file = LyricsFonts.dir.resolve(selection)
                         // Loading checks the file is a font before Compose ever draws with it.
-                        org.jetbrains.skia.Typeface.makeFromFile(file.absolutePath)
+                        LyricsFonts.check(file)
                         FontFamily(PlatformFont(file))
                     }.getOrNull()
                 }
@@ -236,11 +238,16 @@ object LyricsFonts {
         dir.mkdirs()
         val target = dir.resolve(name)
         source.copyTo(target, overwrite = true)
-        runCatching { org.jetbrains.skia.Typeface.makeFromFile(target.absolutePath) }.onFailure {
+        runCatching { check(target) }.onFailure {
             target.delete()
             throw IllegalArgumentException("This isn't a font Convx can read")
         }
         return name
+    }
+
+    /** Throws unless Skia can read [file] as a font. */
+    fun check(file: java.io.File) {
+        checkNotNull(org.jetbrains.skia.FontMgr.default.makeFromFile(file.absolutePath, 0)) { "Not a font" }
     }
 }
 
