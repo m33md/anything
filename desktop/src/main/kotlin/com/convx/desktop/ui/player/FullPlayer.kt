@@ -76,6 +76,7 @@ import com.convx.desktop.ui.components.ArtistLinks
 import com.convx.desktop.ui.components.Artwork
 import com.convx.desktop.ui.components.ConvxIcon
 import com.convx.desktop.ui.components.IconButton
+import com.convx.desktop.ui.components.PlayerIconSlot
 import com.convx.desktop.ui.components.SongMenuContent
 import com.convx.desktop.ui.components.rememberMenuAnchor
 import com.convx.desktop.ui.components.rememberMeshColors
@@ -232,6 +233,7 @@ fun PlayerStage(
                     iconSize = 22.dp,
                     filled = mode == FullPlayerMode.Lyrics,
                     tooltip = "Lyrics",
+                    slot = if (v2) PlayerIconSlot.V2_LYRICS else null,
                 )
                 Spacer(Modifier.width(8.dp))
                 IconButton(
@@ -241,6 +243,7 @@ fun PlayerStage(
                     iconSize = 22.dp,
                     filled = mode == FullPlayerMode.Queue,
                     tooltip = "Queue",
+                    slot = if (v2) PlayerIconSlot.V2_QUEUE else null,
                 )
             }
 
@@ -286,17 +289,29 @@ fun PlayerStage(
                                         Text(song.title, style = line, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                         ArtistLinks(song, artistLine)
                                     }
+                                    // Apple Music v2's heart and more glyphs carry their own faint disc, 28dp in a
+                                    // 40dp button; the other designs set theirs on a glass disc.
+                                    val likeSlot = when {
+                                        v2 && liked -> PlayerIconSlot.V2_LIKED
+                                        v2 -> PlayerIconSlot.V2_LIKE
+                                        liked -> PlayerIconSlot.LIKED
+                                        else -> PlayerIconSlot.LIKE
+                                    }
+                                    val moreSlot = if (v2) PlayerIconSlot.V2_MORE else PlayerIconSlot.MORE
+                                    val actionSize = if (v2) 40.dp else 38.dp
+                                    val actionIcon = if (v2) 28.dp else 22.dp
                                     IconButton(
-                                        if (liked) "favorite" else "favorite_border",
+                                        likeSlot.fallback,
                                         { Library.toggleLike(song) },
-                                        size = 38.dp,
-                                        iconSize = 22.dp,
-                                        filled = true,
+                                        size = actionSize,
+                                        iconSize = actionIcon,
+                                        filled = !v2,
                                         tooltip = if (liked) "Remove from Liked Songs" else "Add to Liked Songs",
+                                        slot = likeSlot,
                                     )
-                                    Spacer(Modifier.width(8.dp))
+                                    Spacer(Modifier.width(if (v2) 4.dp else 8.dp))
                                     Box {
-                                        IconButton("more_horiz", { menu.expanded = true }, size = 38.dp, iconSize = 22.dp, filled = true, tooltip = "More options")
+                                        IconButton(moreSlot.fallback, { menu.expanded = true }, size = actionSize, iconSize = actionIcon, filled = !v2, tooltip = "More options", slot = moreSlot)
                                         AppMenu(menu) {
                                             SongMenuContent(song, { menu.expanded = false }) { dismiss ->
                                                 // The phone's player menu opens the party from here.
@@ -325,11 +340,11 @@ fun PlayerStage(
                                 showQuality = settings.showAudioQualityBadge,
                             )
                             Spacer(Modifier.height(if (v2) 12.dp else 8.dp))
-                            TransportControls(state, compact = false, modifier = Modifier.align(Alignment.CenterHorizontally), modes = !v2, disc = !v2)
+                            TransportControls(state, compact = false, modifier = Modifier.align(Alignment.CenterHorizontally), v2 = v2)
                             if (settings.showVolumeBar) {
                                 Spacer(Modifier.height(10.dp))
                                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                    VolumeControl(state, sliderWidth = 220.dp)
+                                    VolumeControl(state, sliderWidth = 220.dp, slot = if (v2) PlayerIconSlot.V2_VOLUME_DOWN else null)
                                 }
                             }
                             val next = state.upNext.firstOrNull()

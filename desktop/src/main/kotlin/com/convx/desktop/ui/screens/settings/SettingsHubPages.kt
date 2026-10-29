@@ -64,6 +64,10 @@ fun PlayerHub() {
         LinkRow("Controls & layout", "Thumbnail, menus, buttons and badges", icon = "sliders", tint = SystemColors.Indigo) {
             SettingsNav.push(SettingsPage.ControlsLayout)
         }
+        RowDivider()
+        LinkRow("Custom player icons", "Click a control to use your own image", icon = "tune", tint = SystemColors.Purple) {
+            SettingsNav.push(SettingsPage.CustomPlayerIcons)
+        }
     }
     SectionGap()
     SettingsSection("Lyrics", footer = "Lyrics come from the same sources as on the phone, and are looked up as the song starts.") {

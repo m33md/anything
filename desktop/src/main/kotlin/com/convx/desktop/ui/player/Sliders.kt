@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
@@ -50,6 +51,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.convx.desktop.player.PlayerController
+import com.convx.desktop.ui.components.PlayerIconSlot
+import com.convx.desktop.ui.components.rememberPlayerIcon
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -104,7 +107,10 @@ fun SeekBar(
     strokeWidth: Dp = 4.dp,
     /** The phone's Default style keeps its thumb showing; the others show one only under the pointer. */
     thumb: Boolean = false,
+    /** The player's own bar: a seek handle image from Player icons takes the thumb's place, always shown. */
+    customThumb: Boolean = false,
 ) {
+    val handle = if (customThumb) rememberPlayerIcon(PlayerIconSlot.SEEK_THUMB) else null
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
     var dragFraction by remember { mutableStateOf<Float?>(null) }
@@ -171,7 +177,13 @@ fun SeekBar(
             drawLine(color, Offset(inset, cy), Offset(x, cy), stroke, StrokeCap.Round)
         }
 
-        if (engaged || thumb) {
+        if (handle != null) {
+            // The phone draws a picked handle at 18dp, centred on the playhead.
+            val r = 9.dp.toPx()
+            translate(x - r, cy - r) {
+                with(handle.painter) { draw(Size(r * 2, r * 2), colorFilter = handle.colorFilter(color)) }
+            }
+        } else if (engaged || thumb) {
             drawCircle(Color.White, radius = (if (thumb) 8.dp else 6.5.dp).toPx(), center = Offset(x, cy))
         }
     }

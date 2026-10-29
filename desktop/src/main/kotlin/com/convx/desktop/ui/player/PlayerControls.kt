@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -52,6 +53,8 @@ import com.convx.desktop.ui.components.ConvxIcon
 import com.convx.desktop.ui.components.IconButton
 import com.convx.desktop.ui.components.LinkText
 import com.convx.desktop.ui.components.PlayButton
+import com.convx.desktop.ui.components.AnimatedPlayGlyph
+import com.convx.desktop.ui.components.PlayerIconSlot
 import com.convx.desktop.ui.components.SongMenuContent
 import com.convx.desktop.ui.components.Tooltip
 import com.convx.desktop.ui.components.onSecondaryClick
@@ -66,31 +69,32 @@ import com.convx.desktop.ui.theme.ConvxColors
 import com.convx.desktop.ui.theme.ConvxType
 import com.convx.desktop.ui.theme.LocalAccent
 
-/** Spotify's bottom bar, in the phone's clothes: song on the left, transport in the middle, extras on the right. */
-/** Shuffle, previous, play/pause, next, repeat. */
+/**
+ * Shuffle, previous, play/pause, next, repeat. Apple Music v2 leaves shuffle and repeat to the
+ * queue, as Apple does, and draws its own bare glyphs where the classic designs set play in a
+ * white disc. Each control draws the image picked for it in Player icons, if any.
+ */
 @Composable
 fun TransportControls(
     state: PlayerState,
     compact: Boolean,
     tint: Color = Color.White,
     modifier: Modifier = Modifier,
-    /** Apple Music v2 leaves shuffle and repeat to the queue, as Apple does. */
-    modes: Boolean = true,
-    /** The phone's classic designs set play in a white disc; Apple Music v2 draws a bare glyph. */
-    disc: Boolean = false,
+    v2: Boolean = false,
 ) {
     val accent = LocalAccent.current
     val small = if (compact) 34.dp else 48.dp
     val smallIcon = if (compact) 18.dp else 24.dp
-    val skip = if (compact) 38.dp else 60.dp
-    val skipIcon = if (compact) 24.dp else 38.dp
+    // The phone's v2 sets 44dp glyphs in 61dp buttons.
+    val skip = if (compact) 38.dp else if (v2) 61.dp else 60.dp
+    val skipIcon = if (compact) 24.dp else if (v2) 44.dp else 38.dp
     val play = if (compact) 38.dp else 72.dp
     Row(
         modifier,
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 22.dp),
     ) {
-        if (modes) IconButton(
+        if (!v2) IconButton(
             if (state.shuffle) "shuffle_on" else "shuffle",
             { PlayerController.toggleShuffle() },
             size = small,
@@ -100,27 +104,40 @@ fun TransportControls(
             activeTint = accent,
             tooltip = if (state.shuffle) "Disable shuffle" else "Enable shuffle",
         )
-        IconButton("apple_skip_previous", { PlayerController.previous() }, size = skip, iconSize = skipIcon, tint = tint, enabled = state.current != null, tooltip = "Previous")
-        if (compact || disc) {
+        val previous = if (v2) PlayerIconSlot.V2_PREVIOUS else PlayerIconSlot.PREVIOUS
+        IconButton(previous.fallback, { PlayerController.previous() }, size = skip, iconSize = skipIcon, tint = tint, enabled = state.current != null, tooltip = "Previous", slot = previous)
+        if (compact || !v2) {
             PlayButton(
                 isPlaying = state.isPlaying,
                 onClick = { PlayerController.togglePlay() },
                 size = play,
                 loading = state.isLoading,
+                player = true,
+                ended = state.ended,
             )
         } else {
-            // The phone's full player: a bare glyph, no disc.
-            IconButton(
-                if (state.isPlaying) "pause_applemusic" else "play_applemusic",
-                { PlayerController.togglePlay() },
-                size = play,
-                iconSize = 52.dp,
-                tint = tint,
-                enabled = state.current != null,
-            )
+            // The phone's v2: a bare glyph, no disc, popping between play and pause.
+            val interaction = remember { MutableInteractionSource() }
+            val hovered by interaction.collectIsHoveredAsState()
+            Box(
+                Modifier
+                    .size(play)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = if (hovered && state.current != null) 0.08f else 0f))
+                    .hoverable(interaction)
+                    .pressable({ PlayerController.togglePlay() }, enabled = state.current != null, interaction = interaction, pressScale = 0.86f),
+                contentAlignment = Alignment.Center,
+            ) {
+                AnimatedPlayGlyph(
+                    if (state.isPlaying) PlayerIconSlot.V2_PAUSE else PlayerIconSlot.V2_PLAY,
+                    if (state.current != null) tint else tint.copy(alpha = 0.3f),
+                    44.dp,
+                )
+            }
         }
-        IconButton("apple_skip_next", { PlayerController.next() }, size = skip, iconSize = skipIcon, tint = tint, enabled = state.current != null, tooltip = "Next")
-        if (modes) IconButton(
+        val next = if (v2) PlayerIconSlot.V2_NEXT else PlayerIconSlot.NEXT
+        IconButton(next.fallback, { PlayerController.next() }, size = skip, iconSize = skipIcon, tint = tint, enabled = state.current != null, tooltip = "Next", slot = next)
+        if (!v2) IconButton(
             when (state.repeat) {
                 RepeatMode.ONE -> "repeat_one_on"
                 RepeatMode.ALL -> "repeat_on"
@@ -169,6 +186,7 @@ fun ProgressRow(
                 hoverColor = LocalAccent.current,
                 strokeWidth = if (style == SeekBarStyle.Slim) 3.dp else 4.dp,
                 thumb = style == SeekBarStyle.Default,
+                customThumb = true,
                 modifier = m,
             )
         }
@@ -220,7 +238,13 @@ fun QualityBadge(label: String, detail: String, tint: Color, modifier: Modifier 
 }
 
 @Composable
-fun VolumeControl(state: PlayerState, sliderWidth: androidx.compose.ui.unit.Dp = 96.dp, tint: Color = Color.White) {
+fun VolumeControl(
+    state: PlayerState,
+    sliderWidth: androidx.compose.ui.unit.Dp = 96.dp,
+    tint: Color = Color.White,
+    /** Apple Music v2's volume glyph can be an image of your own. */
+    slot: PlayerIconSlot? = null,
+) {
     val level = if (state.muted) 0f else state.volume
     Row(verticalAlignment = Alignment.CenterVertically) {
         IconButton(
@@ -234,6 +258,7 @@ fun VolumeControl(state: PlayerState, sliderWidth: androidx.compose.ui.unit.Dp =
             iconSize = 19.dp,
             tint = tint,
             tooltip = if (state.muted) "Unmute" else "Mute",
+            slot = slot,
         )
         ValueSlider(
             value = level,

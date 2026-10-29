@@ -46,7 +46,9 @@ import com.convx.desktop.player.PlayerController
 import com.convx.desktop.player.PlayerState
 import com.convx.desktop.ui.components.AppMenu
 import com.convx.desktop.ui.components.Artwork
-import com.convx.desktop.ui.components.ConvxIcon
+import com.convx.desktop.ui.components.AnimatedPlayGlyph
+import com.convx.desktop.ui.components.PlayerGlyph
+import com.convx.desktop.ui.components.PlayerIconSlot
 import com.convx.desktop.ui.components.SongMenuContent
 import com.convx.desktop.ui.components.Tooltip
 import com.convx.desktop.core.formatDuration
@@ -183,6 +185,7 @@ fun NowPlayingPill(modifier: Modifier = Modifier) {
                 iconSize,
                 if (liked) LocalAccent.current else TransportTint,
                 bounce = true,
+                slot = if (liked) PlayerIconSlot.LIKED else PlayerIconSlot.LIKE,
             ) { Library.toggleLike(song) }
             GlassGlyph("flamingo_lyrics", "Lyrics", controlSize, iconSize * 1.18f, TransportTint, bounce = true) {
                 UiState.fullPlayerMode = FullPlayerMode.Lyrics
@@ -224,7 +227,13 @@ private fun PlayPauseGlyph(state: PlayerState, size: Dp, iconSize: Dp) {
             if (state.isLoading) {
                 CircularProgressIndicator(color = PlayTint, strokeWidth = 2.dp, modifier = Modifier.size(iconSize * 0.8f))
             } else {
-                ConvxIcon(if (state.isPlaying) "pause_applemusic" else "play_applemusic", tint = PlayTint, size = iconSize)
+                // The phone's mini player: replay once the queue has run out.
+                val slot = when {
+                    state.ended -> PlayerIconSlot.REPLAY
+                    state.isPlaying -> PlayerIconSlot.PAUSE
+                    else -> PlayerIconSlot.PLAY
+                }
+                AnimatedPlayGlyph(slot, PlayTint, iconSize)
             }
         }
     }
@@ -240,6 +249,7 @@ fun GlassGlyph(
     tint: Color,
     enabled: Boolean = true,
     bounce: Boolean = false,
+    slot: PlayerIconSlot? = null,
     onClick: () -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
@@ -258,11 +268,12 @@ fun GlassGlyph(
                 }, enabled = enabled, interaction = interaction, pressScale = 0.86f),
             contentAlignment = Alignment.Center,
         ) {
-            ConvxIcon(
+            PlayerGlyph(
+                slot,
                 icon,
-                tint = if (enabled) tint else tint.copy(alpha = tint.alpha * 0.45f),
-                size = iconSize,
-                modifier = symbolBounce.modifier.additiveChrome(),
+                if (enabled) tint else tint.copy(alpha = tint.alpha * 0.45f),
+                iconSize,
+                symbolBounce.modifier.additiveChrome(),
             )
         }
     }

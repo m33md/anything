@@ -118,6 +118,8 @@ fun IconButton(
     active: Boolean = false,
     activeTint: Color = tint,
     tooltip: String? = null,
+    /** A player control draws the image picked for it in Player icons, if any. */
+    slot: PlayerIconSlot? = null,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
@@ -145,7 +147,7 @@ fun IconButton(
                 .pressable(onClick, enabled, interaction, pressScale = 0.9f),
             contentAlignment = Alignment.Center,
         ) {
-            ConvxIcon(icon, tint = color, size = iconSize)
+            if (slot != null) PlayerGlyph(slot, icon, color, iconSize) else ConvxIcon(icon, tint = color, size = iconSize)
             if (active) {
                 Box(
                     Modifier
@@ -171,6 +173,9 @@ fun PlayButton(
     color: Color = Color.White,
     glyph: Color = Color.Black,
     loading: Boolean = false,
+    /** The player's own button: its glyphs follow Player icons, and a finished queue shows replay. */
+    player: Boolean = false,
+    ended: Boolean = false,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
@@ -187,6 +192,13 @@ fun PlayButton(
     ) {
         if (loading) {
             CircularProgressIndicator(color = glyph, strokeWidth = 2.5.dp, modifier = Modifier.size(size * 0.42f))
+        } else if (player) {
+            val slot = when {
+                ended -> PlayerIconSlot.REPLAY
+                isPlaying -> PlayerIconSlot.PAUSE
+                else -> PlayerIconSlot.PLAY
+            }
+            AnimatedPlayGlyph(slot, glyph, size * 0.62f)
         } else {
             ConvxIcon(if (isPlaying) "pause_applemusic" else "play_applemusic", tint = glyph, size = size * 0.62f)
         }

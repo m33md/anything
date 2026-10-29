@@ -49,6 +49,8 @@ object Backup {
     private const val LibraryEntry = "library.json"
     private const val SettingsEntry = "settings.json"
     private const val MatchesEntry = "spotify-matches.json"
+    /** Player icons' images, kept in this folder of the app's data as PlayerIcons keeps them. */
+    private const val IconsFolder = "player_icons"
     const val BeforeRestore = "before-restore.backup"
 
     /** The phone's entries (BackupRestoreViewModel). */
@@ -121,6 +123,11 @@ object Backup {
                 zip.putNextEntry(ZipEntry(MatchesEntry))
                 matches.inputStream().use { it.copyTo(zip) }
             }
+            // The images Player icons draws, so a restore brings the buttons back as they were.
+            File(AppDirs.data, IconsFolder).listFiles()?.filter { it.isFile }?.forEach { icon ->
+                zip.putNextEntry(ZipEntry("$IconsFolder/${icon.name}"))
+                icon.inputStream().use { it.copyTo(zip) }
+            }
         }
     }
 
@@ -157,13 +164,16 @@ object Backup {
         var library: LibraryData? = null
         var settings: Settings? = null
         var matches: ByteArray? = null
+        val icons = mutableMapOf<String, ByteArray>()
         ZipInputStream(file.inputStream().buffered()).use { zip ->
             while (true) {
                 val entry = zip.nextEntry ?: break
-                when (entry.name) {
-                    LibraryEntry -> library = json.decodeFromString(LibraryData.serializer(), zip.readBytes().decodeToString())
-                    SettingsEntry -> settings = json.decodeFromString(Settings.serializer(), zip.readBytes().decodeToString())
-                    MatchesEntry -> matches = zip.readBytes()
+                when {
+                    entry.name == LibraryEntry -> library = json.decodeFromString(LibraryData.serializer(), zip.readBytes().decodeToString())
+                    entry.name == SettingsEntry -> settings = json.decodeFromString(Settings.serializer(), zip.readBytes().decodeToString())
+                    entry.name == MatchesEntry -> matches = zip.readBytes()
+                    // Only the file's own name: an entry can't write outside the folder.
+                    entry.name.startsWith("$IconsFolder/") && !entry.isDirectory -> icons[File(entry.name).name] = zip.readBytes()
                 }
             }
         }
@@ -172,6 +182,11 @@ object Backup {
         val before = File(AppDirs.data, BeforeRestore)
         runCatching { write(before) }.onFailure { Log.w(Tag, "Couldn't keep the library from before the restore", it) }
         Library.applySync { restoredLibrary }
+        // Before the settings that point at them.
+        if (icons.isNotEmpty()) {
+            val folder = File(AppDirs.data, IconsFolder).apply { mkdirs() }
+            icons.forEach { (name, bytes) -> runCatching { File(folder, name).writeBytes(bytes) } }
+        }
         settings?.let { restored ->
             // The window, the sound device, this PC's party id and YouTube's guest session stay
             // this PC's own, and music folders only come along if they exist here.

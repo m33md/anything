@@ -196,6 +196,14 @@ data class GlassSettings(
     val highlightOpacity: Float = 0.33f,
 )
 
+/**
+ * One player control's own image: its file in the player icons folder, and whether it takes the
+ * control's colour, as a flat silhouette should and a photo shouldn't. [stamp] changes with each
+ * pick, as a new pick for a slot is written under the same name.
+ */
+@Serializable
+data class PlayerIconOverride(val file: String, val tint: Boolean = false, val stamp: Long = 0L)
+
 @Serializable
 data class Settings(
     val volume: Float = 0.8f,
@@ -357,6 +365,8 @@ data class Settings(
     val gridSpacing: Int = 16,
     val homeHeroHeight: Int = 0,
     val homeCardCorner: Int = 0,
+    /** The player's controls drawn with your own images, by slot name: the phone's custom player icons. */
+    val playerIcons: Map<String, PlayerIconOverride> = emptyMap(),
     /** The phone's app font by its id; Plus Jakarta Sans, its default. */
     val appFont: String = "plus_jakarta_sans",
     /** An imported font (kept with the imported lyrics fonts) used everywhere while this is on. */

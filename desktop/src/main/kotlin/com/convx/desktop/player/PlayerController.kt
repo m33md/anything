@@ -49,6 +49,8 @@ data class PlayerState(
     val stream: ResolvedStream? = null,
     /** "Playing from" label: an album, a playlist, "Radio". */
     val queueTitle: String? = null,
+    /** The queue ran out: play starts the song over, and the phone draws its replay arrow. */
+    val ended: Boolean = false,
 ) {
     val current: Song? get() = queue.getOrNull(index)
     val upNext: List<Song> get() = if (index < 0) queue else queue.drop(index + 1)
@@ -671,7 +673,7 @@ object PlayerController : AudioEngine.Listener {
         engine.stop()
         engineToken = 0L
         _position.value = 0
-        _state.update { it.copy(isPlaying = false, isLoading = false) }
+        _state.update { it.copy(isPlaying = false, isLoading = false, ended = true) }
     }
 
     private suspend fun extendRadio(endpoint: WatchEndpoint, replaceAfterCurrent: Boolean) {
@@ -699,6 +701,7 @@ object PlayerController : AudioEngine.Listener {
             it.copy(
                 isLoading = true,
                 isPlaying = playWhenReady,
+                ended = false,
                 error = null,
                 durationMs = (queued.duration ?: 0) * 1000L,
                 stream = null,

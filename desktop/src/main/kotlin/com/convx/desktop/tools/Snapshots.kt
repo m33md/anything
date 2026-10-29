@@ -16,6 +16,8 @@ import androidx.compose.ui.unit.Density
 import com.convx.desktop.core.Log
 import com.convx.desktop.core.initYouTube
 import com.convx.desktop.data.AppSettings
+import com.convx.desktop.ui.components.PlayerIconSlot
+import com.convx.desktop.ui.components.PlayerIcons
 import com.convx.desktop.data.Library
 import com.convx.desktop.data.toSaved
 import com.convx.desktop.data.toSpeedDial
@@ -46,6 +48,8 @@ import com.music.innertube.models.SongItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.skia.EncodedImageFormat
+import org.jetbrains.skia.Paint
+import org.jetbrains.skia.Surface
 import java.io.File
 import kotlin.system.exitProcess
 
@@ -429,6 +433,33 @@ fun main(args: Array<String>) {
             AppSettings.update { it.copy(settingsPopup = false, gridColumns = 4, libraryIconsOnly = true) }
             shoot("14b-library-four-columns", seconds = 4) { navigator.navigate(Screen.Library) }
             AppSettings.update { it.copy(gridColumns = 0, libraryIconsOnly = false) }
+            // Custom player icons: a big PNG (scaled down on the way in) kept in its own colours for
+            // play, and an SVG star tinted like the stock glyph for v2's heart.
+            val png = File.createTempFile("convx-icon", ".png").apply {
+                val surface = Surface.makeRasterN32Premul(1024, 1024)
+                surface.canvas.drawCircle(512f, 512f, 500f, Paint().apply { color = 0xFFFF9500.toInt() })
+                surface.canvas.drawCircle(512f, 512f, 220f, Paint().apply { color = 0xFF0A84FF.toInt() })
+                writeBytes(surface.makeImageSnapshot().encodeToData(EncodedImageFormat.PNG)!!.bytes)
+            }
+            val svg = File.createTempFile("convx-icon", ".svg").apply {
+                writeText("""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2l3 7h7l-5.5 4.5 2 7.5-6.5-4.5-6.5 4.5 2-7.5L2 9h7z" fill="#000"/></svg>""")
+            }
+            runCatching {
+                PlayerIcons.import(PlayerIconSlot.PLAY, png)
+                PlayerIcons.import(PlayerIconSlot.V2_PLAY, png)
+                PlayerIcons.import(PlayerIconSlot.V2_LIKE, svg)
+                PlayerIcons.setTint(PlayerIconSlot.V2_LIKE, true)
+            }.onFailure { Log.e("Snapshots", "Player icon import failed", it) }
+            shoot("19k-settings-player-icons", seconds = 3) {
+                navigator.navigate(Screen.Settings)
+                SettingsNav.push(SettingsPage.CustomPlayerIcons)
+            }
+            shoot("19l-player-custom-icons", seconds = 3) {
+                UiState.fullPlayerMode = FullPlayerMode.Artwork
+                UiState.fullPlayer = true
+            }
+            UiState.fullPlayer = false
+            PlayerIconSlot.entries.forEach { PlayerIcons.clear(it) }
             // Last, as the bottom of Home has hung the run before: the watchdog shows where.
             shoot("20c-home-feed-end", seconds = 6) {
                 navigator.navigate(Screen.Home)

@@ -73,6 +73,7 @@ class SettingsHub(val id: String, val title: String, val icon: String, val tint:
 enum class SettingsPage(val title: String, val hub: String) {
     PlayerDesign("Player design", "player"),
     ControlsLayout("Controls & layout", "player"),
+    CustomPlayerIcons("Custom player icons", "player"),
     LyricsStyle("Lyrics style", "player"),
     LyricsEffects("Lyrics effects", "player"),
     LyricsText("Text & layout", "player"),
@@ -348,6 +349,7 @@ private val searchEntries: List<SearchEntry> by lazy {
         SearchEntry("Show shuffle button", "On Home", h.player, SettingsPage.ControlsLayout, "fab floating shuffle home random"),
         SearchEntry("Hide favorite icon on Home", null, h.player, SettingsPage.ControlsLayout, "heart liked favorite home"),
         SearchEntry("Grid & cards", "Columns, card height, spacing and corners", h.player, SettingsPage.ControlsLayout, "grid columns card height spacing hero corner radius"),
+        SearchEntry("Custom player icons", "Your own images for the player's buttons", h.player, SettingsPage.CustomPlayerIcons, "icons buttons images play pause skip next previous like heart more seek handle thumb custom"),
         SearchEntry("Lyrics style", "Animation, position, scrolling and swipe", h.player, SettingsPage.LyricsStyle, "lyrics animation karaoke word by word apple music fade glow slide metro fluid chord"),
         SearchEntry("Lyrics text position", "Left, center or right", h.player, SettingsPage.LyricsStyle, "lyrics align alignment left center right"),
         SearchEntry("Auto scroll lyrics", "Keep the current lyric in view", h.player, SettingsPage.LyricsStyle, "lyrics follow scroll"),
@@ -541,6 +543,7 @@ private fun PageContent(page: SettingsPage) {
     when (page) {
         SettingsPage.PlayerDesign -> PlayerDesignSettings()
         SettingsPage.ControlsLayout -> ControlsLayoutSettings()
+        SettingsPage.CustomPlayerIcons -> PlayerIconsSettings()
         SettingsPage.LyricsStyle -> LyricsStyleSettings()
         SettingsPage.LyricsEffects -> LyricsEffectsSettings()
         SettingsPage.LyricsText -> LyricsTextSettings()
