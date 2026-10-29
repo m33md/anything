@@ -191,6 +191,9 @@ data class Settings(
     val persistentQueue: Boolean = true,
     val rememberShuffleRepeat: Boolean = true,
     val skipOnError: Boolean = true,
+    /** The phone's Downloads group: download a song when you like it, and copy downloads to Music\Convx. */
+    val autoDownloadOnLike: Boolean = false,
+    val saveDownloadsToMusic: Boolean = true,
     /** The sound output by name; null follows Windows' default. */
     val outputDevice: String? = null,
     // Scrobbling, with the phone's defaults. The accounts themselves live in Secrets.

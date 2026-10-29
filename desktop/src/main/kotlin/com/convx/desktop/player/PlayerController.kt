@@ -593,8 +593,12 @@ object PlayerController : AudioEngine.Listener {
                 failCurrent("\"${song.title}\" isn't on this PC any more")
                 return@launch
             }
+            // A downloaded song plays from its file with no call to YouTube, so it works offline.
+            val offline = if (local == null) Downloads.offline(song.id) else null
             val stream = if (local != null) {
                 LocalMusic.stream(song.id, local)
+            } else if (offline != null) {
+                offline.first
             } else {
                 StreamResolver.resolve(song.id, quality, forceRefresh).getOrElse { error ->
                     Log.e(Tag, "Couldn't resolve ${song.id}", error)
@@ -607,7 +611,11 @@ object PlayerController : AudioEngine.Listener {
                 announcedId = song.id
                 _changes.tryEmit(Change.Track(song, playWhenReady))
             }
-            val source = if (local != null) CachedAudio.Complete(java.io.File(local.path)) else AudioCache.open(stream)
+            val source = when {
+                local != null -> CachedAudio.Complete(java.io.File(local.path))
+                offline != null -> CachedAudio.Complete(offline.second)
+                else -> AudioCache.open(stream)
+            }
             engineToken = engine.load(source, startMs, playWhenReady, stream.durationMs, trackGain(stream), fadeInMs)
             _state.update { it.copy(stream = stream, durationMs = stream.durationMs ?: it.durationMs) }
             if (startMs == 0L) {
@@ -636,7 +644,7 @@ object PlayerController : AudioEngine.Listener {
         prefetchJob = scope.launch {
             delay(3_000)
             val id = SpotifyMatcher.resolve(next)?.id ?: return@launch
-            if (LocalMusic.isLocal(id) || AudioCache.isCached(id)) return@launch
+            if (LocalMusic.isLocal(id) || AudioCache.isCached(id) || Downloads.isDownloaded(id)) return@launch
             StreamResolver.resolve(id, AppSettings.value.audioQuality).onSuccess { AudioCache.prefetch(it) }
         }
     }

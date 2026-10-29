@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.convx.desktop.data.Library
 import com.convx.desktop.data.Song
+import com.convx.desktop.player.Downloads
 import com.convx.desktop.player.PlayerController
 import com.convx.desktop.ui.glass.InteractiveHighlight
 import com.convx.desktop.ui.glass.LocalMenuBackdrop
@@ -171,6 +172,7 @@ fun SongMenuContent(
         dismiss()
     }
     MenuItem("Add to playlist", "playlist_add") { choosingPlaylist = true }
+    DownloadMenuItems(listOf(song), dismiss)
     MenuDivider()
     song.artists.firstOrNull { it.id != null }?.let { artist ->
         MenuItem("Go to artist", "artist") {
@@ -241,16 +243,15 @@ fun CollectionMenuContent(
         dismiss()
     }
     MenuItem("Play next", "playlist_play") {
-        PlayerController.playNext(songs())
-        Overlays.toast("Playing next")
+        if (PlayerController.playNext(songs()) != null) Overlays.toast("Playing next")
         dismiss()
     }
     MenuItem("Add to queue", "queue_music") {
-        PlayerController.addToQueue(songs())
-        Overlays.toast("Added to queue")
+        if (PlayerController.addToQueue(songs()) != null) Overlays.toast("Added to queue")
         dismiss()
     }
     MenuItem("Add to playlist", "playlist_add") { choosingPlaylist = true }
+    DownloadMenuItems(songs(), dismiss)
     if (saved != null && onToggleSaved != null) {
         MenuItem(if (saved) "Remove from Library" else "Save to Library", if (saved) "library_add_check" else "library_add") {
             onToggleSaved()
@@ -267,5 +268,52 @@ fun CollectionMenuContent(
     if (extra != null) {
         MenuDivider()
         extra(dismiss)
+    }
+}
+
+/**
+ * The phone's Download, Downloading and Remove download entries, for one song or a whole list.
+ * A list that's partly downloaded offers both: the rest, and removing what's there.
+ */
+@Composable
+fun DownloadMenuItems(songs: List<Song>, dismiss: () -> Unit) {
+    val done by Downloads.done.collectAsState()
+    val active by Downloads.active.collectAsState()
+    val wanted = remember(songs) { songs.filter(Downloads::canDownload) }
+    if (wanted.isEmpty()) return
+    val single = songs.singleOrNull()
+    val kept = wanted.filter { it.id in done }
+    when (val state = Downloads.collective(wanted, done, active)) {
+        is Downloads.Collective.Running -> MenuItem(
+            if (single != null) "Downloading… Stop" else "Downloading ${state.done} of ${state.total}… Stop",
+            "download",
+        ) {
+            Downloads.cancel(wanted.map { it.id })
+            dismiss()
+        }
+        Downloads.Collective.Done -> Unit
+        Downloads.Collective.None -> {
+            val failed = single != null && active[single.id]?.status is Downloads.Status.Failed
+            MenuItem(if (failed) "Download failed. Try again" else "Download", "download") {
+                val queued = Downloads.download(wanted)
+                if (single == null && queued > 0) Overlays.toast("Downloading $queued ${if (queued == 1) "song" else "songs"}", "download")
+                dismiss()
+            }
+        }
+    }
+    if (kept.isNotEmpty()) {
+        MenuItem("Remove download", "delete") {
+            dismiss()
+            if (single != null) {
+                Downloads.remove(listOf(single.id))
+                Overlays.toast("Download removed", "delete")
+            } else {
+                Overlays.confirm(
+                    "Remove download?",
+                    "${kept.size} downloaded ${if (kept.size == 1) "song" else "songs"} will be removed from this PC. They stay in your library.",
+                    "Remove",
+                ) { Downloads.remove(kept.map { it.id }) }
+            }
+        }
     }
 }

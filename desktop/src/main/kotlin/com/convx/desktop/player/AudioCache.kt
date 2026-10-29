@@ -9,6 +9,9 @@ import com.convx.desktop.core.AppDirs
 import com.convx.desktop.core.Http
 import com.convx.desktop.core.Log
 import com.music.innertube.models.YouTubeClient
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import okhttp3.Request
 import java.io.File
 import java.io.IOException
@@ -41,6 +44,46 @@ object AudioCache {
             ?.takeIf { it.isFile }
 
     fun isCached(videoId: String) = completeFile(videoId) != null
+
+    /** A finished download of [videoId] in [container] ("webm" or "m4a") only. */
+    private fun completeFile(videoId: String, container: String): File? =
+        File(dir, "$videoId.$container").takeIf { it.isFile && File(dir, "$videoId.$container.ok").isFile }
+
+    /**
+     * The whole file for [stream], for a download to keep: joins the player's download when it
+     * fetches the same URL, waits for one in another format rather than cut it off, and
+     * otherwise fetches it the way playback does.
+     */
+    suspend fun fetchComplete(stream: ResolvedStream, onProgress: (done: Long, total: Long) -> Unit): File {
+        val id = stream.videoId
+        while (true) {
+            currentCoroutineContext().ensureActive()
+            completeFile(id, stream.container)?.let { return it }
+            val existing = active[id]
+            val download = when {
+                existing != null && existing.running && existing.url == stream.url -> existing
+                // The player is fetching this song in another format; let it finish first.
+                existing != null && existing.running -> {
+                    delay(500)
+                    continue
+                }
+                else -> {
+                    val mine = Download(stream)
+                    val placed = active.compute(id) { _, current -> if (current == null || !current.running) mine else current }
+                    if (placed !== mine) continue
+                    mine.start()
+                    mine
+                }
+            }
+            while (download.running) {
+                onProgress(download.downloaded, download.totalBytes)
+                delay(300)
+            }
+            if (download.finished) return download.file
+            if (download.failed) throw download.error ?: IOException("Download failed")
+            // Cancelled under us (the player skipped or retried): go round again.
+        }
+    }
 
     /** Starts (or joins) the download for [stream] and returns a reader positioned at 0. */
     fun open(stream: ResolvedStream): CachedAudio {
@@ -115,9 +158,12 @@ object AudioCache {
             private set
         @Volatile var error: IOException? = null
             private set
-        @Volatile private var cancelled = false
+        @Volatile var cancelled = false
+            private set
         @Volatile var finished = false
             private set
+
+        val running: Boolean get() = !finished && !failed && !cancelled
 
         fun start() {
             thread(name = "convx-download-$videoId", isDaemon = true) { run() }

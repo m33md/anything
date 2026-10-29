@@ -132,7 +132,10 @@ object LocalMusic {
             try {
                 for (folder in folders) {
                     folder.walkTopDown()
-                        .onEnter { dir -> !dir.isHidden && excluded.none { dir.absolutePath.lowercase().trimEnd('\\', '/') == it } }
+                        .onEnter { dir ->
+                            !dir.isHidden && !Downloads.isExportFolder(dir) &&
+                                excluded.none { dir.absolutePath.lowercase().trimEnd('\\', '/') == it }
+                        }
                         .filter { it.isFile && it.extension.lowercase() in Extensions }
                         .forEach { file ->
                             ensureActive()

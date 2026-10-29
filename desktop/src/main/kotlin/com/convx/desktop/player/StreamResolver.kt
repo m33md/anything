@@ -101,9 +101,18 @@ object StreamResolver {
         cache.remove(videoId)
     }
 
-    suspend fun resolve(videoId: String, quality: AudioQuality, forceRefresh: Boolean = false): Result<ResolvedStream> =
+    /**
+     * [preferAac] puts AAC first, as the phone does for downloads it also saves to the Music
+     * folder, since every Windows player opens .m4a. Such a stream isn't kept for playback.
+     */
+    suspend fun resolve(
+        videoId: String,
+        quality: AudioQuality,
+        forceRefresh: Boolean = false,
+        preferAac: Boolean = false,
+    ): Result<ResolvedStream> =
         withContext(Dispatchers.IO) {
-            if (!forceRefresh) cached(videoId)?.let { return@withContext Result.success(it) }
+            if (!forceRefresh && !preferAac) cached(videoId)?.let { return@withContext Result.success(it) }
             var lastReason: String? = null
             var signatureTimestamp: Int? = null
             var signatureTimestampFetched = false
@@ -130,7 +139,9 @@ object StreamResolver {
                         Log.i(Tag, "$videoId: ${client.clientName} -> ${response.playabilityStatus.status} ($lastReason)")
                         continue
                     }
-                    val formats = rankedAudioFormats(response.streamingData?.adaptiveFormats.orEmpty(), quality)
+                    val formats = rankedAudioFormats(response.streamingData?.adaptiveFormats.orEmpty(), quality).let { ranked ->
+                        if (preferAac) ranked.sortedByDescending { it.mimeType.contains("mp4a") } else ranked
+                    }
                     for (format in formats.take(3)) {
                         currentCoroutineContext().ensureActive()
                         val url = format.url?.takeIf { it.isNotBlank() }
@@ -152,7 +163,7 @@ object StreamResolver {
                                 (response.streamingData?.expiresInSeconds ?: 21600) * 1000L,
                         )
                         Log.i(Tag, "$videoId: playing via ${client.clientName}, ${stream.badge}")
-                        cache[videoId] = stream
+                        if (!preferAac) cache[videoId] = stream
                         return@withContext Result.success(stream)
                     }
                     lastReason = "${client.clientName} returned no reachable audio"

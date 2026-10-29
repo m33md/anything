@@ -37,6 +37,7 @@ import com.convx.desktop.data.AudioQuality
 import com.convx.desktop.integrations.DiscordPresence
 import com.convx.desktop.integrations.spotify.SpotifyAccount
 import com.convx.desktop.player.AudioCache
+import com.convx.desktop.player.Downloads
 import com.convx.desktop.ui.components.ConvxIcon
 import com.convx.desktop.ui.components.ImageCache
 import com.convx.desktop.ui.components.Overlays
@@ -211,11 +212,14 @@ fun AccountsHub() {
 fun PrivacyHub() {
     var audioBytes by remember { mutableLongStateOf(-1L) }
     var imageBytes by remember { mutableLongStateOf(-1L) }
+    var downloadBytes by remember { mutableLongStateOf(-1L) }
     var refresh by remember { mutableIntStateOf(0) }
-    LaunchedEffect(refresh) {
+    val downloaded by Downloads.done.collectAsState()
+    LaunchedEffect(refresh, downloaded.size) {
         withContext(Dispatchers.IO) {
             audioBytes = AudioCache.sizeBytes()
             imageBytes = ImageCache.diskBytes()
+            downloadBytes = Downloads.sizeBytes()
         }
     }
     SettingsSection("Storage") {
@@ -239,6 +243,29 @@ fun PrivacyHub() {
                     ImageCache.clearDisk()
                     refresh++
                     Overlays.toast("Image cache cleared")
+                })
+            }
+        }
+        RowDivider(PlainInset)
+        SettingsRow(
+            "Downloaded songs",
+            "${downloaded.size} ${if (downloaded.size == 1) "song" else "songs"} kept to play without a connection. Clearing a cache never touches them.",
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(formatBytes(downloadBytes), style = ConvxType.Body, color = ConvxColors.SecondaryLabel)
+                Spacer(Modifier.width(12.dp))
+                PillButton("Clear", {
+                    if (downloaded.isEmpty()) return@PillButton
+                    Overlays.confirm(
+                        "Remove all downloads?",
+                        "${downloaded.size} downloaded ${if (downloaded.size == 1) "song" else "songs"} will be removed from this PC. " +
+                            "They stay in your library, and copies in the Music folder stay too.",
+                        "Remove",
+                    ) {
+                        Downloads.removeAll()
+                        refresh++
+                        Overlays.toast("Downloads removed", "delete")
+                    }
                 })
             }
         }

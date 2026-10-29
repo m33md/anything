@@ -43,6 +43,7 @@ fun ScreenHost(screen: Screen) {
         Screen.Library -> LibraryScreen()
         Screen.Liked -> LikedScreen()
         Screen.LocalFiles -> LocalFilesScreen()
+        Screen.Downloads -> DownloadsScreen()
         Screen.History -> HistoryScreen()
         Screen.TopSongs -> TopSongsScreen()
         Screen.Settings -> SettingsScreen()

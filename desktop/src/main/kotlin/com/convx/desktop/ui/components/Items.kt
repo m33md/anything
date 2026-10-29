@@ -149,6 +149,7 @@ fun SongRow(
     val playback = LocalPlayback.current
     val library by Library.state.collectAsState()
     val liked = remember(library.liked, song.id) { library.liked.any { it.song.id == song.id } }
+    val downloads by com.convx.desktop.player.Downloads.done.collectAsState()
     val isCurrent = playback.currentId == song.id
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
@@ -210,6 +211,10 @@ fun SongRow(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    // The phone marks a downloaded song beside its artist.
+                    if (song.id in downloads) {
+                        ConvxIcon("download", tint = accent, size = 13.dp, modifier = Modifier.padding(end = 4.dp))
+                    }
                     if (song.explicit) {
                         ConvxIcon("explicit", tint = ConvxColors.SecondaryLabel, size = 14.dp, modifier = Modifier.padding(end = 4.dp))
                     }

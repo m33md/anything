@@ -42,7 +42,10 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -56,6 +59,7 @@ import com.convx.desktop.data.Library
 import com.convx.desktop.data.Song
 import com.convx.desktop.data.toSaved
 import com.convx.desktop.data.toSong
+import com.convx.desktop.player.Downloads
 import com.convx.desktop.player.PlayerController
 import com.convx.desktop.ui.components.AppMenu
 import com.convx.desktop.ui.components.Artwork
@@ -116,6 +120,7 @@ fun LazyListScope.collectionHeader(
     onSubtitleClick: (() -> Unit)? = null,
     description: String? = null,
     menu: (@Composable (dismiss: () -> Unit) -> Unit)? = null,
+    download: List<Song>? = null,
 ) {
     item(key = "header") {
         val headerMenu = rememberMenuAnchor()
@@ -171,7 +176,10 @@ fun LazyListScope.collectionHeader(
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                         HeaderCircle("shuffle", "Shuffle", onShuffle, enabled)
                         PlayPill(playing, enabled, onPlay)
-                        if (menu != null) {
+                        if (download != null) {
+                            // The phone's album page: its right button downloads, and "more" sits up top.
+                            DownloadCircle(download)
+                        } else if (menu != null) {
                             Box {
                                 HeaderCircle("more_horiz", "More options", { buttonMenu.expanded = true })
                                 AppMenu(buttonMenu) { menu { buttonMenu.expanded = false } }
@@ -186,8 +194,65 @@ fun LazyListScope.collectionHeader(
                     }
                 }
             }
+            if (download != null && menu != null) {
+                Box(Modifier.align(Alignment.TopEnd).padding(top = LocalPageInsets.current.top + 16.dp, end = Gutter)) {
+                    HeaderCircle("more_horiz", "More options", { buttonMenu.expanded = true }, size = 40.dp)
+                    AppMenu(buttonMenu) { menu { buttonMenu.expanded = false } }
+                }
+            }
             if (menu != null) AppMenu(headerMenu) { menu { headerMenu.expanded = false } }
         }
+    }
+}
+
+/**
+ * Downloads a whole album or list: an arrow, a ring filling as the songs land, and a tick once
+ * they're all on this PC (a click on the tick offers to remove them, as on the phone).
+ */
+@Composable
+private fun DownloadCircle(songs: List<Song>) {
+    val done by Downloads.done.collectAsState()
+    val active by Downloads.active.collectAsState()
+    val wanted = remember(songs) { songs.filter(Downloads::canDownload) }
+    val ids = remember(wanted) { wanted.map { it.id } }
+    when (val state = Downloads.collective(wanted, done, active)) {
+        Downloads.Collective.Done -> HeaderCircle("check", "Downloaded", {
+            Overlays.confirm(
+                "Remove download?",
+                "${ids.size} downloaded ${if (ids.size == 1) "song" else "songs"} will be removed from this PC. They stay in your library.",
+                "Remove",
+            ) { Downloads.remove(ids) }
+        })
+        is Downloads.Collective.Running -> {
+            val partial = ids.sumOf { id -> ((active[id]?.status as? Downloads.Status.Running)?.fraction ?: 0f).toDouble() }
+            val progress = ((state.done + partial) / state.total).toFloat().coerceIn(0f, 1f)
+            Box(
+                Modifier.drawWithContent {
+                    drawContent()
+                    val stroke = 3.dp.toPx()
+                    drawArc(
+                        Color.White,
+                        startAngle = -90f,
+                        sweepAngle = 360f * progress,
+                        useCenter = false,
+                        topLeft = Offset(stroke / 2, stroke / 2),
+                        size = Size(size.width - stroke, size.height - stroke),
+                        style = Stroke(stroke, cap = StrokeCap.Round),
+                    )
+                },
+            ) {
+                HeaderCircle("download", "Downloading ${state.done} of ${state.total}. Click to stop", { Downloads.cancel(ids) })
+            }
+        }
+        Downloads.Collective.None -> HeaderCircle(
+            "download",
+            if (wanted.isEmpty()) "Nothing here can be downloaded" else "Download",
+            {
+                val queued = Downloads.download(wanted)
+                if (queued > 1) Overlays.toast("Downloading $queued songs", "download")
+            },
+            enabled = wanted.isNotEmpty(),
+        )
     }
 }
 
@@ -203,20 +268,20 @@ private fun HeaderText(text: String, style: TextStyle, onClick: (() -> Unit)? = 
 
 /** The phone's 54dp side buttons: the page's foreground at 16%. */
 @Composable
-private fun HeaderCircle(icon: String, tooltip: String, onClick: () -> Unit, enabled: Boolean = true) {
+private fun HeaderCircle(icon: String, tooltip: String, onClick: () -> Unit, enabled: Boolean = true, size: Dp = 54.dp) {
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
     Tooltip(tooltip) {
         Box(
             Modifier
-                .size(54.dp)
+                .size(size)
                 .clip(CircleShape)
                 .background(Color.White.copy(alpha = if (hovered && enabled) 0.24f else 0.16f))
                 .hoverable(interaction)
                 .pressable(onClick, enabled = enabled, interaction = interaction, pressScale = 0.92f),
             contentAlignment = Alignment.Center,
         ) {
-            ConvxIcon(icon, tint = Color.White.copy(alpha = if (enabled) 1f else 0.4f), size = 26.dp)
+            ConvxIcon(icon, tint = Color.White.copy(alpha = if (enabled) 1f else 0.4f), size = size * 0.48f)
         }
     }
 }
@@ -363,6 +428,7 @@ fun AlbumScreen(browseId: String) {
                     wordmark = artists.joinToString { it.name }.ifBlank { null },
                     onWordmarkClick = artists.firstOrNull { it.id != null }?.let { artist -> { navigator.navigate(Screen.Artist(artist.id!!)) } },
                     description = album.description,
+                    download = songs,
                     menu = { dismiss ->
                         CollectionMenuContent(
                             songs = { songs },
@@ -592,6 +658,7 @@ fun LikedScreen() {
                 enabled = songs.isNotEmpty(),
                 onPlay = { if (isThisPlaying) PlayerController.pause() else if (songs.isNotEmpty()) PlayerController.playSongs(songs, 0, "Liked Songs", shuffle = false) },
                 onShuffle = { if (songs.isNotEmpty()) PlayerController.playSongs(songs, 0, "Liked Songs", shuffle = true) },
+                download = songs,
             )
             if (songs.isEmpty()) {
                 item {
@@ -655,6 +722,72 @@ fun LocalFilesScreen() {
                     trailingLabel = "Album",
                     trailing = { i -> albums.getOrNull(i) },
                 )
+            }
+        }
+    }
+}
+
+/** The phone's "Downloaded" list: songs kept on this PC, which play with no connection. */
+@Composable
+fun DownloadsScreen() {
+    val done by Downloads.done.collectAsState()
+    val active by Downloads.active.collectAsState()
+    val playback = com.convx.desktop.ui.components.LocalPlayback.current
+    val entries = remember(done) { done.values.sortedByDescending { it.at } }
+    val songs = remember(entries) { entries.map { it.song } }
+    val pending = remember(active) { active.values.toList() }
+    val bytes = remember(done) { done.values.sumOf { it.bytes } }
+    val tint = PageBlack
+    val isThisPlaying = playback.isPlaying && songs.any { it.id == playback.currentId }
+    Box(Modifier.fillMaxSize().background(tint)) {
+        PageList(state = rememberLazyListState(), tint = tint, topPadding = 0.dp) {
+            collectionHeader(
+                title = "Downloaded",
+                art = { size -> GradientTile("download", size, com.convx.desktop.ui.shell.DownloadsGradient, RoundedCornerShape(12.dp)) },
+                metadata = (songs.totalLine() + listOfNotNull(bytes.takeIf { it > 0 }?.let { com.convx.desktop.ui.screens.settings.formatBytes(it) }))
+                    .joinToString(" · "),
+                playing = isThisPlaying,
+                enabled = songs.isNotEmpty(),
+                onPlay = { if (isThisPlaying) PlayerController.pause() else if (songs.isNotEmpty()) PlayerController.playSongs(songs, 0, "Downloaded", shuffle = false) },
+                onShuffle = { if (songs.isNotEmpty()) PlayerController.playSongs(songs, 0, "Downloaded", shuffle = true) },
+                menu = { dismiss -> CollectionMenuContent(songs = { songs }, dismiss = dismiss) },
+            )
+            if (pending.isNotEmpty()) {
+                item(key = "pending-title") {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = Gutter, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Downloading", style = ConvxType.Title3, color = Color.White, modifier = Modifier.weight(1f))
+                        com.convx.desktop.ui.components.PillButton("Stop all", { Downloads.cancel(active.keys.toList()) })
+                    }
+                }
+                songTable(
+                    pending.map { it.song },
+                    "Downloading",
+                    "pending",
+                    showAlbum = false,
+                    trailingLabel = "Status",
+                    trailing = { i ->
+                        when (val status = pending.getOrNull(i)?.status) {
+                            Downloads.Status.Queued -> "Waiting"
+                            is Downloads.Status.Running -> "${(status.fraction * 100).toInt()}%"
+                            is Downloads.Status.Failed -> "Failed"
+                            null -> null
+                        }
+                    },
+                )
+                item(key = "pending-gap") { Spacer(Modifier.height(24.dp)) }
+            }
+            if (songs.isEmpty()) {
+                if (pending.isEmpty()) {
+                    item {
+                        MessageState(
+                            "No downloads yet",
+                            "Download songs, albums and playlists from their menus, and they play here without a connection.",
+                            icon = "download",
+                        )
+                    }
+                }
+            } else {
+                songTable(songs, "Downloaded", "downloaded", trailingLabel = "Downloaded", trailing = { i -> entries.getOrNull(i)?.let { relativeDate(it.at) } })
             }
         }
     }

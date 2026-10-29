@@ -14,7 +14,9 @@ import com.convx.desktop.audio.ParametricEq
 import com.convx.desktop.audio.softClip
 import com.convx.desktop.core.Log
 import com.convx.desktop.core.initYouTube
+import com.convx.desktop.data.ArtistRef
 import com.convx.desktop.data.AudioQuality
+import com.convx.desktop.data.Song
 import com.convx.desktop.player.AudioCache
 import com.convx.desktop.player.CachedAudio
 import com.convx.desktop.player.GrowingFileInputStream
@@ -40,7 +42,7 @@ fun main(args: Array<String>) {
             "kJQP7kiw5Fk",
         )
     }
-    val dspOk = dspCheck() and libraryCheck() and partyCheck() and backupCheck() and playlistFileCheck()
+    val dspOk = dspCheck() and libraryCheck() and partyCheck() and backupCheck() and playlistFileCheck() and downloadsCheck()
     partyServerCheck()
     runBlocking(Dispatchers.IO) { initYouTube() }
     var passed = 0
@@ -223,6 +225,64 @@ private fun backupCheck(): Boolean {
         expect("read", false, "${error::class.simpleName}: ${error.message}")
     } finally {
         dir.deleteRecursively()
+    }
+    return ok
+}
+
+/**
+ * Downloads without YouTube: a file noted as a song's download plays from disk with no lookup,
+ * lists' buttons count it, and the Music folder copies get the phone's names.
+ */
+private fun downloadsCheck(): Boolean {
+    var ok = true
+    fun expect(name: String, pass: Boolean, detail: String) {
+        if (!pass) ok = false
+        println("${if (pass) "PASS" else "FAIL"} downloads $name: $detail")
+    }
+    val downloads = com.convx.desktop.player.Downloads
+    val song = Song("cHk-dl-chk0", "Check song", listOf(ArtistRef(name = "Convx")), duration = 3)
+    val other = Song("cHk-dl-chk1", "Other song", listOf(ArtistRef(name = "Convx")))
+    val local = Song("${com.convx.desktop.player.LocalMusic.Prefix}check", "A file")
+    try {
+        expect("names", downloads.exportBaseName("AC/DC", "Back In Black?") == "AC_DC - Back In Black_" && downloads.exportBaseName(" ", "") == "Untitled",
+            downloads.exportBaseName("AC/DC", "Back In Black?"))
+        expect("lrc time", downloads.lrcTime(83_450) == "[01:23.45]" && downloads.lrcTime(605_000) == "[10:05.00]", downloads.lrcTime(83_450))
+        expect("files aren't downloads", !downloads.canDownload(local) && downloads.canDownload(song), "")
+
+        val file = java.io.File(downloads.dir, "${song.id}.m4a").apply { writeBytes(ByteArray(4096) { it.toByte() }) }
+        val stream = com.convx.desktop.player.ResolvedStream(
+            song.id, "https://example.invalid", "audio/mp4; codecs=\"mp4a.40.2\"", 128_000, 44_100, file.length(), -7.5, 3_000, "check", 0,
+        )
+        downloads.record(song, file, stream)
+        val offline = downloads.offline(song.id)
+        expect(
+            "plays from disk",
+            offline != null && offline.second == file && offline.first.contentLength == 4096L && offline.first.loudnessDb == -7.5 &&
+                offline.first.expiresAt == Long.MAX_VALUE && downloads.isDownloaded(song.id),
+            "${offline?.first?.client} ${offline?.second?.name}",
+        )
+        expect("not downloaded", downloads.offline(other.id) == null && !downloads.isDownloaded(other.id), "")
+
+        val done = downloads.done.value
+        val running = mapOf(other.id to com.convx.desktop.player.Downloads.Pending(other, com.convx.desktop.player.Downloads.Status.Running(10, 100)))
+        val failed = mapOf(other.id to com.convx.desktop.player.Downloads.Pending(other, com.convx.desktop.player.Downloads.Status.Failed("x")))
+        val c1 = downloads.collective(listOf(song, local), done, emptyMap())
+        val c2 = downloads.collective(listOf(song, other), done, running)
+        val c3 = downloads.collective(listOf(song, other), done, failed)
+        val c4 = downloads.collective(listOf(local), done, emptyMap())
+        expect(
+            "album buttons",
+            c1 == com.convx.desktop.player.Downloads.Collective.Done &&
+                c2 == com.convx.desktop.player.Downloads.Collective.Running(1, 2) &&
+                c3 == com.convx.desktop.player.Downloads.Collective.None &&
+                c4 == com.convx.desktop.player.Downloads.Collective.None,
+            "$c1 $c2 $c3 $c4",
+        )
+
+        downloads.remove(listOf(song.id))
+        expect("remove", !file.exists() && downloads.offline(song.id) == null, "file ${if (file.exists()) "still there" else "gone"}")
+    } catch (error: Throwable) {
+        expect("run", false, "${error::class.simpleName}: ${error.message}")
     }
     return ok
 }

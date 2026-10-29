@@ -22,6 +22,7 @@ sealed interface Screen {
     data object Library : Screen
     data object Liked : Screen
     data object LocalFiles : Screen
+    data object Downloads : Screen
     data object History : Screen
     data object TopSongs : Screen
     data object Settings : Screen

@@ -146,6 +146,23 @@ fun QueueSettings() {
             AppSettings.update { it.copy(skipOnError = v) }
         }
     }
+    SectionGap()
+    SettingsSection(
+        "Downloads",
+        footer = "Downloads play with no connection. They're in Library under Downloaded, and Privacy & Storage shows how much room they take.",
+    ) {
+        SwitchRow("Auto download on like", "Automatically download songs when you like them", settings.autoDownloadOnLike) { v ->
+            AppSettings.update { it.copy(autoDownloadOnLike = v) }
+        }
+        RowDivider(PlainInset)
+        SwitchRow(
+            "Save downloads to Music folder",
+            "Also keep each download in Music\\Convx as Artist - Title, with its lyrics, playable in any app",
+            settings.saveDownloadsToMusic,
+        ) { v ->
+            AppSettings.update { it.copy(saveDownloadsToMusic = v) }
+        }
+    }
 }
 
 /** The PC's answer to the phone's Bluetooth & output: pick the speakers or headphones. */

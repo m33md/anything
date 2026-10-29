@@ -19,7 +19,9 @@ import com.convx.desktop.data.AppSettings
 import com.convx.desktop.data.Library
 import com.convx.desktop.data.toSaved
 import com.convx.desktop.data.toSong
+import com.convx.desktop.player.Downloads
 import com.convx.desktop.player.PlayerController
+import com.convx.desktop.player.ResolvedStream
 import com.convx.desktop.ui.shell.AppShell
 import com.convx.desktop.ui.shell.ExploreAnchor
 import com.convx.desktop.ui.screens.settings.SettingsHubs
@@ -193,9 +195,16 @@ fun main(args: Array<String>) {
             artist?.let { Library.toggleArtist(it.toSaved()) }
             playlist?.let { Library.togglePlaylist(it.toSaved()) }
             val mix = Library.createPlaylist("Late night drive", songs.take(8))
+            // Three songs downloaded and two waiting, for the Downloaded page and the list buttons.
+            songs.take(3).forEach { song ->
+                val file = File(Downloads.dir, "${song.id}.m4a").apply { writeBytes(ByteArray(3_500_000)) }
+                Downloads.record(song, file, ResolvedStream(song.id, "", "audio/mp4", 128_000, 44_100, file.length(), null, null, "Snapshots", 0))
+            }
+            Downloads.download(songs.drop(3).take(2))
             shoot("14-library", seconds = 8) { navigator.navigate(Screen.Library) }
             shoot("15-liked", seconds = 6) { navigator.navigate(Screen.Liked) }
             shoot("16-local-playlist", seconds = 6) { navigator.navigate(Screen.LocalPlaylist(mix)) }
+            shoot("16b-downloads", seconds = 4) { navigator.navigate(Screen.Downloads) }
             shoot("17-sidebar-collapsed", seconds = 4) {
                 AppSettings.update { it.copy(sidebarCollapsed = true) }
                 navigator.navigate(Screen.Home)
