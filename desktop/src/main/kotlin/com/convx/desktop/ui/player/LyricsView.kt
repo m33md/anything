@@ -113,6 +113,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlin.math.abs
 import kotlin.math.max
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.platform.SystemFont
+import androidx.compose.ui.text.platform.Font as PlatformFont
+import com.convx.desktop.data.LyricsStyle
+import com.convx.desktop.data.Settings
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 // The phone's default lyrics renderer is Flamingo (Yos-X, GPL-3.0); these are its values.
 private val YosEasing = CubicBezierEasing(0.75f, 0f, 0.25f, 1f)
@@ -127,31 +136,40 @@ private const val LiftPerFontPx = 0.048f
 private const val Feather = 0.3f
 
 /** Pauses the follow after you scroll the lyrics yourself, as the phone does after a drag. */
-private const val FollowPauseMs = 2_000L
+internal const val FollowPauseMs = 2_000L
 
 /**
- * The phone's lyrics: Flamingo, its default renderer. Lines wait at a fifth of white; the
- * line being sung fills letter by letter, each letter glowing while it fills and each word
- * rising a little as it is sung; a sung line stays lit. The current line sits on a faint glass
- * strip, the view keeps it centred, and an instrumental break counts down with three dots.
- * Lyrics without word timing light a whole line at a time. Click a line to jump to it.
+ * The phone's lyrics, in the style chosen under Lyrics style. Flamingo, its default: lines wait
+ * at a fifth of white; the line being sung fills letter by letter, each letter glowing while it
+ * fills and each word rising a little as it is sung; a sung line stays lit. The current line
+ * sits on a faint glass strip, the view keeps it centred, and an instrumental break counts down
+ * with three dots. Karaoke (Apple) is the phone's Accompanist view, and the rest are its list
+ * styles ([StyledLyrics]). Click a line to jump to it.
+ *
+ * [clock] is the playhead; the style page passes one that keeps running while paused.
  */
 @Composable
 fun LyricsView(
     song: Song?,
     modifier: Modifier = Modifier,
     style: TextStyle = ConvxType.Lyrics,
-    blur: Boolean = false,
     horizontalPadding: Dp = 0.dp,
+    clock: () -> Long = PlayerController::livePositionMs,
 ) {
     val state by remember(song?.id) { song?.let(LyricsService::state) ?: MutableStateFlow<LyricsState>(LyricsState.Missing) }
         .collectAsState()
-    // Flamingo's MainTextStyle at the caller's size: extra bold, airy, 1.3 line spacing.
-    val textStyle = remember(style) {
+    val settings by AppSettings.state.collectAsState()
+    val family = rememberLyricsFont(settings.lyricsFont)
+    // The chosen size is the full player's; smaller callers (the side panel) keep their proportion.
+    val size = settings.lyricsTextSize * (style.fontSize.value / ConvxType.Lyrics.fontSize.value)
+    // Flamingo's MainTextStyle at that size: extra bold, airy, the chosen line spacing.
+    val textStyle = remember(style, family, size, settings.lyricsLineSpacing) {
         style.copy(
+            fontFamily = family ?: style.fontFamily,
+            fontSize = size.sp,
             fontWeight = FontWeight.ExtraBold,
             letterSpacing = 0.05.sp,
-            lineHeight = style.fontSize * 1.3f,
+            lineHeight = (size * settings.lyricsLineSpacing).sp,
             lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.None),
         )
     }
@@ -166,31 +184,90 @@ fun LyricsView(
                 )
             }
             // A better source landing later (word timing after line timing) cross-fades in.
-            is LyricsState.Ready -> Crossfade(s.lyrics, animationSpec = tween(300)) { lyrics ->
-                if (lyrics.synced) {
-                    FlamingoLyrics(lyrics, textStyle, blur, horizontalPadding)
-                } else {
-                    PlainLyrics(lyrics, textStyle, horizontalPadding)
+            is LyricsState.Ready -> Crossfade(s.lyrics to settings.lyricsStyle, animationSpec = tween(300)) { (lyrics, chosen) ->
+                when {
+                    chosen == LyricsStyle.Flamingo && lyrics.synced -> FlamingoLyrics(lyrics, textStyle, settings, horizontalPadding, clock)
+                    chosen == LyricsStyle.Flamingo -> PlainLyrics(lyrics, textStyle, horizontalPadding)
+                    // Accompanist only earns its cost with word timing; without, the list does the same.
+                    chosen == LyricsStyle.KaraokeApple && lyrics.wordSynced && settings.lyricsWordSync ->
+                        KaraokeAppleLyrics(lyrics, textStyle, settings, horizontalPadding, clock)
+                    else -> StyledLyrics(lyrics, chosen, textStyle, settings, horizontalPadding, clock)
                 }
             }
         }
     }
 }
 
+/** The phone's lyrics fonts: the app's own, rounded, serif, mono, or one you imported. Null is the app's. */
 @Composable
-private fun FlamingoLyrics(lyrics: Lyrics, style: TextStyle, blur: Boolean, horizontalPadding: Dp) {
-    val wordSync = AppSettings.state.collectAsState().value.lyricsWordSync
+fun rememberLyricsFont(selection: String): FontFamily? {
+    val family by produceState<FontFamily?>(null, selection) {
+        value = when (selection) {
+            "serif" -> FontFamily.Serif
+            "monospace" -> FontFamily.Monospace
+            // Windows has no system rounded face; Arial Rounded comes with Office, else Windows picks one.
+            "rounded" -> FontFamily(SystemFont("Arial Rounded MT Bold"))
+            else -> if (selection.startsWith("custom-")) {
+                withContext(Dispatchers.IO) {
+                    runCatching {
+                        require(selection.matches(Regex("custom-\\d+\\.font")))
+                        val file = LyricsFonts.dir.resolve(selection)
+                        // Loading checks the file is a font before Compose ever draws with it.
+                        org.jetbrains.skia.Typeface.makeFromFile(file.absolutePath)
+                        FontFamily(PlatformFont(file))
+                    }.getOrNull()
+                }
+            } else {
+                null
+            }
+        }
+    }
+    return family
+}
+
+/** Where imported lyrics fonts live, as on the phone: one file each, named by when they came. */
+object LyricsFonts {
+    val dir: java.io.File get() = com.convx.desktop.core.AppDirs.data.resolve("lyrics-fonts")
+
+    /** Copies [source] in (8 MB at most, as the phone allows) and returns its name for the setting. */
+    fun import(source: java.io.File): String {
+        require(source.length() in 1..8L * 1024 * 1024) { if (source.length() == 0L) "This font file is empty" else "Choose a font smaller than 8 MB" }
+        val name = "custom-${System.currentTimeMillis()}.font"
+        dir.mkdirs()
+        val target = dir.resolve(name)
+        source.copyTo(target, overwrite = true)
+        runCatching { org.jetbrains.skia.Typeface.makeFromFile(target.absolutePath) }.onFailure {
+            target.delete()
+            throw IllegalArgumentException("This isn't a font Convx can read")
+        }
+        return name
+    }
+}
+
+/** The playhead every frame, like the phone's player.currentPosition. */
+@Composable
+internal fun rememberLiveClock(clock: () -> Long): LongState {
+    val live = remember { mutableLongStateOf(clock()) }
+    val current by rememberUpdatedState(clock)
+    LaunchedEffect(Unit) {
+        while (true) {
+            withFrameNanos { }
+            live.longValue = current()
+        }
+    }
+    return live
+}
+
+@Composable
+private fun FlamingoLyrics(lyrics: Lyrics, style: TextStyle, settings: Settings, horizontalPadding: Dp, clock: () -> Long) {
+    val wordSync = settings.lyricsWordSync
+    val blur = settings.lyricsStandardBlur
+    val glow = settings.lyricsGlow
     val lines = lyrics.lines
     val wordTimed = wordSync && lyrics.wordSynced
 
     // The playhead off the audio line, every frame, like the phone's player.currentPosition.
-    val live = remember { mutableLongStateOf(PlayerController.livePositionMs()) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            withFrameNanos { }
-            live.longValue = PlayerController.livePositionMs()
-        }
-    }
+    val live = rememberLiveClock(clock)
 
     val ends = remember(lines) { lines.indices.map { lineEnd(lines, it) } }
     val anchor = remember(lines) { derivedStateOf { anchorIndex(lines, live.longValue) } }
@@ -218,8 +295,8 @@ private fun FlamingoLyrics(lyrics: Lyrics, style: TextStyle, blur: Boolean, hori
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val half = maxHeight / 2
-        LaunchedEffect(anchor.value, follow, maxHeight) {
-            if (follow && anchor.value >= 0) listState.followLyricLine(anchor.value + 1)
+        LaunchedEffect(anchor.value, follow, maxHeight, settings.lyricsAutoScroll) {
+            if (follow && settings.lyricsAutoScroll && anchor.value >= 0) listState.followLyricLine(anchor.value + 1)
         }
         LazyColumn(
             state = listState,
@@ -245,6 +322,7 @@ private fun FlamingoLyrics(lyrics: Lyrics, style: TextStyle, blur: Boolean, hori
                     focused = focused,
                     anchor = anchor,
                     blur = blur && follow,
+                    glow = glow,
                     oneByOne = wordSync && line.isWordSynced,
                     live = live,
                     style = style,
@@ -266,7 +344,7 @@ private fun FlamingoLyrics(lyrics: Lyrics, style: TextStyle, blur: Boolean, hori
 }
 
 /** The phone's primaryLyricLineIndex: the last line already started. */
-private fun anchorIndex(lines: List<LyricLine>, positionMs: Long): Int {
+internal fun anchorIndex(lines: List<LyricLine>, positionMs: Long): Int {
     val latest = lines.indexOfLast { it.timeMs <= positionMs }
     if (latest < 0) return -1
     val time = lines[latest].timeMs
@@ -281,7 +359,7 @@ private fun lineEnd(lines: List<LyricLine>, index: Int): Long {
 }
 
 /** The phone's followLyricLine: centre the line, jumping first if it is off screen. */
-private suspend fun LazyListState.followLyricLine(itemIndex: Int) {
+internal suspend fun LazyListState.followLyricLine(itemIndex: Int) {
     // On open this runs before the list's first layout, when it has no items yet.
     snapshotFlow { layoutInfo.totalItemsCount }.first { it > 0 }
     if (itemIndex !in 0 until layoutInfo.totalItemsCount) return
@@ -306,6 +384,7 @@ private fun FlamingoLine(
     focused: State<Set<Int>>,
     anchor: State<Int>,
     blur: Boolean,
+    glow: Boolean,
     oneByOne: Boolean,
     live: LongState,
     style: TextStyle,
@@ -340,7 +419,7 @@ private fun FlamingoLine(
         if (line.isGap) {
             Interlude(line, nextTimeMs, { isCurrent }, live, otherSide)
         } else {
-            LineBody(line, index, isCurrent, anchor, blur, oneByOne, live, style, measurer, otherSide, viewAlign, seek)
+            LineBody(line, index, isCurrent, anchor, blur, glow, oneByOne, live, style, measurer, otherSide, viewAlign, seek)
         }
     }
 }
@@ -352,6 +431,7 @@ private fun LineBody(
     isCurrent: Boolean,
     anchor: State<Int>,
     blur: Boolean,
+    glow: Boolean,
     oneByOne: Boolean,
     live: LongState,
     style: TextStyle,
@@ -393,6 +473,7 @@ private fun LineBody(
             oneByOne = oneByOne,
             live = live,
             measurer = measurer,
+            glow = glow,
             modifier = Modifier
                 .graphicsLayer {
                     alpha = lineAlpha
@@ -414,6 +495,7 @@ private fun LineBody(
                 oneByOne = oneByOne && bg.isWordSynced,
                 live = live,
                 measurer = measurer,
+                glow = glow,
                 modifier = Modifier
                     .graphicsLayer { alpha = lineAlpha * 0.85f }
                     .padding(horizontal = 30.dp)
@@ -497,6 +579,7 @@ private fun LineText(
     oneByOne: Boolean,
     live: LongState,
     measurer: TextMeasurer,
+    glow: Boolean,
     modifier: Modifier,
 ) {
     val holder = remember(line, style) { LineLayout() }
@@ -536,7 +619,8 @@ private fun LineText(
                                 val progress = filled / p.letters
                                 val wordProgress = ((now - p.wordStartMs) / p.wordSpanMs).coerceIn(0f, 1f)
                                 val rise = lift * EaseInOutQuad.transform(wordProgress)
-                                val glow = if (progress in 0f..1f) {
+                                // The phone's "glowing lyrics" switch turns the letters' glow off.
+                                val shadow = if (glow && progress in 0f..1f) {
                                     Shadow(
                                         color = Focused.copy(alpha = (0.18f + 0.4f * progress).coerceAtMost(0.62f)),
                                         offset = Offset.Zero,
@@ -549,7 +633,7 @@ private fun LineText(
                                     textLayoutResult = p.layout,
                                     brush = fillBrush(filled, p),
                                     topLeft = Offset(p.topLeft.x, p.topLeft.y - rise),
-                                    shadow = glow,
+                                    shadow = shadow,
                                 )
                             }
                         }

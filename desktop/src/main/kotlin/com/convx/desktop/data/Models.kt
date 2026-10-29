@@ -127,6 +127,25 @@ enum class PlayerBackground(val label: String) {
 
 enum class SeekBarStyle(val label: String) { Default("Default"), Wavy("Wavy"), Slim("Slim"), Waveform("Waveform") }
 
+/** The phone's lyrics animation styles, in its order and with its names. */
+enum class LyricsStyle(val label: String) {
+    Flamingo("Convx Lyrics"),
+    None("None"),
+    Fade("Fade"),
+    Glow("Glow"),
+    Slide("Slide"),
+    Karaoke("Karaoke"),
+    Apple("Apple Music"),
+    AppleV2("Apple Music V2 (Letter by Letter)"),
+    ChordSync("Chord Sync"),
+    ConvxFluid("Convx (Fluid)"),
+    LyricsV2("Lyrics V2 (Fluid)"),
+    Metro("MetroLyrics"),
+    KaraokeApple("Karaoke (Apple)"),
+}
+
+enum class LyricsPosition(val label: String) { Left("Left"), Center("Center"), Right("Right") }
+
 /**
  * The phone's Liquid Glass dials (GlassEffectSettings), with its defaults. Colours stay fixed:
  * Convx is red on black, so only how the glass bends, blurs and catches light can change.
@@ -185,6 +204,19 @@ data class Settings(
     val rightPanel: String? = "nowPlaying",
     val lyricsWordSync: Boolean = true,
     val lyricsProviders: List<String> = emptyList(),
+    // The phone's lyrics style and effects, with its defaults. The size is the full player's;
+    // the side panel scales it down. "default" font is the app's own.
+    val lyricsStyle: LyricsStyle = LyricsStyle.Flamingo,
+    val lyricsPosition: LyricsPosition = LyricsPosition.Left,
+    val lyricsAutoScroll: Boolean = true,
+    val lyricsSwipeToChange: Boolean = false,
+    val lyricsGlow: Boolean = true,
+    val lyricsAppleBlur: Boolean = true,
+    val lyricsStandardBlur: Boolean = false,
+    val lyricsFont: String = "default",
+    val lyricsCustomFont: String = "",
+    val lyricsTextSize: Float = 34f,
+    val lyricsLineSpacing: Float = 1.3f,
     val hideExplicit: Boolean = false,
     val hideVideos: Boolean = false,
     val autoRadio: Boolean = true,

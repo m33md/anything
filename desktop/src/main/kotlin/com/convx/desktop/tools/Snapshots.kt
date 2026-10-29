@@ -219,6 +219,22 @@ fun main(args: Array<String>) {
                     artworkShadow = false,
                 )
             }
+            // A few of the phone's lyrics styles, in the full player.
+            fun lyrics(style: com.convx.desktop.data.LyricsStyle, position: com.convx.desktop.data.LyricsPosition = com.convx.desktop.data.LyricsPosition.Left, transform: (com.convx.desktop.data.Settings) -> com.convx.desktop.data.Settings = { it }) =
+                AppSettings.update { transform(it.copy(lyricsStyle = style, lyricsPosition = position)) }
+            shoot("13g-lyrics-apple-center", seconds = 4) {
+                UiState.fullPlayerMode = FullPlayerMode.Lyrics
+                lyrics(com.convx.desktop.data.LyricsStyle.Apple, com.convx.desktop.data.LyricsPosition.Center)
+            }
+            shoot("13h-lyrics-karaoke-apple", seconds = 4) { lyrics(com.convx.desktop.data.LyricsStyle.KaraokeApple) }
+            shoot("13i-lyrics-v2-fluid", seconds = 4) { lyrics(com.convx.desktop.data.LyricsStyle.LyricsV2) }
+            shoot("13j-lyrics-metro-blur-right", seconds = 4) {
+                lyrics(com.convx.desktop.data.LyricsStyle.Metro, com.convx.desktop.data.LyricsPosition.Right) { it.copy(lyricsStandardBlur = true) }
+            }
+            shoot("13k-lyrics-chord-serif", seconds = 4) {
+                lyrics(com.convx.desktop.data.LyricsStyle.ChordSync) { it.copy(lyricsStandardBlur = false, lyricsFont = "serif", lyricsTextSize = 40f) }
+            }
+            lyrics(com.convx.desktop.data.LyricsStyle.Flamingo) { it.copy(lyricsFont = "default", lyricsTextSize = 34f) }
 
             // A lived-in library, for the side bar, the library page and the song-list pages.
             UiState.fullPlayer = false
@@ -250,10 +266,19 @@ fun main(args: Array<String>) {
                 scene.sendPointerEvent(PointerEventType.Release, at, buttons = PointerButtons(), button = PointerButton.Secondary)
             }
             AppSettings.update { it.copy(sidebarCollapsed = false) }
+            // A click on the empty top bar closes the menu.
+            Offset(1200f, 30f).let { at ->
+                scene.sendPointerEvent(PointerEventType.Press, at, buttons = PointerButtons(isPrimaryPressed = true), button = PointerButton.Primary)
+                scene.sendPointerEvent(PointerEventType.Release, at, buttons = PointerButtons(), button = PointerButton.Primary)
+            }
             shoot("19-settings-player-design", seconds = 6) {
                 navigator.navigate(Screen.Settings)
                 SettingsNav.push(SettingsPage.PlayerDesign)
             }
+            shoot("19a-settings-player-hub", seconds = 2) { SettingsNav.openHub(com.convx.desktop.ui.screens.settings.SettingsHubs.player.id) }
+            shoot("19b-settings-lyrics-style", seconds = 5) { SettingsNav.push(SettingsPage.LyricsStyle) }
+            shoot("19c-settings-lyrics-effects", seconds = 3) { SettingsNav.push(SettingsPage.LyricsEffects) }
+            shoot("19d-settings-lyrics-text", seconds = 2) { SettingsNav.push(SettingsPage.LyricsText) }
         }
     }.onFailure { Log.e("Snapshots", "Rendering failed", it) }
 

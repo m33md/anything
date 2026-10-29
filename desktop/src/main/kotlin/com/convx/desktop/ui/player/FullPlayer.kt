@@ -5,6 +5,10 @@
 
 package com.convx.desktop.ui.player
 
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlin.math.abs
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
@@ -250,7 +254,7 @@ fun PlayerStage(
                             if (song != null) {
                                 val liked = library.liked.any { it.song.id == song.id }
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Column(Modifier.weight(1f)) {
+                                    Column(Modifier.weight(1f).swipeToChangeSong(settings.lyricsSwipeToChange && mode == FullPlayerMode.Lyrics)) {
                                         // Apple Music v2 sets title and artist at one size, semibold over regular;
                                         // the other designs have a bold title over a smaller artist line.
                                         val line = if (v2) ConvxType.Headline.copy(fontSize = 21.sp, lineHeight = 27.sp) else ConvxType.Title2.copy(fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.Bold)
@@ -390,6 +394,57 @@ private fun StageCover(url: String?, design: PlayerDesign, shadow: Boolean, play
         if (style == CoverStyle.Vinyl) VinylGrooves(Modifier.fillMaxSize())
     }
 }
+
+/**
+ * The phone's "Swipe to change song" with lyrics open. A PC has no finger on the screen, so it's a
+ * two-finger sideways swipe on a trackpad (or Shift and the wheel) over the song name, or dragging
+ * the name sideways with the mouse: towards the left for the next song, the right for the last.
+ */
+private fun Modifier.swipeToChangeSong(enabled: Boolean): Modifier {
+    if (!enabled) return this
+    return pointerInput(Unit) {
+        // One swipe changes one song; the scroll that's still coasting after it is ignored.
+        var travelled = 0f
+        var lastAt = 0L
+        var changedAt = 0L
+        awaitPointerEventScope {
+            while (true) {
+                val event = awaitPointerEvent()
+                if (event.type != PointerEventType.Scroll) continue
+                val change = event.changes.first()
+                val dx = change.scrollDelta.x
+                if (abs(dx) < abs(change.scrollDelta.y) || dx == 0f) continue
+                change.consume()
+                val now = change.uptimeMillis
+                if (now - lastAt > 250) travelled = 0f
+                lastAt = now
+                if (now - changedAt < 600) continue
+                travelled += dx
+                if (abs(travelled) >= SwipeScrollLines) {
+                    if (travelled > 0) PlayerController.next() else PlayerController.previous()
+                    travelled = 0f
+                    changedAt = now
+                }
+            }
+        }
+    }.pointerInput(Unit) {
+        var dragged = 0f
+        detectHorizontalDragGestures(
+            onDragStart = { dragged = 0f },
+            onDragEnd = {
+                if (abs(dragged) >= 80.dp.toPx()) {
+                    if (dragged < 0) PlayerController.next() else PlayerController.previous()
+                }
+            },
+        ) { change, amount ->
+            change.consume()
+            dragged += amount
+        }
+    }
+}
+
+/** How far a sideways scroll goes, in wheel notches, before it counts as a swipe. */
+private const val SwipeScrollLines = 2.5f
 
 /** The phone's "Show next track": what plays next, under the controls. */
 @Composable

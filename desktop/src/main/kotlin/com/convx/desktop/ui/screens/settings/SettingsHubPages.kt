@@ -62,8 +62,16 @@ fun PlayerHub() {
     }
     SectionGap()
     SettingsSection("Lyrics", footer = "Lyrics come from the same providers as on the phone, and open as soon as the song starts.") {
-        SwitchRow("Word-by-word lyrics", "Light up each word as it's sung, when the lyrics have word timing.", settings.lyricsWordSync) { v ->
-            AppSettings.update { it.copy(lyricsWordSync = v) }
+        LinkRow("Lyrics style", "Animation, position, scrolling and swipe, with a live preview", icon = "lyrics", tint = SystemColors.Pink, value = settings.lyricsStyle.label) {
+            SettingsNav.push(SettingsPage.LyricsStyle)
+        }
+        RowDivider()
+        LinkRow("Lyrics effects", "Style, fonts, size, glow and blur", icon = "lyrics", tint = SystemColors.Pink) {
+            SettingsNav.push(SettingsPage.LyricsEffects)
+        }
+        RowDivider()
+        LinkRow("Text & layout", "Text size, spacing and word-by-word", icon = "lyrics", tint = SystemColors.Orange) {
+            SettingsNav.push(SettingsPage.LyricsText)
         }
     }
 }

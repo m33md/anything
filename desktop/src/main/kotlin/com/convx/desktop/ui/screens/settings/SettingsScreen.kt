@@ -72,6 +72,9 @@ class SettingsHub(val id: String, val title: String, val icon: String, val tint:
 /** A page under a category, opened from one of its rows. */
 enum class SettingsPage(val title: String, val hub: String) {
     PlayerDesign("Player design", "player"),
+    LyricsStyle("Lyrics style", "player"),
+    LyricsEffects("Lyrics effects", "player"),
+    LyricsText("Text & layout", "player"),
     Spotify("Spotify", "accounts"),
     Discord("Discord", "accounts"),
     LiquidGlass("Liquid Glass", "appearance"),
@@ -322,7 +325,18 @@ private val searchEntries: List<SearchEntry> by lazy {
         SearchEntry("Seek bar style", "Default, wavy, slim, waveform", h.player, SettingsPage.PlayerDesign, "seek bar slider squiggly wavy progress waveform"),
         SearchEntry("Show next track", "What plays next, under the controls", h.player, SettingsPage.PlayerDesign, "up next"),
         SearchEntry("Volume bar", null, h.player, SettingsPage.PlayerDesign, "volume slider"),
-        SearchEntry("Word-by-word lyrics", "Light up each word as it's sung", h.player, keywords = "karaoke synced lyrics"),
+        SearchEntry("Lyrics style", "Animation, position, scrolling and swipe", h.player, SettingsPage.LyricsStyle, "lyrics animation karaoke word by word apple music fade glow slide metro fluid chord"),
+        SearchEntry("Lyrics text position", "Left, center or right", h.player, SettingsPage.LyricsStyle, "lyrics align alignment left center right"),
+        SearchEntry("Auto scroll lyrics", "Keep the current lyric in view", h.player, SettingsPage.LyricsStyle, "lyrics follow scroll"),
+        SearchEntry("Swipe to change song", null, h.player, SettingsPage.LyricsStyle, "lyrics swipe gesture next previous"),
+        SearchEntry("Lyrics effects", "Font, size, glow and blur", h.player, SettingsPage.LyricsEffects, "convx lyrics font typeface size text glow blur"),
+        SearchEntry("Lyrics font", "Choose or import a font", h.player, SettingsPage.LyricsEffects, "lyrics font typeface ttf otf import custom"),
+        SearchEntry("Lyrics glow", "Glow behind the current lyric line", h.player, SettingsPage.LyricsEffects, "lyrics glow shadow"),
+        SearchEntry("Apple Music Lyrics Blur", "Blur lyric lines away from the current one", h.player, SettingsPage.LyricsEffects, "lyrics blur apple"),
+        SearchEntry("Standard lyrics blur", "Blur for standard lyric styles", h.player, SettingsPage.LyricsEffects, "lyrics blur"),
+        SearchEntry("Lyrics text size", null, h.player, SettingsPage.LyricsEffects, "lyrics size bigger smaller"),
+        SearchEntry("Lyrics line spacing", null, h.player, SettingsPage.LyricsText, "lyrics spacing line height"),
+        SearchEntry("Word-by-word lyrics", "Light up each word as it's sung", h.player, SettingsPage.LyricsText, "karaoke synced lyrics"),
         SearchEntry("Equalizer", "Shape the sound", h.playback, SettingsPage.Equalizer, "eq bass treble mids preset parametric autoeq dolby dirac"),
         SearchEntry("Spatial audio", "Wider stereo for headphones", h.playback, SettingsPage.Equalizer, "3d surround headphones widen"),
         SearchEntry("Audio quality", "High or low", h.playback, SettingsPage.QualitySound, "bitrate stream data"),
@@ -484,6 +498,9 @@ private fun HubContent(hub: SettingsHub) {
 private fun PageContent(page: SettingsPage) {
     when (page) {
         SettingsPage.PlayerDesign -> PlayerDesignSettings()
+        SettingsPage.LyricsStyle -> LyricsStyleSettings()
+        SettingsPage.LyricsEffects -> LyricsEffectsSettings()
+        SettingsPage.LyricsText -> LyricsTextSettings()
         SettingsPage.Spotify -> SpotifySettings()
         SettingsPage.Discord -> DiscordSettings()
         SettingsPage.LiquidGlass -> LiquidGlassSettings()

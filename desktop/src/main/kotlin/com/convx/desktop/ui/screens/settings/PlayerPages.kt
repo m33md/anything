@@ -15,7 +15,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,8 +24,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -96,10 +94,15 @@ fun PlayerDesignSettings() {
         color = ConvxColors.SecondaryLabel,
         modifier = Modifier.padding(start = 20.dp, bottom = 10.dp),
     )
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp), contentPadding = PaddingValues(horizontal = 4.dp)) {
-        items(PlayerDesign.entries) { d ->
+    // A grid rather than a row: a mouse wheel doesn't scroll sideways, so every design stays in view.
+    FlowRow(
+        Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        PlayerDesign.entries.forEach { d ->
             DesignChoice(d.label, selected = d == design, inUse = true, onClick = { update { it.copy(playerDesign = d) } }) {
-                ScaledStage(236.dp, settings.copy(playerDesign = d), state)
+                ScaledStage(200.dp, settings.copy(playerDesign = d), state)
             }
         }
     }
@@ -126,8 +129,8 @@ fun PlayerDesignSettings() {
         ) {
             val styles = PlayerBackground.entries.filter { it != PlayerBackground.Apple || design == PlayerDesign.AppleMusicV2 }
             val current = settings.playerBackground.let { if (it == PlayerBackground.Apple && design != PlayerDesign.AppleMusicV2) PlayerBackground.Gradient else it }
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(14.dp)) {
-                items(styles) { style ->
+            FlowRow(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                styles.forEach { style ->
                     PickTile(style.label, selected = current == style, onClick = { update { it.copy(playerBackground = style) } }) {
                         Box(Modifier.size(width = 128.dp, height = 80.dp).clipToBounds()) {
                             PlayerBackdrop(style, state.current?.thumbnail, playing = current == style && playing.isPlaying, settings = settings, hero = false)
@@ -148,8 +151,8 @@ fun PlayerDesignSettings() {
     if (design.classic) {
         SectionGap()
         SettingsSection("Seek bar") {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(14.dp)) {
-                items(SeekBarStyle.entries) { style ->
+            FlowRow(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                SeekBarStyle.entries.forEach { style ->
                     PickTile(style.label, selected = settings.seekBarStyle == style, onClick = { update { it.copy(seekBarStyle = style) } }) {
                         Box(Modifier.size(width = 160.dp, height = 64.dp).background(Color(0xFF1C1C1E)).padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
                             SeekBarSample(style, playing.isPlaying)
