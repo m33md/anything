@@ -61,7 +61,7 @@ fun PlayerHub() {
         }
     }
     SectionGap()
-    SettingsSection("Lyrics", footer = "Lyrics come from the same providers as on the phone, and open as soon as the song starts.") {
+    SettingsSection("Lyrics", footer = "Lyrics come from the same sources as on the phone, and are looked up as the song starts.") {
         LinkRow("Lyrics style", "Animation, position, scrolling and swipe, with a live preview", icon = "lyrics", tint = SystemColors.Pink, value = settings.lyricsStyle.label) {
             SettingsNav.push(SettingsPage.LyricsStyle)
         }
@@ -72,6 +72,14 @@ fun PlayerHub() {
         RowDivider()
         LinkRow("Text & layout", "Text size, spacing and word-by-word", icon = "lyrics", tint = SystemColors.Orange) {
             SettingsNav.push(SettingsPage.LyricsText)
+        }
+        RowDivider()
+        LinkRow("Sources & priority", "Choose and order lyric providers", icon = "lyrics", tint = SystemColors.Blue) {
+            SettingsNav.push(SettingsPage.LyricsSources)
+        }
+        RowDivider()
+        LinkRow("Romanization", "Show lyrics in Latin letters", icon = "translate", tint = SystemColors.Teal) {
+            SettingsNav.push(SettingsPage.Romanization)
         }
     }
 }

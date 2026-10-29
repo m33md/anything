@@ -203,7 +203,10 @@ data class Settings(
     val librarySort: String = "recents",
     val rightPanel: String? = "nowPlaying",
     val lyricsWordSync: Boolean = true,
+    /** The phone's lyric source order by its ids; empty is the phone's default order. */
     val lyricsProviders: List<String> = emptyList(),
+    /** Sources switched off in Sources & priority. */
+    val lyricsProvidersOff: List<String> = emptyList(),
     // The phone's lyrics style and effects, with its defaults. The size is the full player's;
     // the side panel scales it down. "default" font is the app's own.
     val lyricsStyle: LyricsStyle = LyricsStyle.Flamingo,
@@ -217,6 +220,12 @@ data class Settings(
     val lyricsCustomFont: String = "",
     val lyricsTextSize: Float = 34f,
     val lyricsLineSpacing: Float = 1.3f,
+    // The phone's Romanization page: every language on, the original on top.
+    val lyricsRomanizeOff: List<String> = emptyList(),
+    val lyricsRomanizeAsMain: Boolean = false,
+    val lyricsRomanizeCyrillicByLine: Boolean = false,
+    /** The lyrics menu's karaoke vocal reduction, 0 to 1, as on the phone for every song until turned back down. */
+    val vocalReduction: Float = 0f,
     val hideExplicit: Boolean = false,
     val hideVideos: Boolean = false,
     val autoRadio: Boolean = true,

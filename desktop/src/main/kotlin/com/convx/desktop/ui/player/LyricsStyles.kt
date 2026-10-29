@@ -110,7 +110,7 @@ private val WordSpanStyles = setOf(LyricsStyle.None, LyricsStyle.Fade, LyricsSty
  * chosen position places the rest.
  */
 @Composable
-internal fun StyledLyrics(lyrics: Lyrics, lyricsStyle: LyricsStyle, base: TextStyle, settings: Settings, horizontalPadding: Dp, clock: () -> Long) {
+internal fun StyledLyrics(lyrics: Lyrics, subs: List<String?>, lyricsStyle: LyricsStyle, base: TextStyle, settings: Settings, horizontalPadding: Dp, clock: () -> Long) {
     val lines = lyrics.lines
     val synced = lyrics.synced
     val live = rememberLiveClock(clock)
@@ -179,9 +179,9 @@ internal fun StyledLyrics(lyrics: Lyrics, lyricsStyle: LyricsStyle, base: TextSt
                 }
                 val nextTime = lines.getOrNull(index + 1)?.timeMs
                 if ((lyricsStyle == LyricsStyle.ChordSync || lyricsStyle == LyricsStyle.ConvxFluid) && line.isWordSynced && look.wordTimed) {
-                    ConvxLine(line, nextTime, live, synced, active, distance, look, settings.lyricsAppleBlur && follow, seek)
+                    ConvxLine(line, nextTime, live, synced, active, distance, look, settings.lyricsAppleBlur && follow, seek, subs.getOrNull(index))
                 } else {
-                    StyledLine(line, index, anchor, nextTime, live, synced, active, distance, lyricsStyle, look, settings.lyricsStandardBlur && follow, seek)
+                    StyledLine(line, index, anchor, nextTime, live, synced, active, distance, lyricsStyle, look, settings.lyricsStandardBlur && follow, seek, subs.getOrNull(index))
                 }
             }
             item(key = "extra") { Spacer(Modifier.height(200.dp)) }
@@ -288,6 +288,7 @@ private fun StyledLine(
     look: LineLook,
     standardBlur: Boolean,
     seek: () -> Unit,
+    sub: String?,
 ) {
     val alpha by animateFloatAsState(if (!synced || active) 1f else 0.5f, tween(400))
     val scale by animateFloatAsState(if (active) 1.05f else 1f, tween(400))
@@ -321,6 +322,7 @@ private fun StyledLine(
                 LineContent(bg, nextTimeMs, live, active && synced, index < anchor.value, lyricsStyle, look, background = true)
             }
         }
+        sub?.let { SubLine(it, look.base.copy(fontSize = look.size.sp), look.textAlign(line)) }
     }
 }
 
@@ -664,6 +666,7 @@ private fun ConvxLine(
     look: LineLook,
     appleBlur: Boolean,
     seek: () -> Unit,
+    sub: String?,
 ) {
     val blur by animateFloatAsState(
         if (!appleBlur || active || !synced) 0f else when (distance) {
@@ -738,6 +741,7 @@ private fun ConvxLine(
                 )
             }
         }
+        sub?.let { SubLine(it, look.base.copy(fontSize = look.size.sp), look.textAlign(line)) }
     }
 }
 

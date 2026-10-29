@@ -1,6 +1,6 @@
 /*
  * Vendored from Accompanist Lyrics (github.com/6xingyv/Accompanist), Apache License 2.0.
- * Lyrics UI 1.0.19 (the phone's) and the Lyrics Core 0.4.5 models it was built on; adapted only to build here.
+ * Lyrics UI 1.0.19 (the phone's) and the Lyrics Core 0.4.5 models it was built on; adapted to build here, with one scroll fix marked "Convx:".
  */
 package com.mocharealm.accompanist.lyrics.ui.composable.lyrics
 
@@ -318,10 +318,11 @@ fun KaraokeLyricsView(
                         if (scrollOffset != null) {
                             listState.scrollBy(scrollOffset.toFloat())
                         } else {
-                            listState.animateScrollToItem(
-                                firstIndex,
-                                (-stableOffsetPx - keepAliveZonePx).toInt()
-                            )
+                            // Convx: the scrollBy above lands a line at item offset 0, where the
+                            // content padding puts it in the middle; the original offset here
+                            // (-offset - keepAliveZone) landed a far line a padding lower, below
+                            // the view, until the next line put it right.
+                            listState.animateScrollToItem(firstIndex)
                         }
                     } catch (_: Exception) {
                     } finally {

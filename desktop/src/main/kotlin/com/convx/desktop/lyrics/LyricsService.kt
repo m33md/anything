@@ -7,13 +7,21 @@ package com.convx.desktop.lyrics
 
 import com.convx.desktop.core.AppScope
 import com.convx.desktop.core.Log
+import com.convx.desktop.core.Secrets
+import com.convx.desktop.data.AppSettings
 import com.convx.desktop.data.Song
+import com.convx.music.lyrics.LyricsProviderRegistry
+import com.convx.music.lyrics.bitchord.BetterLyrics
+import com.convx.music.lyrics.bitchord.Genius
 import com.convx.music.lyrics.bitchord.BiniLyrics
 import com.convx.music.lyrics.bitchord.KuGou
 import com.convx.music.lyrics.bitchord.LrcLib
 import com.convx.music.lyrics.bitchord.LrcRed
 import com.convx.music.lyrics.bitchord.LyricLine
 import com.convx.music.lyrics.bitchord.LyricsPlus
+import com.convx.music.lyrics.bitchord.Megalobiz
+import com.convx.music.lyrics.bitchord.Musixmatch
+import com.convx.music.lyrics.bitchord.PaxSenix
 import com.convx.music.lyrics.bitchord.SimpMusicLyrics
 import com.convx.music.lyrics.bitchord.Unison
 import com.convx.music.lyrics.bitchord.artistForLyricsSearch
@@ -64,21 +72,63 @@ sealed interface LyricsState {
 object LyricsService {
     private const val Tag = "Lyrics"
 
-    private class Source(val name: String, val fetch: suspend (Query) -> List<LyricLine>?)
+    private class Source(val id: String, val name: String, val fetch: suspend (Query) -> List<LyricLine>?)
 
     private class Query(val song: Song, val title: String, val artist: String, val album: String?, val durationMs: Long)
 
-    private val sources = listOf(
-        Source("lrc.red") { LrcRed.lyrics(it.title, it.artist, it.durationMs) },
-        Source("BiniLyrics") { BiniLyrics.lyrics(it.title, it.artist, it.durationMs, it.album)?.lines },
-        Source("Better Lyrics") { com.convx.music.lyrics.bitchord.BetterLyrics.lyrics(it.title, it.artist, it.durationMs, it.album) },
-        Source("LyricsPlus") { LyricsPlus.lyrics(it.title, it.artist, it.durationMs, it.album) },
-        Source("Unison") { Unison.lyrics(it.title, it.artist, it.durationMs, it.album) },
-        Source("SimpMusic") { SimpMusicLyrics.lyrics(it.song.id, it.durationMs) },
-        Source("KuGou") { KuGou.lyrics(it.title, it.artist, it.durationMs, it.album) },
-        Source("LRCLIB") { LrcLib.lyrics(it.title, it.artist, it.durationMs) },
-        Source("YouTube Music") { youTubeLyrics(it.song) },
-    )
+    /** Every source the phone has, under the phone's ids, so its saved order means the same here. */
+    private val all = listOf(
+        Source("LrcRed", "lrc.red") { LrcRed.lyrics(it.title, it.artist, it.durationMs) },
+        Source("BiniLyrics", "BiniLyrics") { BiniLyrics.lyrics(it.title, it.artist, it.durationMs, it.album)?.lines },
+        Source("BetterLyrics", "Better Lyrics") { BetterLyrics.lyrics(it.title, it.artist, it.durationMs, it.album) },
+        Source("BetterLyricsPortato", "BetterLyrics Portato") { BetterLyrics.portato(it.title, it.artist, it.durationMs, it.album) },
+        Source("Paxsenix", "PaxSenix") { PaxSenix.lyrics(it.title, it.artist, it.durationMs, it.album) },
+        Source("PaxsenixSpotify", "PaxSenix: Spotify") { if (paxSenixKey) PaxSenix.spotifyLyrics(it.title, it.artist, it.durationMs) else null },
+        Source("PaxsenixMusixmatch", "PaxSenix: Musixmatch") { if (paxSenixKey) PaxSenix.musixmatchLyrics(it.title, it.artist, it.durationMs) else null },
+        Source("YouLyPlus", "LyricsPlus") { LyricsPlus.lyrics(it.title, it.artist, it.durationMs, it.album) },
+        Source("Unison", "Unison") { Unison.lyrics(it.title, it.artist, it.durationMs, it.album) },
+        Source("SimpMusic", "SimpMusic") { SimpMusicLyrics.lyrics(it.song.id, it.durationMs) },
+        Source("YouTubeSubtitle", "YouTube Subtitle") { youTubeSubtitles(it.song) },
+        Source("YouTubeMusic", "YouTube Music") { youTubeLyrics(it.song) },
+        Source("Megalobiz", "Megalobiz") { Megalobiz.lyrics(it.title, it.artist) },
+        Source("Kugou", "KuGou") { KuGou.lyrics(it.title, it.artist, it.durationMs, it.album) },
+        Source("LrcLib", "LRCLIB") { LrcLib.lyrics(it.title, it.artist, it.durationMs) },
+        Source("Musixmatch", "Musixmatch") { Musixmatch.lyrics(it.title, it.artist, it.durationMs) },
+        Source("Genius", "Genius") { Genius.lyrics(it.title, it.artist) },
+    ).associateBy { it.id }
+
+    /** A source as Settings lists it. */
+    class Provider(val id: String, val name: String)
+
+    /** Every source in the order Settings has them, switched off ones included, as the phone lists them. */
+    fun providers(order: List<String> = AppSettings.value.lyricsProviders): List<Provider> =
+        LyricsProviderRegistry.completeProviderOrder(order.joinToString(","))
+            .mapNotNull { all[it] }
+            .map { Provider(it.id, it.name) }
+
+    /** The sources to ask, best first: the order from Settings without the ones switched off. */
+    private fun sources(): List<Source> {
+        val settings = AppSettings.value
+        return providers(settings.lyricsProviders).filter { it.id !in settings.lyricsProvidersOff }.mapNotNull { all[it.id] }
+    }
+
+    /** The phone keeps PaxSenix's key with the other lyric credentials; here it's in [Secrets]. */
+    const val PaxSenixKey = "paxsenix.key"
+
+    private val paxSenixKey: Boolean get() = !Secrets[PaxSenixKey].isNullOrBlank()
+
+    fun setPaxSenixKey(key: String?) {
+        Secrets[PaxSenixKey] = key?.trim()
+        PaxSenix.setApiKey(key?.trim().orEmpty())
+        forget()
+    }
+
+    init {
+        Secrets[PaxSenixKey]?.let(PaxSenix::setApiKey)
+    }
+
+    /** Drops what was found, so the next look uses the sources as they are now. */
+    fun forget() = synchronized(entries) { entries.clear() }
 
     private const val PerSourceTimeoutMs = 10_000L
 
@@ -124,6 +174,8 @@ object LyricsService {
             album = song.album?.name,
             durationMs = (song.duration ?: 0) * 1000L,
         )
+        val sources = sources()
+        if (sources.isEmpty()) return@coroutineScope null
         val started = System.nanoTime()
         val answers = Channel<Pair<Int, Lyrics?>>(Channel.UNLIMITED)
         val jobs = sources.mapIndexed { index, source ->
@@ -165,6 +217,13 @@ object LyricsService {
             jobs.forEach { it.cancel() }
             answers.cancel()
         }
+    }
+
+    /** The video's captions, line timed, as the phone's YouTube Subtitle source reads them. */
+    private suspend fun youTubeSubtitles(song: Song): List<LyricLine>? {
+        if (song.id.startsWith("file-")) return null
+        val lrc = YouTube.transcript(song.id).getOrNull()?.takeIf { it.isNotBlank() } ?: return null
+        return LrcLib.parseLrc(lrc).takeIf { it.isNotEmpty() }
     }
 
     /** YouTube Music's own (unsynced) lyrics tab, the last resort. */

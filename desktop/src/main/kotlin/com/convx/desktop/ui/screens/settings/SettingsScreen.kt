@@ -75,6 +75,8 @@ enum class SettingsPage(val title: String, val hub: String) {
     LyricsStyle("Lyrics style", "player"),
     LyricsEffects("Lyrics effects", "player"),
     LyricsText("Text & layout", "player"),
+    LyricsSources("Sources & priority", "player"),
+    Romanization("Romanization", "player"),
     Spotify("Spotify", "accounts"),
     Discord("Discord", "accounts"),
     LiquidGlass("Liquid Glass", "appearance"),
@@ -337,6 +339,10 @@ private val searchEntries: List<SearchEntry> by lazy {
         SearchEntry("Lyrics text size", null, h.player, SettingsPage.LyricsEffects, "lyrics size bigger smaller"),
         SearchEntry("Lyrics line spacing", null, h.player, SettingsPage.LyricsText, "lyrics spacing line height"),
         SearchEntry("Word-by-word lyrics", "Light up each word as it's sung", h.player, SettingsPage.LyricsText, "karaoke synced lyrics"),
+        SearchEntry("Lyrics provider priority", "Choose and order lyric providers", h.player, SettingsPage.LyricsSources, "lyrics provider source order youlyplus lyricsplus paxsenix lrclib musixmatch genius kugou better lyrics unison simpmusic megalobiz"),
+        SearchEntry("Romanization", "Show lyrics in Latin letters", h.player, SettingsPage.Romanization, "romanize romaji pinyin japanese korean chinese cyrillic russian ukrainian hindi punjabi latin transliterate"),
+        SearchEntry("Show romanized lyrics as main", null, h.player, SettingsPage.Romanization, "romanize main romaji"),
+        SearchEntry("PaxSenix API key", "For the PaxSenix Spotify and Musixmatch sources", h.player, SettingsPage.LyricsSources, "paxsenix key api spotify musixmatch"),
         SearchEntry("Equalizer", "Shape the sound", h.playback, SettingsPage.Equalizer, "eq bass treble mids preset parametric autoeq dolby dirac"),
         SearchEntry("Spatial audio", "Wider stereo for headphones", h.playback, SettingsPage.Equalizer, "3d surround headphones widen"),
         SearchEntry("Audio quality", "High or low", h.playback, SettingsPage.QualitySound, "bitrate stream data"),
@@ -501,6 +507,8 @@ private fun PageContent(page: SettingsPage) {
         SettingsPage.LyricsStyle -> LyricsStyleSettings()
         SettingsPage.LyricsEffects -> LyricsEffectsSettings()
         SettingsPage.LyricsText -> LyricsTextSettings()
+        SettingsPage.LyricsSources -> LyricsSourcesSettings()
+        SettingsPage.Romanization -> RomanizationSettings()
         SettingsPage.Spotify -> SpotifySettings()
         SettingsPage.Discord -> DiscordSettings()
         SettingsPage.LiquidGlass -> LiquidGlassSettings()

@@ -1,6 +1,7 @@
 The files under this folder are from Accompanist Lyrics by 6xingyv
 (github.com/6xingyv/Accompanist), used under the Apache License 2.0 below.
-They were changed only so they build in Convx for Windows; each file says so.
+They were changed so they build in Convx for Windows, and KaraokeLyricsView.kt has one
+scroll fix marked "Convx:"; each file says so.
 
 
                                  Apache License

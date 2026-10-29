@@ -89,6 +89,12 @@ dependencies {
     implementation("org.jetbrains.runtime:jbr-api:1.12.0")
     // Reads the phone's song.db out of a phone backup.
     implementation("org.xerial:sqlite-jdbc:3.49.1.0")
+    // Lyrics romanization, as on the phone: Japanese readings, and pinyin from the phone's own jars
+    // (JitPack serves an empty jar for tinypinyin).
+    implementation("com.atilika.kuromoji:kuromoji-ipadic:0.9.0")
+    implementation(files("libs/tinypinyin-2.0.3.jar", "libs/ahocorasick-0.3.0.jar"))
+    // Android's org.json, for the phone's AI translation clients (com.convx.music.api).
+    implementation("org.json:json:20250517")
 
     testImplementation(kotlin("test"))
 }

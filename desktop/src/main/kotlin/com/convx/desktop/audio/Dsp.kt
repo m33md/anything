@@ -25,13 +25,15 @@ data class AudioEffects(
     val preamp: Double = 0.0,
     val spatial: Boolean = false,
     val skipSilence: Boolean = false,
+    /** The lyrics menu's karaoke vocal reduction, 0 (off) to 1. */
+    val vocalReduction: Float = 0f,
 ) {
-    val shapesSound: Boolean get() = eq != null || spatial
+    val shapesSound: Boolean get() = eq != null || spatial || vocalReduction > 0f
 }
 
 /**
- * The effects for one stream of interleaved stereo floats: equalizer, spatial audio and the
- * silence skipper. Not thread-safe; each audio session owns one.
+ * The effects for one stream of interleaved stereo floats: vocal reduction, equalizer, spatial
+ * audio and the silence skipper. Not thread-safe; each audio session owns one.
  */
 class EffectsChain(private val sampleRate: Int) {
     private var applied: AudioEffects? = null
@@ -39,6 +41,7 @@ class EffectsChain(private val sampleRate: Int) {
     private var preampGain = 1f
     private val spatial = SpatialWidener(sampleRate)
     private val skipper = SilenceSkipper(sampleRate)
+    private val vocals = CenteredVocalReducer()
 
     /** Frames the last [process] dropped as silence. */
     val skippedFrames: Int get() = skipper.dropped
@@ -64,6 +67,7 @@ class EffectsChain(private val sampleRate: Int) {
         val effects = applied ?: AudioEffects()
         var buffer = input
         var count = frames
+        if (effects.vocalReduction > 0f) vocals.process(input, frames, sampleRate, effects.vocalReduction) else vocals.bypass()
         if (effects.skipSilence) {
             count = skipper.process(input, frames)
             buffer = skipper.output
@@ -85,6 +89,7 @@ class EffectsChain(private val sampleRate: Int) {
         filters.forEach { it.reset() }
         spatial.reset()
         skipper.reset()
+        vocals.reset()
     }
 }
 

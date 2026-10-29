@@ -5,6 +5,18 @@
 
 package com.convx.desktop.ui.screens.settings
 
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.zIndex
+import com.convx.desktop.core.Secrets
+import com.convx.desktop.lyrics.LyricsService
+import com.convx.desktop.lyrics.Romanizer
+import com.convx.desktop.ui.components.ConvxIcon
+import com.convx.desktop.ui.components.DialogCard
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -56,6 +68,7 @@ import com.convx.desktop.data.LyricsStyle
 import com.convx.desktop.player.PlayerController
 import com.convx.desktop.ui.components.Overlays
 import com.convx.desktop.ui.components.PillButton
+import com.convx.desktop.ui.glass.GlassSwitch
 import com.convx.desktop.ui.player.LyricsFonts
 import com.convx.desktop.ui.player.LyricsView
 import com.convx.desktop.ui.player.NowPlayingBackground
@@ -373,5 +386,183 @@ fun LyricsTextSettings() {
         ) { spacing = (it * 10).roundToInt() / 10f }
         RowDivider(PlainInset)
         LinkRow("Lyrics font and size", icon = "lyrics", tint = SystemColors.Pink) { SettingsNav.push(SettingsPage.LyricsEffects) }
+    }
+}
+
+private val SourceRowHeight = 52.dp
+
+/**
+ * The phone's lyrics provider priority: every source in the order it's tried, dragged up or down
+ * to reorder, each one switched on or off, and the PaxSenix key two of them need.
+ */
+@Composable
+fun LyricsSourcesSettings() {
+    val settings by AppSettings.state.collectAsState()
+    val secrets by Secrets.values.collectAsState()
+    val names = remember { LyricsService.providers(emptyList()).associate { it.id to it.name } }
+    val order = remember { mutableStateListOf<String>() }
+    var dragging by remember { mutableStateOf<String?>(null) }
+    var offset by remember { mutableFloatStateOf(0f) }
+    // Follows Settings, except while a row is held, so a drag isn't undone under the pointer.
+    LaunchedEffect(settings.lyricsProviders, dragging) {
+        if (dragging == null) {
+            val ids = LyricsService.providers(settings.lyricsProviders).map { it.id }
+            if (order.toList() != ids) {
+                order.clear()
+                order.addAll(ids)
+            }
+        }
+    }
+    val rowPx = with(LocalDensity.current) { SourceRowHeight.toPx() }
+    fun drop() {
+        if (dragging != null && order.toList() != LyricsService.providers(AppSettings.value.lyricsProviders).map { it.id }) {
+            AppSettings.update { it.copy(lyricsProviders = order.toList()) }
+            LyricsService.forget()
+        }
+        dragging = null
+        offset = 0f
+    }
+    SettingsSection(
+        "Lyrics provider priority",
+        footer = "Drag to reorder which provider is tried first. All the sources that are on are asked at once; " +
+            "word timing beats line timing, and between two that are alike the higher one wins.",
+    ) {
+        Column(
+            Modifier.pointerInput(Unit) {
+                detectDragGestures(
+                    onDragStart = { at ->
+                        // The switch keeps its own clicks; anywhere else on a row picks it up.
+                        dragging = if (at.x < size.width - 80.dp.toPx()) order.getOrNull((at.y / rowPx).toInt()) else null
+                        offset = 0f
+                    },
+                    onDragEnd = { drop() },
+                    onDragCancel = { drop() },
+                ) { change, amount ->
+                    val id = dragging ?: return@detectDragGestures
+                    change.consume()
+                    offset += amount.y
+                    val from = order.indexOf(id)
+                    if (offset > rowPx / 2 && from < order.lastIndex) {
+                        order.add(from + 1, order.removeAt(from))
+                        offset -= rowPx
+                    } else if (offset < -rowPx / 2 && from > 0) {
+                        order.add(from - 1, order.removeAt(from))
+                        offset += rowPx
+                    }
+                }
+            },
+        ) {
+            order.forEachIndexed { index, id ->
+                key(id) {
+                    val held = dragging == id
+                    val on = id !in settings.lyricsProvidersOff
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(SourceRowHeight)
+                            .zIndex(if (held) 1f else 0f)
+                            .graphicsLayer {
+                                translationY = if (held) offset else 0f
+                                shadowElevation = if (held) 16.dp.toPx() else 0f
+                            }
+                            .background(if (held) ConvxColors.Card else Color.Transparent),
+                    ) {
+                        SettingsRow(
+                            names[id] ?: id,
+                            leading = { ConvxIcon("drag_handle", tint = ConvxColors.TertiaryLabel, size = 20.dp) },
+                            titleColor = if (on) ConvxColors.Label else ConvxColors.SecondaryLabel,
+                            onClick = { toggleSource(id) },
+                        ) {
+                            GlassSwitch(on, { toggleSource(id) })
+                        }
+                        if (index < order.lastIndex && !held) {
+                            Box(Modifier.align(Alignment.BottomStart)) { RowDivider(48.dp) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    SectionGap()
+    val hasKey = !secrets[LyricsService.PaxSenixKey].isNullOrBlank()
+    SettingsSection("PaxSenix", footer = "Used by PaxSenix Spotify and Musixmatch sources. It stays on this PC, encrypted for your Windows account.") {
+        LinkRow("PaxSenix API key", icon = "lock", tint = SystemColors.Gray, value = if (hasKey) "Set" else "Not set") { editPaxSenixKey() }
+        if (hasKey) {
+            RowDivider()
+            ButtonRow("Remove key", color = SystemColors.Red) {
+                LyricsService.setPaxSenixKey(null)
+                Overlays.toast("PaxSenix key removed")
+            }
+        }
+    }
+    SectionGap()
+    SettingsSection {
+        ButtonRow("Reset to the phone's order") {
+            AppSettings.update { it.copy(lyricsProviders = emptyList(), lyricsProvidersOff = emptyList()) }
+            LyricsService.forget()
+        }
+    }
+}
+
+private fun toggleSource(id: String) {
+    AppSettings.update { s ->
+        s.copy(lyricsProvidersOff = if (id in s.lyricsProvidersOff) s.lyricsProvidersOff - id else s.lyricsProvidersOff + id)
+    }
+    LyricsService.forget()
+}
+
+private fun editPaxSenixKey() {
+    Overlays.showDialog {
+        var key by remember { mutableStateOf("") }
+        DialogCard("PaxSenix API key") {
+            DialogField("API key", key, secret = true) { key = it }
+            Spacer(Modifier.height(20.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)) {
+                PillButton("Cancel", { Overlays.dismissDialog() })
+                PillButton("Save", {
+                    if (key.isNotBlank()) {
+                        LyricsService.setPaxSenixKey(key)
+                        Overlays.dismissDialog()
+                        Overlays.toast("PaxSenix key saved")
+                    }
+                }, filled = key.isNotBlank())
+            }
+        }
+    }
+}
+
+/** The phone's Romanization page: lyrics in Latin letters under (or instead of) the original, by language. */
+@Composable
+fun RomanizationSettings() {
+    val settings by AppSettings.state.collectAsState()
+    fun language(name: String) {
+        AppSettings.update { s ->
+            s.copy(lyricsRomanizeOff = if (name in s.lyricsRomanizeOff) s.lyricsRomanizeOff - name else s.lyricsRomanizeOff + name)
+        }
+    }
+    val cyrillic = Romanizer.languages.drop(5)
+    SettingsSection("Romanization") {
+        SwitchRow("Show romanized lyrics as main", checked = settings.lyricsRomanizeAsMain, icon = "lyrics", tint = SystemColors.Teal) { v ->
+            AppSettings.update { it.copy(lyricsRomanizeAsMain = v) }
+        }
+        Romanizer.languages.take(5).forEach { name ->
+            RowDivider()
+            SwitchRow("Romanize $name lyrics", checked = name !in settings.lyricsRomanizeOff, icon = "translate", tint = SystemColors.Teal) { language(name) }
+        }
+    }
+    SectionGap()
+    SettingsSection("Cyrillic") {
+        cyrillic.forEachIndexed { i, name ->
+            if (i > 0) RowDivider()
+            SwitchRow("Romanize $name lyrics", checked = name !in settings.lyricsRomanizeOff, icon = "alphabet_cyrillic", tint = SystemColors.Teal) { language(name) }
+        }
+        RowDivider()
+        SwitchRow(
+            "EXPERIMENTAL: Detect language line by line",
+            "The Cyrillic language will be detected line by line instead of the entire song.",
+            settings.lyricsRomanizeCyrillicByLine,
+            icon = "alphabet_cyrillic",
+            tint = SystemColors.Orange,
+        ) { v -> AppSettings.update { it.copy(lyricsRomanizeCyrillicByLine = v) } }
     }
 }

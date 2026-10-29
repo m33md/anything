@@ -520,6 +520,22 @@ private fun dspCheck(): Boolean {
     val (bands, preamp) = Equalizer.fromGains(Equalizer.Groups[0].presets[4].gains)
     expect("Bass Boost with its preamp, on 31 Hz", gainAt(31.0, AudioEffects(eq = bands, preamp = preamp)), 1.1..1.35)
     expect("spatial audio, on a centred tone", gainAt(440.0, AudioEffects(spatial = true)), 0.65..0.78)
+    // Vocal reduction turns down what's in the middle and leaves a tone on one side alone. It
+    // runs a window behind, so it's fed in player-sized blocks and measured in the second half.
+    fun reduced(input: FloatArray): Double {
+        val chain = EffectsChain(rate).apply { configure(AudioEffects(vocalReduction = 1f)) }
+        val out = FloatArray(input.size)
+        var at = 0
+        while (at < rate) {
+            val frames = minOf(1024, rate - at)
+            val n = chain.process(input.copyOfRange(at * 2, (at + frames) * 2), frames)
+            System.arraycopy(chain.output, 0, out, at * 2, n * 2)
+            at += frames
+        }
+        return rms(out, rate / 2, rate / 2) / rms(input, rate / 2, rate / 2)
+    }
+    expect("vocal reduction, on a centred tone", reduced(sine(440.0, 1.0)), 0.0..0.3)
+    expect("vocal reduction, on a tone on one side", reduced(sine(440.0, 1.0).also { for (i in 1 until it.size step 2) it[i] = 0f }), 0.85..1.15)
 
     // One second of tone, one of silence, one of tone: the silence should shrink to its padding.
     val tone = sine(440.0, 1.0)

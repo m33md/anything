@@ -681,6 +681,7 @@ object PlayerController : AudioEngine.Listener {
         preamp = settings.equalizer.preamp,
         spatial = settings.equalizer.spatialAudio,
         skipSilence = settings.skipSilence,
+        vocalReduction = settings.vocalReduction,
     )
 
     /** The phone's normalisation: YouTube's loudness for the song, turned into -15..+3 dB. */

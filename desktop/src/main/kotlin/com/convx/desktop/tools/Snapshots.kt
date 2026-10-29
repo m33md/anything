@@ -279,6 +279,16 @@ fun main(args: Array<String>) {
             shoot("19b-settings-lyrics-style", seconds = 5) { SettingsNav.push(SettingsPage.LyricsStyle) }
             shoot("19c-settings-lyrics-effects", seconds = 3) { SettingsNav.push(SettingsPage.LyricsEffects) }
             shoot("19d-settings-lyrics-text", seconds = 2) { SettingsNav.push(SettingsPage.LyricsText) }
+            shoot("19e-settings-lyrics-sources", seconds = 2) {
+                SettingsNav.back()
+                SettingsNav.back()
+                SettingsNav.back()
+                SettingsNav.push(SettingsPage.LyricsSources)
+            }
+            shoot("19f-settings-romanization", seconds = 2) {
+                SettingsNav.back()
+                SettingsNav.push(SettingsPage.Romanization)
+            }
         }
     }.onFailure { Log.e("Snapshots", "Rendering failed", it) }
 
