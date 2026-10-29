@@ -118,6 +118,9 @@ data class HomeFeedState(
  * Music's own home on top. The phone keeps songs related to each one you play in its database;
  * here they're asked of YouTube when Home loads, from the same seeds its query picks.
  */
+/** Settings' value for the phone's "Based on last song listened" quick picks. */
+const val QuickPicksLastListen = "last_listen"
+
 object HomeFeed {
     private const val Tag = "HomeFeed"
     private const val Day = 86_400_000L
@@ -210,6 +213,16 @@ object HomeFeed {
             _state.update { it.copy(quickPicks = emptyList()) }
             return
         }
+        fun List<Song>.allowed() = filter { (!settings.hideExplicit || !it.explicit) && (!settings.hideVideos || !it.isVideo) }
+        suspend fun relatedTo(id: String) =
+            RelatedSongs.get(id) ?: withTimeoutOrNull(10_000) { requests.withPermit { RelatedSongs.fetch(id) } }
+        // The phone's other choice: picks from the last song you listened to alone.
+        if (settings.quickPicksMode == QuickPicksLastListen) {
+            val last = history.firstOrNull { !com.convx.desktop.player.LocalMusic.isLocal(it.song.id) }?.song
+            val picks = last?.let { relatedTo(it.id) }.orEmpty().allowed().shuffled().take(20)
+            _state.update { it.copy(quickPicks = picks) }
+            return
+        }
         val seeds = (
             history.asSequence().map { it.song }.take(5).toList() +
                 Library.mostPlayedSongs(System.currentTimeMillis() - 7 * Day, limit = 5) +
@@ -219,15 +232,9 @@ object HomeFeed {
             .take(12)
         // Kept from when each seed first played, as the phone reads its related-songs table; asked
         // of YouTube only for seeds from before that, and not waited on for long.
-        val lists = coroutineScope {
-            seeds.map { seed ->
-                async {
-                    RelatedSongs.get(seed.id) ?: withTimeoutOrNull(10_000) { requests.withPermit { RelatedSongs.fetch(seed.id) } }
-                }
-            }.awaitAll()
-        }
+        val lists = coroutineScope { seeds.map { seed -> async { relatedTo(seed.id) } }.awaitAll() }
         val referred = lists.filterNotNull()
-            .flatMap { songs -> songs.filter { (!settings.hideExplicit || !it.explicit) && (!settings.hideVideos || !it.isVideo) } }
+            .flatMap { songs -> songs.allowed() }
             .groupBy { it.id }
             .values
             .sortedByDescending { it.size }

@@ -32,7 +32,9 @@ import androidx.compose.ui.zIndex
 import com.convx.desktop.data.AppSettings
 import com.convx.desktop.ui.components.ConvxIcon
 import com.convx.desktop.ui.glass.GlassSwitch
+import com.convx.desktop.ui.screens.HomeFeed
 import com.convx.desktop.ui.screens.HomeSection
+import com.convx.desktop.ui.screens.QuickPicksLastListen
 import com.convx.desktop.ui.theme.ConvxColors
 
 /** Where Convx opens, by the phone's names for its tabs. */
@@ -59,6 +61,17 @@ fun LayoutHomeSettings() {
         RowDivider()
         SwitchRow("Mood filters", "Show Energize, Relax and other filters at the top of Home", settings.homeMoodFilters, icon = "tune", tint = SystemColors.Purple) { on ->
             AppSettings.update { it.copy(homeMoodFilters = on) }
+        }
+        RowDivider()
+        ChoiceRow(
+            "Set quick picks",
+            options = listOf("quick_picks" to "Quick picks", QuickPicksLastListen to "Based on last song listened"),
+            selected = settings.quickPicksMode,
+            icon = "queue_music",
+            tint = SystemColors.Yellow,
+        ) { mode ->
+            AppSettings.update { it.copy(quickPicksMode = mode) }
+            HomeFeed.load(force = true)
         }
     }
     SectionGap()

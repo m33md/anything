@@ -382,6 +382,7 @@ private val searchEntries: List<SearchEntry> by lazy {
         SearchEntry("Default open tab", null, h.appearance, SettingsPage.LayoutHome, "start home search library tab"),
         SearchEntry("Hero card", "Show the large featured card at the top of Home", h.appearance, SettingsPage.LayoutHome, "featured hero card home"),
         SearchEntry("Mood filters", "Show Energize, Relax and other filters at the top of Home", h.appearance, SettingsPage.LayoutHome, "mood chips filters energize relax"),
+        SearchEntry("Set quick picks", "Quick picks, or based on the last song listened", h.appearance, SettingsPage.LayoutHome, "quick picks last song listened recommendations home"),
         SearchEntry("Randomize Home Screen Order", null, h.appearance, SettingsPage.LayoutHome, "shuffle random order home sections"),
         SearchEntry("Home feed order", "Arrange home sections", h.appearance, SettingsPage.HomeFeedOrder, "arrange order sections hide home feed"),
         SearchEntry("Content country", "Charts and recommendations", h.library, keywords = "region location"),

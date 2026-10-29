@@ -312,6 +312,8 @@ data class Settings(
     val homeSignInCardDismissed: Boolean = false,
     /** The mood chips (Energize, Relax...) in Home's strip. */
     val homeMoodFilters: Boolean = true,
+    /** The phone's Set quick picks: "quick_picks" from your listening, or "last_listen" from the last song alone. */
+    val quickPicksMode: String = "quick_picks",
     // The phone's auto playlists: which ones Your Library shows, and how long My top is.
     val showLikedPlaylist: Boolean = true,
     val showDownloadedPlaylist: Boolean = true,
