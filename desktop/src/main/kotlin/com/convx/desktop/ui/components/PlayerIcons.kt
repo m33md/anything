@@ -210,7 +210,7 @@ object PlayerIcons {
         }
     }
 
-    private fun prune() {
+    internal fun prune() {
         val live = AppSettings.value.playerIcons.values
         val files = live.mapTo(HashSet()) { it.file }
         dir.listFiles()?.forEach { if (it.name !in files) it.delete() }

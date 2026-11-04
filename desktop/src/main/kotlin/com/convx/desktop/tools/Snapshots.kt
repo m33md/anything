@@ -561,6 +561,14 @@ fun main(args: Array<String>) {
                 UiState.fullPlayer = true
             }
             UiState.fullPlayer = false
+            // Presets: the save dialog over the look above (custom icons and all), then the saved card.
+            shoot("19m-preset-save", seconds = 2) {
+                SettingsNav.back()
+                SettingsNav.push(SettingsPage.Presets)
+                com.convx.desktop.ui.screens.settings.savePresetDialog(autoSaveAs = "Custom icons")
+            }
+            shoot("19n-presets", seconds = 5) {}
+            com.convx.desktop.ui.components.Overlays.dismissDialog()
             PlayerIconSlot.entries.forEach { PlayerIcons.clear(it) }
             // Last, as the bottom of Home has hung the run before: the watchdog shows where.
             shoot("20c-home-feed-end", seconds = 6) {

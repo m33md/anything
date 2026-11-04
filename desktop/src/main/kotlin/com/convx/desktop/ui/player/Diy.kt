@@ -268,7 +268,8 @@ fun DiyStickerContent(
     val size = Dp(min(width.value, height.value)) * transform.scale
     val offsetX = with(density) { (width * transform.x - size / 2).toPx() }
     val offsetY = with(density) { (height * transform.y - size / 2).toPx() }
-    val placed = modifier
+    // The caller's modifier (the editor's selection border) goes on after the move, so it sits on the sticker.
+    val placed = Modifier
         .size(size)
         .graphicsLayer {
             translationX = offsetX
@@ -281,6 +282,7 @@ fun DiyStickerContent(
             scaleX = if (sticker.flipHorizontal) -pop else pop
             scaleY = pop
         }
+        .then(modifier)
     when (sticker.kind) {
         DiyStickerKind.EMOJI -> Box(placed) {
             Text(

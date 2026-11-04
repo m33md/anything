@@ -538,11 +538,10 @@ private fun BoxScope.DraggablePanel(offset: Offset, onOffset: (Offset) -> Unit, 
             .clip(RoundedCornerShape(24.dp))
             .background(Color(0xFF2C2C2E).copy(alpha = 0.97f)),
     ) {
-        Column {
+        // The column is as wide as its content (the 300dp panels); a full-width grab bar used to stretch it across the window.
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
             // The grab bar that says the panel can be moved.
-            Box(Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 6.dp), contentAlignment = Alignment.Center) {
-                Box(Modifier.width(36.dp).height(5.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.3f)))
-            }
+            Box(Modifier.padding(top = 10.dp, bottom = 6.dp).width(36.dp).height(5.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.3f)))
             content()
         }
     }

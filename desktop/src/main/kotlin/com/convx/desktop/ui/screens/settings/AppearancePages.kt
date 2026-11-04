@@ -77,6 +77,18 @@ fun AppearanceHub() {
         LinkRow("Liquid Glass", "Blur, lens and highlights, with a live preview", icon = "palette", tint = SystemColors.Cyan) {
             SettingsNav.push(SettingsPage.LiquidGlass)
         }
+        RowDivider()
+        val presets by com.convx.desktop.data.Presets.all.collectAsState()
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.convx.desktop.data.Presets.refresh() }
+        }
+        LinkRow(
+            "Presets",
+            "Save, apply and share complete looks",
+            icon = "palette",
+            tint = SystemColors.Pink,
+            value = presets.size.takeIf { it > 0 }?.toString(),
+        ) { SettingsNav.push(SettingsPage.Presets) }
     }
     SectionGap()
     SettingsSection("App") {

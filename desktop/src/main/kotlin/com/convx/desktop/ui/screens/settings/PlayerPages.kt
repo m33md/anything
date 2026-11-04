@@ -179,7 +179,7 @@ fun PlayerDesignSettings() {
 
 /** The player at a window's size (1280 by 800), drawn into [width]: the phone's phone previews, for a PC. */
 @Composable
-private fun ScaledStage(width: Dp, settings: Settings, state: PlayerState) {
+internal fun ScaledStage(width: Dp, settings: Settings, state: PlayerState) {
     Box(
         Modifier
             .clipToBounds()

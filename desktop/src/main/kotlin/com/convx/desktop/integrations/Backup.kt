@@ -50,8 +50,8 @@ object Backup {
     private const val LibraryEntry = "library.json"
     private const val SettingsEntry = "settings.json"
     private const val MatchesEntry = "spotify-matches.json"
-    /** Player icons' images and DIY's stickers, kept in these folders of the app's data. */
-    private val AssetFolders = listOf("player_icons", "diy_stickers")
+    /** Player icons' images, DIY's stickers and imported fonts, kept in these folders of the app's data. */
+    private val AssetFolders = listOf("player_icons", "diy_stickers", "lyrics-fonts")
     const val BeforeRestore = "before-restore.backup"
 
     /** The phone's entries (BackupRestoreViewModel). */
