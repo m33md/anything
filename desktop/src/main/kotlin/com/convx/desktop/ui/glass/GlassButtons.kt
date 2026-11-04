@@ -5,10 +5,12 @@
 
 package com.convx.desktop.ui.glass
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -28,6 +30,7 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.LocalContentColor
 import com.convx.desktop.ui.components.Tooltip
+import com.kyant.backdrop.Backdrop
 
 /** A true circle: the phone keeps square glass round rather than giving it G2 corners. */
 val GlassCircleShape = RoundedCornerShape(percent = 50)
@@ -79,4 +82,38 @@ fun GlassCircleButton(
         }
     }
     if (tooltip != null) Tooltip(tooltip) { button() } else button()
+}
+
+/**
+ * Any control made of the glass: the material, or [fill] for the white and red pills that keep
+ * their paint, then the pointer's light and the swell and lean that answer hover and press, as on
+ * GlassCircleButton. Draw-only motion, so the hit target never moves under the pointer. The
+ * caller adds its own click handling after this.
+ */
+@Composable
+fun Modifier.glassControl(
+    shape: CornerBasedShape,
+    glow: InteractiveHighlight = rememberInteractiveHighlight(),
+    fill: Color? = null,
+    enabled: Boolean = true,
+    magnitude: Float = 1f,
+    shadow: Boolean = false,
+    highlightAlpha: Float = GlassTokens.PluckAlphaNeutral,
+    backdrop: Backdrop? = LocalAppBackdrop.current,
+): Modifier {
+    val stretch = remember(glow, magnitude) { elasticStretch(glow, magnitude) }
+    val tuned = LocalGlassConfig.current
+    val surface = if (fill != null) {
+        Modifier.background(fill)
+    } else {
+        // With nothing to refract it keeps the light wash these controls always had, now with the rim.
+        Modifier.liquidGlass(shape, if (backdrop == null) tuned.onPage() else tuned, highlightAlpha = highlightAlpha, backdrop = backdrop)
+    }
+    return this
+        .graphicsLayer(stretch)
+        .then(if (shadow) Modifier.chromeShadow(shape) else Modifier)
+        .clip(shape)
+        .then(surface)
+        .then(glow.modifier)
+        .then(if (enabled) glow.gestureModifier else Modifier)
 }

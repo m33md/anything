@@ -113,6 +113,9 @@ data class GlassConfig(
         surfaceOpacity = 0.75f,
     )
 
+    /** Glass inside the pages, which have nothing under them to refract: a light wash instead of the dark tint. */
+    fun onPage(): GlassConfig = copy(surfaceTint = Color.White, surfaceOpacity = 0.10f)
+
     companion object {
         val Default = GlassConfig()
         val SidePanel = Default.forSidePanel()
@@ -192,13 +195,39 @@ fun Modifier.liquidGlass(
     val tint by animateColorAsState(config.surfaceTint.copy(alpha = tintAlpha), fade)
 
     if (backdrop == null) {
-        return this.drawWithCache {
-            onDrawWithContent {
-                drawRect(base)
-                drawRect(tint)
-                drawContent()
+        // Nothing to refract (glass inside the pages, which are what the chrome refracts): the same
+        // tint with the same lit rim and dark rim, so it still reads as the material.
+        val flatRimAlpha = if (applyEdgeEffects) {
+            val pluck = when {
+                highlightAlpha != EdgeHighlightAlpha -> highlightAlpha
+                hero -> GlassTokens.PluckAlphaHero
+                else -> GlassTokens.PluckAlphaNeutral
             }
+            (pluck * (config.highlightOpacity / EdgeHighlightAlpha)).coerceIn(0f, 1f)
+        } else {
+            0f
         }
+        val rimColor = config.highlightColor
+        val flatDarkRim = (DarkRimAlpha * (config.highlightOpacity / EdgeHighlightAlpha)).coerceIn(0f, 1f)
+        return this
+            .drawWithCache {
+                val outline = if (flatRimAlpha > 0f) shape.createOutline(size, layoutDirection, this) else null
+                val rim = Brush.linearGradient(
+                    0f to rimColor.copy(alpha = flatRimAlpha),
+                    0.5f to rimColor.copy(alpha = flatRimAlpha * 0.25f),
+                    1f to rimColor.copy(alpha = flatRimAlpha * 0.6f),
+                    start = Offset.Zero,
+                    end = Offset(size.width, size.height),
+                )
+                val stroke = Stroke(width = EdgeHighlightWidth.toPx() * 1.5f)
+                onDrawWithContent {
+                    if (base.alpha > 0f) drawRect(base)
+                    if (tint.alpha > 0f) drawRect(tint)
+                    outline?.let { drawOutline(it, rim, style = stroke) }
+                    drawContent()
+                }
+            }
+            .then(if (applyEdgeEffects && flatDarkRim > 0f) Modifier.outerDarkRim(shape, DarkRimWidth, flatDarkRim, HighlightAngle) else Modifier)
     }
 
     val density = LocalDensity.current

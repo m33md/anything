@@ -58,7 +58,33 @@ fun main(args: Array<String>) {
         }
     }
     println("$passed of ${ids.size} songs played")
+    mediaControlsCheck()
     exitProcess(if (passed > 0 && dspOk) 0 else 1)
+}
+
+/**
+ * Windows' media controls on a real window: whether they start, and which of the media-key message,
+ * the taskbar button and a real key press reach the player. Last, so a native crash can't hide the rest.
+ */
+private fun mediaControlsCheck() {
+    if (!System.getProperty("os.name").lowercase().contains("win") || java.awt.GraphicsEnvironment.isHeadless()) {
+        println("Media controls: skipped (no Windows desktop)")
+        return
+    }
+    runCatching {
+        val frame = javax.swing.JFrame("Convx media check")
+        javax.swing.SwingUtilities.invokeAndWait {
+            frame.setSize(420, 300)
+            frame.isVisible = true
+            frame.toFront()
+        }
+        Thread.sleep(1_500)
+        com.convx.desktop.integrations.MediaControls.install(frame)
+        Thread.sleep(1_500)
+        com.convx.desktop.integrations.MediaControls.selfTest(frame).forEach { println("Media controls: $it") }
+        com.convx.desktop.integrations.MediaControls.shutdown()
+        javax.swing.SwingUtilities.invokeAndWait { frame.dispose() }
+    }.onFailure { println("Media controls: FAILED ${it::class.simpleName}: ${it.message}") }
 }
 
 /**

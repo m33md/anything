@@ -66,6 +66,7 @@ import com.sun.jna.platform.win32.WinDef
 import com.sun.jna.ptr.IntByReference
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -116,6 +117,7 @@ fun main() {
         val navigator = remember { Navigator(com.convx.desktop.ui.shell.startScreen(saved.defaultTab)) }
 
         fun quit() {
+            com.convx.desktop.integrations.MediaControls.shutdown()
             Party.shutdown()
             DiscordPresence.shutdown()
             PlayerController.shutdown()
@@ -161,6 +163,8 @@ fun main() {
                     delay(100)
                     WindowTitleBar.updateInsets()
                 }
+                // Media keys, the Windows media box and the taskbar preview's buttons, once the frame is settled.
+                withContext(Dispatchers.IO) { com.convx.desktop.integrations.MediaControls.install(window) }
             }
             // Ambient mode fills the screen and keeps it on, as on the phone, then puts the window back.
             val beforeAmbient = remember { arrayOfNulls<WindowPlacement>(1) }
@@ -262,18 +266,6 @@ private fun shortcut(event: KeyEvent, navigator: Navigator): Boolean {
         ctrl && event.key == Key.Comma -> {
             UiState.fullPlayer = false
             navigator.navigate(com.convx.desktop.ui.shell.Screen.Settings)
-            true
-        }
-        event.key == Key.MediaPlayPause -> {
-            PlayerController.togglePlay()
-            true
-        }
-        event.key == Key.MediaNext -> {
-            PlayerController.next()
-            true
-        }
-        event.key == Key.MediaPrevious -> {
-            PlayerController.previous()
             true
         }
         ctrl && (event.key == Key.L || event.key == Key.K) -> {

@@ -5,6 +5,9 @@
 
 package com.convx.desktop.ui.components
 
+import com.convx.desktop.ui.glass.LocalMenuBackdrop
+import com.convx.desktop.ui.glass.MenuGlass
+import com.convx.desktop.ui.glass.liquidGlass
 import com.convx.desktop.ui.shell.UiState
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.runtime.DisposableEffect
@@ -162,15 +165,25 @@ object Overlays {
     }
 }
 
+/** Menu glass a shade darker, so long text and fields read on it over any page. */
+private val DialogGlass = MenuGlass.copy(surfaceOpacity = 0.9f, blurRadius = 12f)
+
 @Composable
 fun DialogCard(title: String, content: @Composable () -> Unit) {
+    // The menus' glass over the page, where there is one to frost.
+    val backdrop = LocalMenuBackdrop.current
     Column(
         Modifier
             .width(420.dp)
             .shadow(32.dp, ConvxShapes.CardLarge)
             .clip(ConvxShapes.CardLarge)
-            .background(Color(0xFF232325))
-            .glassRim(ConvxShapes.CardLarge, 0.1f)
+            .then(
+                if (backdrop != null) {
+                    Modifier.liquidGlass(ConvxShapes.CardLarge, DialogGlass, highlightAlpha = 0.22f, outerShadow = false, backdrop = backdrop)
+                } else {
+                    Modifier.background(Color(0xFF232325)).glassRim(ConvxShapes.CardLarge, 0.1f)
+                },
+            )
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
             .padding(24.dp),
     ) {

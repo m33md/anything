@@ -5,6 +5,10 @@
 
 package com.convx.desktop.ui.screens.settings
 
+import com.convx.desktop.ui.glass.GlassShapes
+import com.convx.desktop.ui.glass.GlassTokens
+import com.convx.desktop.ui.glass.LocalGlassConfig
+import com.convx.desktop.ui.glass.liquidGlass
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.core.tween
@@ -295,7 +299,13 @@ private fun ProfileCard(onClick: () -> Unit) {
 @Composable
 private fun SearchField(value: String, onValueChange: (String) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().height(40.dp).clip(ContinuousCapsule).background(ConvxColors.Card).padding(horizontal = 14.dp),
+        Modifier
+            .fillMaxWidth()
+            .height(40.dp)
+            // The phone's search pill is its glass; over the page it's the tint and the lit rim.
+            .clip(GlassShapes.Capsule)
+            .liquidGlass(GlassShapes.Capsule, LocalGlassConfig.current.onPage(), highlightAlpha = GlassTokens.PluckAlphaNeutral)
+            .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         ConvxIcon("search", tint = ConvxColors.SecondaryLabel, size = 17.dp)

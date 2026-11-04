@@ -5,6 +5,11 @@
 
 package com.convx.desktop.ui.components
 
+import com.convx.desktop.ui.glass.GlassShapes
+import com.convx.desktop.ui.glass.LocalMenuBackdrop
+import com.convx.desktop.ui.glass.MenuGlass
+import com.convx.desktop.ui.glass.glassControl
+import com.convx.desktop.ui.glass.liquidGlass
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.TooltipArea
@@ -88,11 +93,18 @@ fun Modifier.onSecondaryClick(onClick: (Offset) -> Unit): Modifier = pointerInpu
 fun Tooltip(text: String, content: @Composable () -> Unit) {
     TooltipArea(
         tooltip = {
+            // The menus' glass where there's a page under it to frost; the old grey card elsewhere.
+            val backdrop = LocalMenuBackdrop.current
             Box(
                 Modifier
                     .clip(ConvxShapes.Control)
-                    .background(Color(0xFF2C2C2E))
-                    .border(0.5.dp, ConvxColors.Separator, ConvxShapes.Control)
+                    .then(
+                        if (backdrop != null) {
+                            Modifier.liquidGlass(ConvxShapes.Control, MenuGlass, highlightAlpha = 0.20f, outerShadow = false, backdrop = backdrop)
+                        } else {
+                            Modifier.background(Color(0xFF2C2C2E)).border(0.5.dp, ConvxColors.Separator, ConvxShapes.Control)
+                        },
+                    )
                     .padding(horizontal = 10.dp, vertical = 6.dp),
             ) {
                 Text(text, style = ConvxType.Caption, color = Color.White)
@@ -125,8 +137,7 @@ fun IconButton(
     val hovered by interaction.collectIsHoveredAsState()
     val bg by animateColorAsState(
         when {
-            filled && hovered -> Color.White.copy(alpha = 0.18f)
-            filled -> Color.White.copy(alpha = 0.10f)
+            filled -> Color.Transparent
             hovered && enabled -> Color.White.copy(alpha = 0.08f)
             else -> Color.Transparent
         },
@@ -141,10 +152,22 @@ fun IconButton(
         Box(
             modifier
                 .size(size)
-                .clip(CircleShape)
-                .background(bg)
-                .hoverable(interaction)
-                .pressable(onClick, enabled, interaction, pressScale = 0.9f),
+                // The filled disc is a drop of the glass, with its light and swell; the plain glyph keeps the quiet wash.
+                .then(
+                    if (filled) {
+                        Modifier
+                            .glassControl(GlassShapes.Capsule, enabled = enabled)
+                            .hoverable(interaction)
+                            .pointerHoverIcon(if (enabled) PointerIcon.Hand else PointerIcon.Default)
+                            .clickable(interactionSource = interaction, indication = null, enabled = enabled, onClick = onClick)
+                    } else {
+                        Modifier
+                            .clip(CircleShape)
+                            .background(bg)
+                            .hoverable(interaction)
+                            .pressable(onClick, enabled, interaction, pressScale = 0.9f)
+                    },
+                ),
             contentAlignment = Alignment.Center,
         ) {
             if (slot != null) PlayerGlyph(slot, icon, color, iconSize) else ConvxIcon(icon, tint = color, size = iconSize)
@@ -218,18 +241,19 @@ fun PillButton(
 ) {
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
-    val bg = when {
+    // The quiet pill is the glass itself; the white and red ones keep their paint and move like it.
+    val fill = when {
         accent != null -> if (hovered) accent.copy(alpha = 0.9f) else accent
         filled -> if (hovered) Color.White.copy(alpha = 0.9f) else Color.White
-        else -> Color.White.copy(alpha = if (hovered) 0.16f else 0.09f)
+        else -> null
     }
     val fg = if (filled || accent != null) Color.Black.takeIf { accent == null } ?: Color.White else Color.White
     Row(
         modifier
-            .clip(ConvxShapes.Capsule)
-            .background(bg)
+            .glassControl(GlassShapes.Capsule, fill = fill)
             .hoverable(interaction)
-            .pressable(onClick, interaction = interaction)
+            .pointerHoverIcon(PointerIcon.Hand)
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .padding(contentPadding),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -242,19 +266,11 @@ fun PillButton(
 /** Filter chip row item, the phone's ChipsRow look. */
 @Composable
 fun Chip(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val interaction = remember { MutableInteractionSource() }
-    val hovered by interaction.collectIsHoveredAsState()
-    val bg = when {
-        selected -> Color.White
-        hovered -> Color.White.copy(alpha = 0.16f)
-        else -> Color.White.copy(alpha = 0.08f)
-    }
     Box(
         modifier
-            .clip(ConvxShapes.Capsule)
-            .background(bg)
-            .hoverable(interaction)
-            .pressable(onClick, interaction = interaction)
+            .glassControl(GlassShapes.Capsule, fill = if (selected) Color.White else null)
+            .pointerHoverIcon(PointerIcon.Hand)
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 7.dp),
     ) {
         Text(text, style = ConvxType.SubheadStrong, color = if (selected) Color.Black else Color.White, maxLines = 1)

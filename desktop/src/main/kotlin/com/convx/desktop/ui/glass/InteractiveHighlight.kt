@@ -36,7 +36,10 @@ import kotlin.math.tanh
 /**
  * The phone's InteractiveHighlight: an additive sheen with a soft spot of light under the
  * pointer. On the phone it follows a finger while pressed; here the cursor also lights the
- * glass at a third of the strength while it hovers, and a press brings it to full.
+ * glass at half strength while it hovers, and a press brings it to full.
+ *
+ * A mouse can hover, which a finger can't, so the glass answers that too: it swells part of the
+ * way a press takes it and leans a little toward the pointer, on the same springs as the press.
  *
  * [modifier] draws the light and [gestureModifier] listens; they are separate so the light can
  * sit on a recorded glass layer while the hit target is the moving element.
@@ -50,7 +53,7 @@ class InteractiveHighlight(
     private val radiusScale: Float = 1.5f,
     private val sheenAlpha: Float = 0.08f,
     private val spotAlpha: Float = 0.15f,
-    private val hoverStrength: Float = 0.35f,
+    private val hoverStrength: Float = 0.5f,
 ) {
     private val progressSpec = spring(0.5f, 300f, 0.001f)
     private val positionSpec = spring(0.5f, 300f, Offset.VisibilityThreshold)
@@ -58,6 +61,8 @@ class InteractiveHighlight(
     private val position = Animatable(Offset.Zero, Offset.VectorConverter, Offset.VisibilityThreshold)
     private val press = Animatable(0f, 0.001f)
     private val drag = Animatable(Offset.Zero, Offset.VectorConverter, Offset.VisibilityThreshold)
+    private val hover = Animatable(0f, 0.001f)
+    private val lean = Animatable(Offset.Zero, Offset.VectorConverter, Offset.VisibilityThreshold)
     private var start = Offset.Zero
     private var hovered = false
     private var pressed = false
@@ -67,6 +72,20 @@ class InteractiveHighlight(
 
     /** How far the pointer has moved since the press, springing back to zero after it. */
     val offset: Offset get() = drag.value
+
+    /** 0 away, 1 with the pointer over the glass; springs, so the swell wobbles in. */
+    val hoverProgress: Float get() = hover.value
+
+    /** Where the pointer is over the glass, -1..1 from the centre on each axis, while it hovers. */
+    val hoverLean: Offset get() = lean.value
+
+    private fun leanFor(position: Offset, width: Int, height: Int): Offset {
+        if (width <= 0 || height <= 0) return Offset.Zero
+        return Offset(
+            ((position.x - width / 2f) / (width / 2f)).coerceIn(-1f, 1f),
+            ((position.y - height / 2f) / (height / 2f)).coerceIn(-1f, 1f),
+        )
+    }
 
     val modifier: Modifier = Modifier.drawWithContent {
         val p = progress.value
@@ -100,10 +119,12 @@ class InteractiveHighlight(
                     PointerEventType.Enter -> {
                         hovered = true
                         scope.launch { position.snapTo(change.position) }
+                        scope.launch { lean.animateTo(leanFor(change.position, size.width, size.height), positionSpec) }
                         settle()
                     }
                     PointerEventType.Exit -> {
                         hovered = false
+                        scope.launch { lean.animateTo(Offset.Zero, positionSpec) }
                         // A drag that leaves the glass keeps stretching it until the button is let go.
                         if (!event.buttons.isPrimaryPressed) {
                             if (pressed) letGo()
@@ -111,12 +132,17 @@ class InteractiveHighlight(
                         }
                         settle()
                     }
-                    PointerEventType.Move -> scope.launch {
+                    PointerEventType.Move -> {
+                        val at = change.position
                         if (pressed) {
-                            position.snapTo(change.position)
-                            drag.snapTo(change.position - start)
+                            scope.launch {
+                                position.snapTo(at)
+                                drag.snapTo(at - start)
+                            }
                         } else {
-                            position.animateTo(change.position, positionSpec)
+                            // One animation per value: a new target takes over the running spring, keeping its speed.
+                            scope.launch { position.animateTo(at, positionSpec) }
+                            if (hovered) scope.launch { lean.animateTo(leanFor(at, size.width, size.height), positionSpec) }
                         }
                     }
                     PointerEventType.Press -> {
@@ -150,6 +176,7 @@ class InteractiveHighlight(
             else -> 0f
         }
         scope.launch { progress.animateTo(target, progressSpec) }
+        scope.launch { hover.animateTo(if (hovered || pressed) 1f else 0f, progressSpec) }
     }
 }
 
@@ -164,23 +191,42 @@ fun rememberInteractiveHighlight(radiusScale: Float = 1.5f): InteractiveHighligh
  * small floating glass control: pressing swells it by 4dp, dragging pulls it after the pointer
  * on a tanh leash and stretches it along the drag. Bar pills pass [magnitude] 2 so the same feel
  * travels far enough to read at their size. Draw-only, so the hit target never moves.
+ *
+ * Hovering, which the phone has no finger for, plays the same motion at half: the glass swells
+ * 2dp and leans up to 1.5dp toward the pointer, stretching a touch that way. A press takes over
+ * from it smoothly, since both feed the same scale.
  */
 fun elasticStretch(highlight: InteractiveHighlight, magnitude: Float = 1f): GraphicsLayerScope.() -> Unit = {
     val width = size.width
     val height = size.height
     if (width > 0f && height > 0f) {
         val progress = highlight.pressProgress
-        val scale = lerp(1f, 1f + magnitude * 4.dp.toPx() / height, progress)
+        val hover = highlight.hoverProgress
+        val held = progress.coerceIn(0f, 1f)
+        // The hover's share fades as the press comes in, so the two never add past a full press.
+        val swell = progress + HoverSwell * hover * (1f - held)
+        val scale = lerp(1f, 1f + magnitude * 4.dp.toPx() / height, swell)
 
         val maxOffset = size.minDimension
         val initialDerivative = 0.05f
         val offset = highlight.offset
-        translationX = magnitude * maxOffset * tanh(initialDerivative * offset.x / maxOffset)
-        translationY = magnitude * maxOffset * tanh(initialDerivative * offset.y / maxOffset)
+        val lean = highlight.hoverLean * (hover.coerceAtLeast(0f) * (1f - held))
+        val leanPx = magnitude * HoverLean.toPx()
+        translationX = magnitude * maxOffset * tanh(initialDerivative * offset.x / maxOffset) + leanPx * lean.x
+        translationY = magnitude * maxOffset * tanh(initialDerivative * offset.y / maxOffset) + leanPx * lean.y
 
         val maxDragScale = magnitude * 4.dp.toPx() / height
         val offsetAngle = atan2(offset.y, offset.x)
-        scaleX = scale + maxDragScale * abs(cos(offsetAngle) * offset.x / size.maxDimension) * (width / height).coerceAtMost(1f)
-        scaleY = scale + maxDragScale * abs(sin(offsetAngle) * offset.y / size.maxDimension) * (height / width).coerceAtMost(1f)
+        val leanScale = maxDragScale * HoverSwell
+        scaleX = scale +
+            maxDragScale * abs(cos(offsetAngle) * offset.x / size.maxDimension) * (width / height).coerceAtMost(1f) +
+            leanScale * abs(lean.x) * (width / height).coerceAtMost(1f)
+        scaleY = scale +
+            maxDragScale * abs(sin(offsetAngle) * offset.y / size.maxDimension) * (height / width).coerceAtMost(1f) +
+            leanScale * abs(lean.y) * (height / width).coerceAtMost(1f)
     }
 }
+
+/** How much of a press's swell a hover plays, and how far the glass leans toward the pointer. */
+private const val HoverSwell = 0.5f
+private val HoverLean = 1.5.dp

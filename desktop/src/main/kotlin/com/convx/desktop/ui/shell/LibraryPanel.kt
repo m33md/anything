@@ -5,6 +5,7 @@
 
 package com.convx.desktop.ui.shell
 
+import com.convx.desktop.ui.glass.glassControl
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
@@ -474,13 +475,10 @@ private fun PanelHeader(collapsed: Boolean) {
         Spacer(Modifier.weight(1f))
         Box {
             val createInteraction = remember { MutableInteractionSource() }
-            val createHovered by createInteraction.collectIsHoveredAsState()
             Row(
                 Modifier
                     .height(32.dp)
-                    .clip(GlassShapes.Capsule)
-                    .background(Color.White.copy(alpha = if (createHovered) 0.16f else 0.10f))
-                    .hoverable(createInteraction)
+                    .glassControl(GlassShapes.Capsule, backdrop = null)
                     .pointerHoverIcon(PointerIcon.Hand)
                     .clickable(interactionSource = createInteraction, indication = null) {
                         createMenu.offset = DpOffset(0.dp, 4.dp)
@@ -545,20 +543,12 @@ private fun FilterRow(filter: LibraryFilter?, onFilter: (LibraryFilter?) -> Unit
 @Composable
 private fun FilterChip(label: String?, selected: Boolean, icon: String? = null, onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
-    val hovered by interaction.collectIsHoveredAsState()
     val accent = LocalAccent.current
     Row(
         Modifier
             .height(32.dp)
-            .clip(GlassShapes.Capsule)
-            .background(
-                when {
-                    selected -> accent
-                    hovered -> Color.White.copy(alpha = 0.16f)
-                    else -> Color.White.copy(alpha = 0.08f)
-                },
-            )
-            .hoverable(interaction)
+            // Glass on the panel's glass: drawn flat, since refracting the pages here would punch through the panel.
+            .glassControl(GlassShapes.Capsule, fill = if (selected) accent else null, backdrop = null)
             .pointerHoverIcon(PointerIcon.Hand)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .padding(horizontal = if (label == null) 8.dp else 12.dp),

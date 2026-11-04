@@ -569,6 +569,9 @@ fun main(args: Array<String>) {
             }
             shoot("19n-presets", seconds = 5) {}
             com.convx.desktop.ui.components.Overlays.dismissDialog()
+            // Glass answering a hover, which only a mouse can do: the quiet pill swells, leans to the pointer and lights.
+            film("19o-glass-hover", listOf(90L, 250L, 700L)) { scene.sendPointerEvent(PointerEventType.Move, Offset(1050f, 262f)) }
+            scene.sendPointerEvent(PointerEventType.Move, Offset(1300f, 720f))
             PlayerIconSlot.entries.forEach { PlayerIcons.clear(it) }
             // Last, as the bottom of Home has hung the run before: the watchdog shows where.
             shoot("20c-home-feed-end", seconds = 6) {
