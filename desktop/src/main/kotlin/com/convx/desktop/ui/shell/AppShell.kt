@@ -215,6 +215,9 @@ fun AppShell(navigator: Navigator) {
 
                 ReplayOverlay()
 
+                // The phone's DIY editor, over everything but toasts and dialogs.
+                CompositionLocalProvider(LocalMenuBackdrop provides null) { com.convx.desktop.ui.player.DiyEditorOverlay() }
+
                 OverlayHost()
             }
         }

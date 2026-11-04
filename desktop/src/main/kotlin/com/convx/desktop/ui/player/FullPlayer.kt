@@ -169,6 +169,8 @@ fun PlayerStage(
     mode: FullPlayerMode,
     modifier: Modifier = Modifier,
     preview: Boolean = false,
+    /** The DIY editor draws its own, movable copies. */
+    showStickers: Boolean = true,
 ) {
     val navigator = LocalNavigator.current
     val library by Library.state.collectAsState()
@@ -194,6 +196,13 @@ fun PlayerStage(
     ) {
         // Reduce live blur holds the moving backgrounds still, as the phone's does.
         PlayerBackdrop(background, song?.thumbnail, state.isPlaying && !preview && !settings.reduceLiveBlur, settings, hero = hero)
+
+        // The phone's DIY stickers: below zero behind the cover, the rest in front, popping in one
+        // after another as the player opens.
+        val stickers = settings.diyLayout.takeIf { showStickers && !it.isEmpty }
+        val entrance = remember { androidx.compose.animation.core.Animatable(if (preview) 1f else 0f) }
+        if (stickers != null) LaunchedEffect(Unit) { entrance.animateTo(1f, tween(1100, easing = androidx.compose.animation.core.LinearEasing)) }
+        if (stickers != null) DiyStickerLayer(stickers, zFilter = BehindCover, entrance = { entrance.value })
 
         BoxWithConstraints(Modifier.fillMaxSize()) {
             // Full bleed: the cover runs off the window's top edge and fades out at its foot, and
@@ -440,6 +449,8 @@ fun PlayerStage(
                 }
             }
         }
+        // In front of the cover. It takes no clicks, so the controls under a sticker still work.
+        if (stickers != null) DiyStickerLayer(stickers, zFilter = InFrontOfCover, entrance = { entrance.value })
     }
 }
 

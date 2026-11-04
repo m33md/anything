@@ -353,6 +353,7 @@ private val searchEntries: List<SearchEntry> by lazy {
         SearchEntry("Show shuffle button", "On Home", h.player, SettingsPage.ControlsLayout, "fab floating shuffle home random"),
         SearchEntry("Hide favorite icon on Home", null, h.player, SettingsPage.ControlsLayout, "heart liked favorite home"),
         SearchEntry("Grid & cards", "Columns, card height, spacing and corners", h.player, SettingsPage.ControlsLayout, "grid columns card height spacing hero corner radius"),
+        SearchEntry("DIY", "Place stickers, images and emoji over the player", h.player, keywords = "diy stickers emoji images decorate player customize"),
         SearchEntry("Custom player icons", "Your own images for the player's buttons", h.player, SettingsPage.CustomPlayerIcons, "icons buttons images play pause skip next previous like heart more seek handle thumb custom"),
         SearchEntry("Lyrics style", "Animation, position, scrolling and swipe", h.player, SettingsPage.LyricsStyle, "lyrics animation karaoke word by word apple music fade glow slide metro fluid chord"),
         SearchEntry("Lyrics text position", "Left, center or right", h.player, SettingsPage.LyricsStyle, "lyrics align alignment left center right"),

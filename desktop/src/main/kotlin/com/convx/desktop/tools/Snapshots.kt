@@ -355,6 +355,39 @@ fun main(args: Array<String>) {
             com.convx.desktop.ui.components.Overlays.dismissDialog()
             PlayerController.setTempoPitch(1f, 0)
 
+            // The phone's DIY: three emoji and a picture over the player, then the editor with one picked.
+            val diy = run {
+                val picture = Surface.makeRasterN32Premul(256, 256).let { surface ->
+                    surface.canvas.drawCircle(128f, 128f, 120f, Paint().apply { color = 0xFFFF2D55.toInt() })
+                    surface.canvas.drawCircle(128f, 128f, 60f, Paint().apply { color = 0xFFFFCC00.toInt() })
+                    surface.makeImageSnapshot().encodeToData(EncodedImageFormat.PNG)!!.bytes
+                }
+                val file = File(com.convx.desktop.ui.player.DiyStore.dir, "ci-picture.png").apply { writeBytes(picture) }
+                fun at(x: Float, y: Float, scale: Float, rotation: Float = 0f) = com.convx.desktop.ui.player.DiyTransform(x, y, scale, rotation)
+                com.convx.desktop.ui.player.DiyLayout(
+                    stickers = listOf(
+                        com.convx.desktop.ui.player.DiySticker("ci-1", com.convx.desktop.ui.player.DiyStickerKind.EMOJI, "✨", z = 1, landscape = at(0.12f, 0.2f, 0.14f, -12f)),
+                        com.convx.desktop.ui.player.DiySticker("ci-2", com.convx.desktop.ui.player.DiyStickerKind.EMOJI, "🎧", z = 2, landscape = at(0.4f, 0.78f, 0.12f, 10f)),
+                        com.convx.desktop.ui.player.DiySticker("ci-3", com.convx.desktop.ui.player.DiyStickerKind.EMOJI, "🌙", z = 3, landscape = at(0.9f, 0.16f, 0.1f)),
+                        com.convx.desktop.ui.player.DiySticker(
+                            "ci-4", com.convx.desktop.ui.player.DiyStickerKind.IMAGE, file.name, z = -1, opacity = 0.8f, shadow = true,
+                            landscape = at(0.3f, 0.32f, 0.5f),
+                        ),
+                    ),
+                )
+            }
+            shoot("13t-player-diy", seconds = 4) {
+                AppSettings.update { it.copy(diyLayout = diy) }
+                UiState.fullPlayerMode = FullPlayerMode.Artwork
+            }
+            shoot("13u-diy-editor", seconds = 3) {
+                com.convx.desktop.ui.player.DiyEditor.open()
+                com.convx.desktop.ui.player.DiyEditor.selectedId = "ci-2"
+                com.convx.desktop.ui.player.DiyEditor.editOpen = true
+            }
+            com.convx.desktop.ui.player.DiyEditor.close()
+            AppSettings.update { it.copy(diyLayout = com.convx.desktop.ui.player.DiyLayout()) }
+
             // A lived-in library, for the side bar, the library page and the song-list pages.
             UiState.fullPlayer = false
             songs.take(6).forEach { Library.toggleLike(it) }

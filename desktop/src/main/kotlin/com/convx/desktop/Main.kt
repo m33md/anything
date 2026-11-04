@@ -223,6 +223,8 @@ fun main() {
 /** Window-wide shortcuts, Spotify's set where it has one. */
 private fun shortcut(event: KeyEvent, navigator: Navigator): Boolean {
     if (event.type != KeyEventType.KeyDown) return false
+    // The DIY editor's own keys (Esc, undo, redo, save, delete) come first while it's open.
+    if (com.convx.desktop.ui.player.DiyEditor.key(event)) return true
     val ctrl = event.isCtrlPressed
     // Replay takes the keys a story needs while it's open; the rest still reach the app.
     if (Replay.open && !ctrl) {

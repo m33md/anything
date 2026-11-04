@@ -398,6 +398,8 @@ data class Settings(
     val homeCardCorner: Int = 0,
     /** The player's controls drawn with your own images, by slot name: the phone's custom player icons. */
     val playerIcons: Map<String, PlayerIconOverride> = emptyMap(),
+    /** The phone's DIY: stickers over the player. Their pictures are in the app data's diy_stickers. */
+    val diyLayout: com.convx.desktop.ui.player.DiyLayout = com.convx.desktop.ui.player.DiyLayout(),
     /** The phone's app font by its id; Plus Jakarta Sans, its default. */
     val appFont: String = "plus_jakarta_sans",
     /** An imported font (kept with the imported lyrics fonts) used everywhere while this is on. */

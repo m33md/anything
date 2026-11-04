@@ -50,8 +50,8 @@ object Backup {
     private const val LibraryEntry = "library.json"
     private const val SettingsEntry = "settings.json"
     private const val MatchesEntry = "spotify-matches.json"
-    /** Player icons' images, kept in this folder of the app's data as PlayerIcons keeps them. */
-    private const val IconsFolder = "player_icons"
+    /** Player icons' images and DIY's stickers, kept in these folders of the app's data. */
+    private val AssetFolders = listOf("player_icons", "diy_stickers")
     const val BeforeRestore = "before-restore.backup"
 
     /** The phone's entries (BackupRestoreViewModel). */
@@ -126,10 +126,12 @@ object Backup {
                 zip.putNextEntry(ZipEntry(MatchesEntry))
                 matches.inputStream().use { it.copyTo(zip) }
             }
-            // The images Player icons draws, so a restore brings the buttons back as they were.
-            File(AppDirs.data, IconsFolder).listFiles()?.filter { it.isFile }?.forEach { icon ->
-                zip.putNextEntry(ZipEntry("$IconsFolder/${icon.name}"))
-                icon.inputStream().use { it.copyTo(zip) }
+            // The images Player icons and DIY draw, so a restore brings the player back as it was.
+            AssetFolders.forEach { folder ->
+                File(AppDirs.data, folder).listFiles()?.filter { it.isFile }?.forEach { image ->
+                    zip.putNextEntry(ZipEntry("$folder/${image.name}"))
+                    image.inputStream().use { it.copyTo(zip) }
+                }
             }
         }
     }
@@ -167,7 +169,7 @@ object Backup {
         var library: LibraryData? = null
         var settings: Settings? = null
         var matches: ByteArray? = null
-        val icons = mutableMapOf<String, ByteArray>()
+        val assets = mutableMapOf<String, ByteArray>()
         ZipInputStream(file.inputStream().buffered()).use { zip ->
             while (true) {
                 val entry = zip.nextEntry ?: break
@@ -175,8 +177,9 @@ object Backup {
                     entry.name == LibraryEntry -> library = json.decodeFromString(LibraryData.serializer(), zip.readBytes().decodeToString())
                     entry.name == SettingsEntry -> settings = json.decodeFromString(Settings.serializer(), zip.readBytes().decodeToString())
                     entry.name == MatchesEntry -> matches = zip.readBytes()
-                    // Only the file's own name: an entry can't write outside the folder.
-                    entry.name.startsWith("$IconsFolder/") && !entry.isDirectory -> icons[File(entry.name).name] = zip.readBytes()
+                    // Only the folder and the file's own name: an entry can't write anywhere else.
+                    !entry.isDirectory && AssetFolders.any { entry.name.startsWith("$it/") } ->
+                        assets[entry.name.substringBefore('/') + "/" + File(entry.name).name] = zip.readBytes()
                 }
             }
         }
@@ -186,9 +189,9 @@ object Backup {
         runCatching { write(before) }.onFailure { Log.w(Tag, "Couldn't keep the library from before the restore", it) }
         Library.applySync { restoredLibrary }
         // Before the settings that point at them.
-        if (icons.isNotEmpty()) {
-            val folder = File(AppDirs.data, IconsFolder).apply { mkdirs() }
-            icons.forEach { (name, bytes) -> runCatching { File(folder, name).writeBytes(bytes) } }
+        assets.forEach { (path, bytes) ->
+            val folder = File(AppDirs.data, path.substringBefore('/')).apply { mkdirs() }
+            runCatching { File(folder, path.substringAfter('/')).writeBytes(bytes) }
         }
         settings?.let { restored ->
             // The window, the sound device, this PC's party id and YouTube's guest session stay
@@ -201,6 +204,7 @@ object Backup {
                     outputDevice = current.outputDevice,
                     partyId = current.partyId,
                     visitorData = current.visitorData,
+                    recognitionInput = current.recognitionInput,
                     cookie = null,
                     localFolders = restored.localFolders.filter { File(it).isDirectory }.ifEmpty { current.localFolders },
                 )

@@ -69,6 +69,11 @@ fun PlayerHub() {
         LinkRow("Custom player icons", "Click a control to use your own image", icon = "tune", tint = SystemColors.Purple) {
             SettingsNav.push(SettingsPage.CustomPlayerIcons)
         }
+        RowDivider()
+        val stickers = settings.diyLayout.stickers.size
+        LinkRow("DIY", "Place stickers, images and emoji over the player", icon = "sparks", tint = SystemColors.Orange, value = if (stickers > 0) "$stickers" else null) {
+            com.convx.desktop.ui.player.DiyEditor.open()
+        }
     }
     SectionGap()
     SettingsSection("Lyrics", footer = "Lyrics come from the same sources as on the phone, and are looked up as the song starts.") {
