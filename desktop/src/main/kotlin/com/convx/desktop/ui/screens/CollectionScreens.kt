@@ -577,7 +577,7 @@ fun LocalPlaylistScreen(id: String) {
         PageList(state = rememberLazyListState(), tint = pageColor, topPadding = 0.dp) {
             collectionHeader(
                 title = playlist.name,
-                art = { size -> MosaicArt(thumbs, size, RoundedCornerShape(12.dp)) },
+                art = { size -> com.convx.desktop.ui.components.EditablePlaylistCover(playlist, size, RoundedCornerShape(12.dp)) },
                 metadata = (songs.totalLine() + ("Updated " + DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(playlist.updatedAt)))).joinToString(" · "),
                 playing = isThisPlaying,
                 enabled = songs.isNotEmpty(),
@@ -587,6 +587,16 @@ fun LocalPlaylistScreen(id: String) {
                     MenuItem("Rename", "edit") {
                         dismiss()
                         Overlays.prompt("Rename playlist", initial = playlist.name) { Library.renamePlaylist(id, it) }
+                    }
+                    MenuItem(if (playlist.cover == null) "Choose picture" else "Change picture", "image") {
+                        dismiss()
+                        com.convx.desktop.ui.components.choosePlaylistCover(id)
+                    }
+                    if (playlist.cover != null) {
+                        MenuItem("Remove picture", "hide_image") {
+                            dismiss()
+                            Library.setPlaylistCover(id, null)
+                        }
                     }
                     MenuItem("Add to queue", "queue_music", enabled = songs.isNotEmpty()) {
                         PlayerController.addToQueue(songs)

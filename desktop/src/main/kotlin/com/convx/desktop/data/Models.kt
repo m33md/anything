@@ -75,6 +75,8 @@ data class LocalPlaylist(
     val songs: List<Song> = emptyList(),
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
+    /** Its own picture: one chosen on this PC (PlaylistCovers) or a Spotify import's cover. Null shows the mosaic. */
+    val cover: String? = null,
 )
 
 @Serializable
@@ -352,7 +354,9 @@ data class Settings(
     val showLikedPlaylist: Boolean = true,
     val showDownloadedPlaylist: Boolean = true,
     val showTopPlaylist: Boolean = true,
-    val showCachedPlaylist: Boolean = true,
+    // Off on the desktop, where it puzzled people in Your Library; a new key, so the old saved "on" doesn't bring it back.
+    @kotlinx.serialization.SerialName("showCachedInLibrary")
+    val showCachedPlaylist: Boolean = false,
     val showUploadedPlaylist: Boolean = true,
     val topSize: Int = 50,
     // The phone's Controls & layout page, with its defaults where the PC has the same thing.

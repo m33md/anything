@@ -100,21 +100,36 @@ object Library {
         return id
     }
 
-    /** Makes the playlist [id] hold exactly [songs], creating it if needed; imports use stable ids. */
-    fun upsertPlaylist(id: String, name: String, songs: List<Song>) = store.update { data ->
+    /**
+     * Makes the playlist [id] hold exactly [songs], creating it if needed; imports use stable ids.
+     * [cover] is the source's picture; a picture you chose yourself stays.
+     */
+    fun upsertPlaylist(id: String, name: String, songs: List<Song>, cover: String? = null) = store.update { data ->
         if (data.localPlaylists.any { it.id == id }) {
             data.copy(localPlaylists = data.localPlaylists.map {
-                if (it.id == id) it.copy(name = name, songs = songs, updatedAt = System.currentTimeMillis()) else it
+                if (it.id == id) {
+                    val kept = it.cover?.takeIf(PlaylistCovers::isOwn) ?: cover ?: it.cover
+                    it.copy(name = name, songs = songs, cover = kept, updatedAt = System.currentTimeMillis())
+                } else {
+                    it
+                }
             })
         } else {
-            data.copy(localPlaylists = data.localPlaylists + LocalPlaylist(id, name, songs))
+            data.copy(localPlaylists = data.localPlaylists + LocalPlaylist(id, name, songs, cover = cover))
         }
+    }
+
+    /** Sets the playlist's picture, or takes it off with null; a picture file nothing uses any more is deleted. */
+    fun setPlaylistCover(id: String, cover: String?) {
+        updatePlaylist(id) { it.copy(cover = cover) }
+        PlaylistCovers.prune(value.localPlaylists)
     }
 
     fun renamePlaylist(id: String, name: String) = updatePlaylist(id) { it.copy(name = name) }
 
-    fun deletePlaylist(id: String) = store.update { data ->
-        data.copy(localPlaylists = data.localPlaylists.filterNot { it.id == id })
+    fun deletePlaylist(id: String) {
+        store.update { data -> data.copy(localPlaylists = data.localPlaylists.filterNot { it.id == id }) }
+        PlaylistCovers.prune(value.localPlaylists)
     }
 
     fun addToPlaylist(id: String, songs: List<Song>) = updatePlaylist(id) { playlist ->

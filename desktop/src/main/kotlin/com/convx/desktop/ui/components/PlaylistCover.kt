@@ -1,0 +1,95 @@
+/**
+ * Convx Project (C) 2026
+ * Licensed under GPL-3.0 | See git history for contributors
+ */
+
+package com.convx.desktop.ui.components
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import com.convx.desktop.core.AppScope
+import com.convx.desktop.data.Library
+import com.convx.desktop.data.LocalPlaylist
+import com.convx.desktop.data.PlaylistCovers
+import com.convx.desktop.ui.screens.settings.pickFile
+import com.convx.desktop.ui.theme.ConvxType
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+/** Opens Windows' picker and makes the picture [playlistId]'s cover. */
+fun choosePlaylistCover(playlistId: String) {
+    val file = pickFile("Choose a picture for the playlist", PlaylistCovers.Extensions) ?: return
+    AppScope.launch(Dispatchers.IO) {
+        when (val result = PlaylistCovers.import(playlistId, file)) {
+            is PlaylistCovers.Result.Done -> Library.setPlaylistCover(playlistId, result.cover)
+            is PlaylistCovers.Result.Failed -> withContext(Dispatchers.Main) { Overlays.toast(result.reason, "error") }
+        }
+    }
+}
+
+/** A local playlist's own picture, or the mosaic of its first covers when it has none. */
+@Composable
+fun PlaylistCoverArt(playlist: LocalPlaylist, size: Dp, shape: Shape) {
+    val cover = PlaylistCovers.url(playlist.cover)
+    if (cover != null) {
+        Artwork(cover, Modifier.size(size), size = 600, shape = shape)
+    } else {
+        val thumbs = remember(playlist.songs) { playlist.songs.mapNotNull { it.thumbnail }.distinct().take(4) }
+        MosaicArt(thumbs, size, shape)
+    }
+}
+
+/**
+ * The playlist page's cover, as Spotify's: the pointer over it shows a pencil and "Choose photo",
+ * and a click opens the picker.
+ */
+@Composable
+fun EditablePlaylistCover(playlist: LocalPlaylist, size: Dp, shape: Shape) {
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    Box(
+        Modifier
+            .size(size)
+            .clip(shape)
+            .hoverable(interaction)
+            .pointerHoverIcon(PointerIcon.Hand)
+            .clickable(interactionSource = interaction, indication = null) { choosePlaylistCover(playlist.id) },
+    ) {
+        PlaylistCoverArt(playlist, size, shape)
+        AnimatedVisibility(hovered, enter = fadeIn(), exit = fadeOut()) {
+            Column(
+                Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)),
+                verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                ConvxIcon("edit", tint = Color.White, size = size * 0.22f)
+                Text("Choose photo", style = ConvxType.SubheadStrong, color = Color.White)
+            }
+        }
+    }
+}

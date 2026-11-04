@@ -5,6 +5,8 @@
 
 package com.convx.desktop.ui.shell
 
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import com.convx.desktop.ui.glass.glassControl
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
@@ -148,6 +150,8 @@ private enum class Kind(val label: String) {
     Artist("Artist"),
     SpotifyLiked("Spotify"),
     SpotifyPlaylist("Spotify"),
+    /** One music file on this PC, listed under the Local files chip. */
+    LocalSong("Song"),
     ;
 
     val spotify: Boolean get() = this == SpotifyLiked || this == SpotifyPlaylist
@@ -155,7 +159,7 @@ private enum class Kind(val label: String) {
         this == LocalPlaylist || this == Playlist || spotify
 }
 
-private enum class LibraryFilter(val label: String) { Playlists("Playlists"), Albums("Albums"), Artists("Artists") }
+private enum class LibraryFilter(val label: String) { Playlists("Playlists"), Albums("Albums"), Artists("Artists"), Local("Local files") }
 
 private enum class LibrarySort(val key: String, val label: String) {
     Recents("recents", "Recents"),
@@ -237,6 +241,20 @@ private fun downloadsEntry(done: Map<String, com.convx.desktop.player.Downloaded
     )
 }
 
+/** Every music file on this PC, one row each, for the Local files chip; [recent] is when each last played. */
+private fun localSongEntries(index: com.convx.desktop.player.LocalMusic.Index, library: LibraryData): List<LibraryEntry> {
+    if (index.tracks.isEmpty()) return emptyList()
+    val lastPlayed = HashMap<String, Long>()
+    library.history.forEach { lastPlayed.merge(it.song.id, it.at) { a, b -> maxOf(a, b) } }
+    return com.convx.desktop.player.LocalMusic.songs(index).map { song ->
+        LibraryEntry(
+            key = "file:${song.id}", kind = Kind.LocalSong, id = song.id, title = song.title, owner = song.artistText,
+            thumbnail = song.thumbnail, mosaic = emptyList(), screen = Screen.LocalFiles,
+            added = index.tracks[song.id]?.modified ?: 0L, recent = lastPlayed[song.id] ?: 0L,
+        )
+    }
+}
+
 /** The phone's "My top", "Cached" and "Uploaded" auto playlists, when switched on and there's something in them. */
 private fun autoEntries(library: LibraryData, settings: com.convx.desktop.data.Settings, cached: List<Song>): List<LibraryEntry> = buildList {
     if (settings.showTopPlaylist && library.history.isNotEmpty()) {
@@ -297,7 +315,7 @@ private fun LibraryData.entries(): List<LibraryEntry> {
         localPlaylists.forEach { p ->
             add(
                 LibraryEntry(
-                    "local:${p.id}", Kind.LocalPlaylist, p.id, p.name, "You", null,
+                    "local:${p.id}", Kind.LocalPlaylist, p.id, p.name, "You", com.convx.desktop.data.PlaylistCovers.url(p.cover),
                     p.songs.mapNotNull { it.thumbnail }.distinct().take(4), Screen.LocalPlaylist(p.id),
                     p.createdAt, maxOf(p.updatedAt, lastOf(p.songs)),
                 ),
@@ -364,13 +382,18 @@ fun LibraryPanel(collapsed: Boolean, modifier: Modifier = Modifier) {
                 (spotifyLists?.let { spotifyEntries(it, spotifyLiked) } ?: emptyList())
             ).filterNot { (it.kind == Kind.Liked && !settings.showLikedPlaylist) || (it.kind == Kind.Downloads && !settings.showDownloadedPlaylist) }
     }
-    val shown = remember(all, filter, query, sort, pins) {
-        val matching = all.filter { entry ->
+    // The files themselves only under their chip, so a big music folder doesn't flood the rest.
+    val localSongs = remember(filter == LibraryFilter.Local, localIndex, library) {
+        if (filter == LibraryFilter.Local) localSongEntries(localIndex, library) else emptyList()
+    }
+    val shown = remember(all, localSongs, filter, query, sort, pins) {
+        val matching = (all + localSongs).filter { entry ->
             val kindOk = when (filter) {
-                null -> true
+                null -> entry.kind != Kind.LocalSong
                 LibraryFilter.Playlists -> entry.kind.playlist
                 LibraryFilter.Albums -> entry.kind == Kind.Album
                 LibraryFilter.Artists -> entry.kind == Kind.Artist
+                LibraryFilter.Local -> entry.kind == Kind.LocalFiles || entry.kind == Kind.LocalSong
             }
             kindOk && (query.isBlank() || entry.title.contains(query.trim(), ignoreCase = true) || entry.owner.contains(query.trim(), ignoreCase = true))
         }
@@ -380,8 +403,9 @@ fun LibraryPanel(collapsed: Boolean, modifier: Modifier = Modifier) {
             LibrarySort.Alphabetical -> matching.sortedBy { it.title.lowercase() }
             LibrarySort.Creator -> matching.sortedWith(compareBy({ it.owner.lowercase() }, { it.title.lowercase() }))
         }
-        // Pins stay on top in the order they were pinned, as Spotify keeps them.
-        sorted.filter { it.key in pins }.sortedBy { pins.indexOf(it.key) } + sorted.filter { it.key !in pins }
+        // Pins stay on top in the order they were pinned, as Spotify keeps them; under Local files, the whole list leads.
+        val ordered = if (filter == LibraryFilter.Local) sorted.sortedBy { it.kind != Kind.LocalFiles } else sorted
+        ordered.filter { it.key in pins }.sortedBy { pins.indexOf(it.key) } + ordered.filter { it.key !in pins }
     }
 
     Column(
@@ -405,24 +429,42 @@ fun LibraryPanel(collapsed: Boolean, modifier: Modifier = Modifier) {
             contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 16.dp),
         ) {
             items(shown, key = { it.key }) { entry ->
+                val song = entry.kind == Kind.LocalSong
                 LibraryRow(
                     entry = entry,
                     collapsed = collapsed,
                     pinned = entry.key in pins,
-                    selected = navigator.current.screen == entry.screen,
-                    playing = player.queueTitle != null && player.queueTitle == entry.title && player.current != null,
+                    selected = !song && navigator.current.screen == entry.screen,
+                    playing = if (song) player.current?.id == entry.id else player.queueTitle != null && player.queueTitle == entry.title && player.current != null,
                     isPlaying = player.isPlaying,
-                    onClick = { navigator.navigate(entry.screen) },
+                    // A file plays from where it is in the list, the rest of the shown files after it.
+                    onClick = { if (song) playLocalFrom(shown, entry) else navigator.navigate(entry.screen) },
                 )
             }
             if (shown.isEmpty() && !collapsed) {
                 item(key = "empty") {
+                    val noFiles = filter == LibraryFilter.Local && query.isBlank()
                     Text(
-                        if (query.isNotBlank()) "Nothing in your library matches \"${query.trim()}\"" else "Nothing here yet",
+                        when {
+                            query.isNotBlank() -> "Nothing in your library matches \"${query.trim()}\""
+                            noFiles -> "No music files found on this PC yet. Choose your music folders in Settings."
+                            else -> "Nothing here yet"
+                        },
                         style = TextStyle(fontFamily = ConvxType.family, fontSize = 13.sp, lineHeight = 18.sp),
                         color = Color.White.copy(alpha = 0.5f),
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 16.dp),
                     )
+                    if (noFiles) {
+                        com.convx.desktop.ui.components.PillButton(
+                            "Music folders",
+                            {
+                                navigator.navigate(Screen.Settings)
+                                com.convx.desktop.ui.screens.settings.SettingsNav.push(com.convx.desktop.ui.screens.settings.SettingsPage.LocalFolders)
+                            },
+                            modifier = Modifier.padding(start = 12.dp),
+                            icon = "storage",
+                        )
+                    }
                 }
             }
         }
@@ -525,7 +567,11 @@ private fun HeaderIcon(icon: String, tooltip: String, tint: Color, onClick: () -
 @Composable
 private fun FilterRow(filter: LibraryFilter?, onFilter: (LibraryFilter?) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 6.dp),
+        // Four chips are wider than the panel, so the row scrolls sideways, as Spotify's does.
+        Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(start = 14.dp, end = 14.dp, bottom = 6.dp, top = 2.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -764,7 +810,11 @@ private fun EntryArt(entry: LibraryEntry, size: Dp) {
         Kind.Top -> GradientTile("trending_up", size, com.convx.desktop.ui.screens.TopGradient, shape)
         Kind.Cached -> GradientTile("cached", size, com.convx.desktop.ui.screens.CachedGradient, shape)
         Kind.Uploaded -> GradientTile("cloud", size, com.convx.desktop.ui.screens.UploadedGradient, shape)
-        Kind.LocalPlaylist -> MosaicArt(entry.mosaic, size, shape)
+        Kind.LocalPlaylist -> if (entry.thumbnail != null) {
+            Artwork(entry.thumbnail, Modifier.size(size), size = 160, shape = shape, iconSize = size * 0.4f)
+        } else {
+            MosaicArt(entry.mosaic, size, shape)
+        }
         // Spotify's own Liked Songs tile.
         Kind.SpotifyLiked -> GradientTile("favorite", size, listOf(Color(0xFF450AF5), Color(0xFF8E8EE5)), shape)
         else -> Artwork(entry.thumbnail, Modifier.size(size), size = 160, shape = shape, iconSize = size * 0.4f)
@@ -804,6 +854,10 @@ private fun EntryMenu(entry: LibraryEntry, pinned: Boolean, dismiss: () -> Unit)
                 else PlayerController.playSongs(songs, 0, entry.title, shuffle = shuffle)
             }
             Kind.Artist -> navigator.navigate(entry.screen)
+            Kind.LocalSong -> com.convx.desktop.player.LocalMusic.songs().takeIf { it.isNotEmpty() }?.let { files ->
+                val start = files.indexOfFirst { it.id == entry.id }.coerceAtLeast(0)
+                PlayerController.playSongs(files, start, "Local files", shuffle = shuffle)
+            }
             Kind.SpotifyLiked, Kind.SpotifyPlaylist -> AppScope.launch {
                 val tracks = if (entry.kind == Kind.SpotifyLiked) SpotifyApi.likedSongs() else SpotifyApi.playlistTracks(entry.id)
                 val songs = tracks.getOrNull().orEmpty().map(SpotifyMatcher::toSong)
@@ -829,6 +883,17 @@ private fun EntryMenu(entry: LibraryEntry, pinned: Boolean, dismiss: () -> Unit)
                 dismiss()
                 Overlays.prompt("Rename playlist", initial = entry.title) { Library.renamePlaylist(entry.id, it) }
             }
+            val hasCover = Library.playlist(entry.id)?.cover != null
+            MenuItem(if (hasCover) "Change picture" else "Choose picture", "image") {
+                dismiss()
+                com.convx.desktop.ui.components.choosePlaylistCover(entry.id)
+            }
+            if (hasCover) {
+                MenuItem("Remove picture", "hide_image") {
+                    dismiss()
+                    Library.setPlaylistCover(entry.id, null)
+                }
+            }
             MenuItem("Delete", "delete", destructive = true) {
                 dismiss()
                 Overlays.confirm("Delete playlist?", "\"${entry.title}\" will be removed from your library.", "Delete") {
@@ -849,7 +914,7 @@ private fun EntryMenu(entry: LibraryEntry, pinned: Boolean, dismiss: () -> Unit)
             dismiss()
             Library.state.value.artists.firstOrNull { it.id == entry.id }?.let { Library.toggleArtist(it) }
         }
-        Kind.Liked, Kind.LocalFiles, Kind.Downloads, Kind.Top, Kind.Cached, Kind.Uploaded, Kind.SpotifyLiked, Kind.SpotifyPlaylist -> Unit
+        Kind.Liked, Kind.LocalFiles, Kind.Downloads, Kind.Top, Kind.Cached, Kind.Uploaded, Kind.SpotifyLiked, Kind.SpotifyPlaylist, Kind.LocalSong -> Unit
     }
 }
 
@@ -864,3 +929,13 @@ fun Modifier.fadingEdge(edge: Dp): Modifier = this
             blendMode = BlendMode.DstIn,
         )
     }
+
+/** Plays the local files as they're listed, from [entry] on. */
+private fun playLocalFrom(shown: List<LibraryEntry>, entry: LibraryEntry) {
+    val files = shown.filter { it.kind == Kind.LocalSong }
+    val songs = com.convx.desktop.player.LocalMusic.index.value.tracks.let { tracks ->
+        files.mapNotNull { e -> tracks[e.id]?.let { com.convx.desktop.player.LocalMusic.toSong(e.id, it) } }
+    }
+    val start = songs.indexOfFirst { it.id == entry.id }.coerceAtLeast(0)
+    if (songs.isNotEmpty()) PlayerController.playSongs(songs, start, "Local files")
+}

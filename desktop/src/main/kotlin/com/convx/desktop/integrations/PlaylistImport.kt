@@ -109,7 +109,8 @@ object PlaylistImport {
                         if (!wasMatched) delay(150)
                     }
                     val id = "local-spotify-" + (source.playlist?.id ?: "liked")
-                    Library.upsertPlaylist(id, title, songs.distinctBy { it.id })
+                    // Spotify's own picture for the list, as it shows there.
+                    Library.upsertPlaylist(id, title, songs.distinctBy { it.id }, cover = source.playlist?.image)
                     matchedTotal += songs.size
                     lastId = id
                 }

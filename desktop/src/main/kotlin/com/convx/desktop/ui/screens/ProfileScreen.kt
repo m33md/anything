@@ -225,7 +225,7 @@ fun ProfileScreen() {
                         SavedCard(
                             p.name,
                             "Playlist • ${pluralize(p.songs.size, "song")}",
-                            art = { size -> MosaicArt(p.songs.mapNotNull { it.thumbnail }.distinct().take(4), size, RoundedCornerShape(8.dp)) },
+                            art = { size -> com.convx.desktop.ui.components.PlaylistCoverArt(p, size, RoundedCornerShape(8.dp)) },
                             onClick = { navigator.navigate(Screen.LocalPlaylist(p.id)) },
                             onPlay = if (p.songs.isEmpty()) null else ({ PlayerController.playSongs(p.songs, 0, p.name) }),
                         )

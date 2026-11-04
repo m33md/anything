@@ -422,7 +422,6 @@ fun main(args: Array<String>) {
             fun scroll(lines: Float) = scene.sendPointerEvent(PointerEventType.Scroll, Offset(900f, 500f), scrollDelta = Offset(0f, lines))
             shoot("20-home-feed", seconds = 25) { navigator.navigate(Screen.Home) }
             shoot("20a-home-feed-down", seconds = 3) { scroll(10f) }
-            shoot("20b-home-feed-further", seconds = 3) { scroll(10f) }
             shoot("21-stats", seconds = 8) { navigator.navigate(Screen.Stats) }
             shoot("21a-stats-months", seconds = 3) {
                 com.convx.desktop.ui.screens.StatsSelection.option = com.convx.desktop.ui.screens.StatsOption.Months
@@ -475,6 +474,11 @@ fun main(args: Array<String>) {
             shoot("14-library", seconds = 8) { navigator.navigate(Screen.Library) }
             shoot("15-liked", seconds = 6) { navigator.navigate(Screen.Liked) }
             shoot("16-local-playlist", seconds = 6) { navigator.navigate(Screen.LocalPlaylist(mix)) }
+            // Its own picture (a cover off the web here, as a Spotify import brings), on the page and in Your Library.
+            songs.getOrNull(5)?.thumbnail?.let { picture ->
+                shoot("16a-playlist-picture", seconds = 4) { Library.setPlaylistCover(mix, picture) }
+                Library.setPlaylistCover(mix, null)
+            }
             shoot("16b-downloads", seconds = 4) { navigator.navigate(Screen.Downloads) }
             shoot("17-sidebar-collapsed", seconds = 4) {
                 AppSettings.update { it.copy(sidebarCollapsed = true) }
@@ -573,7 +577,13 @@ fun main(args: Array<String>) {
             film("19o-glass-hover", listOf(90L, 250L, 700L)) { scene.sendPointerEvent(PointerEventType.Move, Offset(1050f, 262f)) }
             scene.sendPointerEvent(PointerEventType.Move, Offset(1300f, 720f))
             PlayerIconSlot.entries.forEach { PlayerIcons.clear(it) }
-            // Last, as the bottom of Home has hung the run before: the watchdog shows where.
+            // Last, as the bottom of Home has hung the run before (20b on 2026-11-04): the watchdog shows where.
+            shoot("20b-home-feed-further", seconds = 3) {
+                navigator.navigate(Screen.Home)
+                Snapshot.sendApplyNotifications()
+                render()
+                scroll(20f)
+            }
             shoot("20c-home-feed-end", seconds = 6) {
                 navigator.navigate(Screen.Home)
                 Snapshot.sendApplyNotifications()
