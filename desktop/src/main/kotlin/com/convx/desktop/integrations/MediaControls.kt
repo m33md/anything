@@ -488,7 +488,7 @@ private object Smtc {
                 withHString(song.artistText) { music.vcall(SetArtist, it) }
                 withHString(song.artists.firstOrNull()?.name.orEmpty()) { music.vcall(SetAlbumArtist, it) }
                 music.query(IID_MusicProperties2)?.let { m2 ->
-                    withHString(song.album?.title.orEmpty()) { m2.vcall(SetAlbumTitle, it) }
+                    withHString(song.album?.name.orEmpty()) { m2.vcall(SetAlbumTitle, it) }
                     m2.release()
                 }
                 music.release()
