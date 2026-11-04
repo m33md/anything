@@ -329,7 +329,7 @@ data class Settings(
     /** listening, playing, watching or competing. */
     val discordActivityType: String = "listening",
     val discordButton1: Boolean = true,
-    /** Blank for "Listen on Convx"; {song_name}, {artist_name} and {album_name} are filled in. */
+    /** Blank for "Listen on Spotify"; {song_name}, {artist_name} and {album_name} are filled in. */
     val discordButton1Text: String = "",
     val discordButton2: Boolean = true,
     /** Blank for "Visit Convx". */

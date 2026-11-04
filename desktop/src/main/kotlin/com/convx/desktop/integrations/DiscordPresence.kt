@@ -69,7 +69,6 @@ object DiscordPresence {
 
     /** Whether the status goes under an application set in Settings rather than the phone's "Metrolist". */
     fun usesOwnApplication(settings: Settings = AppSettings.value) = applicationId(settings) != ApplicationId
-    private const val SongUrl = "https://convx.aryavl.com/watch/?v="
     private const val ProjectUrl = "https://github.com/cosmictaserdev-creator/Convx"
 
     enum class Status { Off, Connecting, Connected, NotRunning }
@@ -90,7 +89,8 @@ object DiscordPresence {
     private var pipe: Pipe? = null
 
     /** What Discord is showing now, so an unchanged state isn't sent again. */
-    private data class Shown(val songId: String?, val startMs: Long, val look: Look?)
+    /** [link] is where clicking the song goes: its Spotify page, or Spotify's search for it until that's found. */
+    private data class Shown(val songId: String?, val startMs: Long, val look: Look?, val link: String? = null)
 
     /** The parts of the status Settings can change. */
     data class Look(
@@ -108,7 +108,8 @@ object DiscordPresence {
         }
 
         companion object {
-            const val DefaultButton1 = "Listen on Convx"
+            // It opens the song in Spotify, as clicking the song's name does.
+            const val DefaultButton1 = "Listen on Spotify"
             const val DefaultButton2 = "Visit Convx"
 
             fun of(settings: Settings): Look {
@@ -204,13 +205,14 @@ object DiscordPresence {
         val want = if (song != null && player.isPlaying && !player.isLoading) {
             // At another tempo the song takes longer or shorter in real time, as the phone tells Discord.
             val position = (PlayerController.position.value / player.tempo).toLong()
-            Shown(song.id, now - position, Look.of(settings))
+            com.convx.desktop.integrations.spotify.SpotifyLinks.lookUp(song)
+            Shown(song.id, now - position, Look.of(settings), com.convx.desktop.integrations.spotify.SpotifyLinks.now(song))
         } else {
             null
         }
         val same = when {
             want == null -> shown?.songId == null && shown != null
-            else -> shown?.let { it.songId == want.songId && it.look == want.look && abs(it.startMs - want.startMs) < 2_500 } == true
+            else -> shown?.let { it.songId == want.songId && it.look == want.look && it.link == want.link && abs(it.startMs - want.startMs) < 2_500 } == true
         }
         if (same) return
         // Discord takes five updates in twenty seconds; space them so a burst of skips settles.
@@ -218,7 +220,7 @@ object DiscordPresence {
 
         val activity = if (want?.look != null && song != null) {
             val durationMs = player.durationMs.takeIf { it > 0 } ?: ((song.duration ?: 0) * 1000L)
-            activity(song, want.startMs, (durationMs / player.tempo).toLong(), want.look)
+            activity(song, want.startMs, (durationMs / player.tempo).toLong(), want.look, want.link)
         } else {
             null
         }
@@ -227,12 +229,13 @@ object DiscordPresence {
         if (setActivity(connected, activity)) shown = want ?: Shown(null, 0, null)
     }
 
-    private fun activity(song: Song, startMs: Long, durationMs: Long, look: Look): JsonObject = buildJsonObject {
+    private fun activity(song: Song, startMs: Long, durationMs: Long, look: Look, link: String?): JsonObject = buildJsonObject {
         // Listening unless advanced mode picked another verb; older Discord builds only know Listening and Playing.
         if (trimLevel < 2 || look.typeCode == 0) put("type", look.typeCode) else put("type", 2)
         put("details", fit(song.title))
         put("state", fit(song.artistText.ifBlank { "Unknown artist" }))
-        if (trimLevel < 1 && !com.convx.desktop.player.LocalMusic.isLocal(song.id)) put("details_url", SongUrl + song.id)
+        // Clicking the song's name opens it in Spotify (the app, if it's installed), files on this PC included.
+        if (trimLevel < 1 && link != null) put("details_url", link)
         // Which line the member list shows after "Listening to": the artists or the song, not the application's name.
         if (trimLevel < 2) put("status_display_type", if (look.useDetails) 2 else 1)
         putJsonObject("timestamps") {
@@ -250,13 +253,12 @@ object DiscordPresence {
                 put("small_text", fit(artist.name))
             }
         }
-        if ((look.button1 != null && !com.convx.desktop.player.LocalMusic.isLocal(song.id)) || look.button2 != null) {
+        if ((look.button1 != null && link != null) || look.button2 != null) {
             putJsonArray("buttons") {
-                // A file on this PC has no page to link to.
-                look.button1?.takeIf { !com.convx.desktop.player.LocalMusic.isLocal(song.id) }?.let { label ->
+                look.button1?.takeIf { link != null }?.let { label ->
                     addJsonObject {
                         put("label", button(resolveVariables(label, song)))
-                        put("url", SongUrl + song.id)
+                        put("url", link)
                     }
                 }
                 look.button2?.let { label ->

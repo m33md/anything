@@ -156,7 +156,8 @@ fun IconButton(
                 .then(
                     if (filled) {
                         Modifier
-                            .glassControl(GlassShapes.Capsule, enabled = enabled)
+                            // No rims: these discs sit in rows of plain glyphs (the player's top row), where a ringed one looked out of place.
+                            .glassControl(GlassShapes.Capsule, enabled = enabled, rims = false)
                             .hoverable(interaction)
                             .pointerHoverIcon(if (enabled) PointerIcon.Hand else PointerIcon.Default)
                             .clickable(interactionSource = interaction, indication = null, enabled = enabled, onClick = onClick)

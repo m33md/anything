@@ -99,6 +99,8 @@ fun Modifier.glassControl(
     magnitude: Float = 1f,
     shadow: Boolean = false,
     highlightAlpha: Float = GlassTokens.PluckAlphaNeutral,
+    /** The lit and dark rims; small discs among plain glyphs read cleaner without them. */
+    rims: Boolean = true,
     backdrop: Backdrop? = LocalAppBackdrop.current,
 ): Modifier {
     val stretch = remember(glow, magnitude) { elasticStretch(glow, magnitude) }
@@ -107,7 +109,7 @@ fun Modifier.glassControl(
         Modifier.background(fill)
     } else {
         // With nothing to refract it keeps the light wash these controls always had, now with the rim.
-        Modifier.liquidGlass(shape, if (backdrop == null) tuned.onPage() else tuned, highlightAlpha = highlightAlpha, backdrop = backdrop)
+        Modifier.liquidGlass(shape, if (backdrop == null) tuned.onPage() else tuned, highlightAlpha = highlightAlpha, applyEdgeEffects = rims, backdrop = backdrop)
     }
     return this
         .graphicsLayer(stretch)

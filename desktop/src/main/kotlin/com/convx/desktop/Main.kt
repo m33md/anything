@@ -166,18 +166,19 @@ fun main() {
                 // Media keys, the Windows media box and the taskbar preview's buttons, once the frame is settled.
                 withContext(Dispatchers.IO) { com.convx.desktop.integrations.MediaControls.install(window) }
             }
-            // Ambient mode fills the screen and keeps it on, as on the phone, then puts the window back.
-            val beforeAmbient = remember { arrayOfNulls<WindowPlacement>(1) }
-            LaunchedEffect(Ambient.on) {
-                if (Ambient.on) {
-                    beforeAmbient[0] = windowState.placement
+            // Ambient mode and F11 fill the screen (ambient also keeps it on, as on the phone), then put the window back.
+            val beforeFullscreen = remember { arrayOfNulls<WindowPlacement>(1) }
+            val wantFullscreen = Ambient.on || UiState.windowFullscreen
+            LaunchedEffect(wantFullscreen) {
+                if (wantFullscreen) {
+                    if (windowState.placement != WindowPlacement.Fullscreen) beforeFullscreen[0] = windowState.placement
                     windowState.placement = WindowPlacement.Fullscreen
                 } else {
-                    beforeAmbient[0]?.let { windowState.placement = it }
-                    beforeAmbient[0] = null
+                    beforeFullscreen[0]?.let { windowState.placement = it }
+                    beforeFullscreen[0] = null
                 }
-                WindowsChrome.keepAwake(Ambient.on)
             }
+            LaunchedEffect(Ambient.on) { WindowsChrome.keepAwake(Ambient.on) }
             // The phone's automatic update check: once a launch, a little after the window opens.
             LaunchedEffect(Unit) {
                 if (!AppSettings.value.checkForUpdates || AppInfo.COMMIT == "dev") return@LaunchedEffect
@@ -249,6 +250,11 @@ private fun shortcut(event: KeyEvent, navigator: Navigator): Boolean {
             Ambient.on = false
             true
         }
+        // Then out of F11's full screen, before the player closes.
+        event.key == Key.Escape && UiState.windowFullscreen -> {
+            UiState.windowFullscreen = false
+            true
+        }
         event.key == Key.Escape && UiState.fullPlayer && UiState.lyricsFullscreen && UiState.fullPlayerMode == FullPlayerMode.Lyrics -> {
             UiState.lyricsFullscreen = false
             if (AppSettings.value.oneTapFullscreenLyrics) UiState.fullPlayerMode = FullPlayerMode.Artwork
@@ -258,8 +264,9 @@ private fun shortcut(event: KeyEvent, navigator: Navigator): Boolean {
             UiState.fullPlayer = false
             true
         }
+        // The whole screen, taskbar hidden, as F11 does in a browser; the player keeps whatever it shows.
         event.key == Key.F11 -> {
-            UiState.fullPlayer = !UiState.fullPlayer
+            UiState.windowFullscreen = !UiState.windowFullscreen
             true
         }
         // Settings, now that the picture at the top opens your profile.

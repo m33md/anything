@@ -113,6 +113,13 @@ object SpotifyApi {
         tracks
     }
 
+    /** Spotify's tracks for a search, best first by Spotify's own ranking; a handful is plenty for one song. */
+    suspend fun searchTracks(query: String, limit: Int = 5): Result<List<SpotifyTrack>> = runCatching {
+        val q = java.net.URLEncoder.encode(query, Charsets.UTF_8)
+        get("$Base/search?type=track&limit=${limit.coerceIn(1, 10)}&q=$q").obj("tracks")?.arr("items").orEmpty()
+            .mapNotNull { track(it as? JsonObject) }
+    }
+
     /** How many Liked Songs there are, in one request rather than reading them all. */
     suspend fun likedCount(): Result<Int> = runCatching {
         liked?.let { return@runCatching it.size }

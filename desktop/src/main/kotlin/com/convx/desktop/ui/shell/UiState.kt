@@ -72,6 +72,9 @@ enum class FullPlayerMode { Lyrics, Queue, Comments, Artwork }
 /** Window-wide UI state that isn't navigation: overlays, panels, the top bar's tint. */
 object UiState {
     var fullPlayer by mutableStateOf(false)
+
+    /** F11: the window over the whole screen, taskbar and all, whatever it shows. */
+    var windowFullscreen by mutableStateOf(false)
     var fullPlayerMode by mutableStateOf(FullPlayerMode.Lyrics)
 
     /** Lyrics across the whole player, the phone's full-screen lyrics; only while the lyrics are open. */
