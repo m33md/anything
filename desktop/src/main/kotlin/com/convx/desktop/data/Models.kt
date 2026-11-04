@@ -396,6 +396,8 @@ data class Settings(
     val creativeTransitions: Boolean = false,
     val djReverb: com.convx.desktop.automix.ReverbType = com.convx.desktop.automix.ReverbType.AUTO,
     val djDelay: com.convx.desktop.automix.DelayType = com.convx.desktop.automix.DelayType.AUTO,
+    /** The phone's "Automatically check for updates": looks for a newer build at launch. */
+    val checkForUpdates: Boolean = true,
     /** Restore the last queue at launch. */
     val persistentQueue: Boolean = true,
     val rememberShuffleRepeat: Boolean = true,

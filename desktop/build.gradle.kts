@@ -7,7 +7,9 @@ plugins {
     id("org.jetbrains.compose") version "1.9.3"
 }
 
-val appVersion = "1.0.0"
+// CI numbers each build (1.0.<run>), so every installer is newer than the last and upgrades it.
+val appVersion = System.getenv("CONVX_VERSION")?.takeIf { it.isNotBlank() } ?: "1.0.0"
+val appCommit = System.getenv("GITHUB_SHA")?.takeIf { it.isNotBlank() } ?: "dev"
 
 group = "com.convx.desktop"
 version = appVersion
@@ -98,6 +100,16 @@ dependencies {
 
     testImplementation(kotlin("test"))
 }
+
+// The version and commit the app reads at run time (AppInfo), for About and the updater.
+val buildInfo = tasks.register("buildInfo") {
+    val out = layout.buildDirectory.dir("generated/build-info")
+    val text = "version=$appVersion\ncommit=$appCommit\n"
+    inputs.property("text", text)
+    outputs.dir(out)
+    doLast { out.get().file("convx-build.properties").asFile.apply { parentFile.mkdirs() }.writeText(text) }
+}
+sourceSets["main"].resources.srcDir(buildInfo)
 
 compose.desktop {
     application {

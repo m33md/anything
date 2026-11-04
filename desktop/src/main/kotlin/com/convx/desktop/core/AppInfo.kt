@@ -13,7 +13,15 @@ import com.music.innertube.models.YouTubeLocale
 import java.util.Locale
 
 object AppInfo {
-    const val VERSION = "1.0.0"
+    private val build = java.util.Properties().apply {
+        runCatching { AppInfo::class.java.getResourceAsStream("/convx-build.properties")?.use { load(it) } }
+    }
+
+    /** 1.0 and the CI build's number, so each installer upgrades the one before; 1.0.0 for a build made elsewhere. */
+    val VERSION: String = build.getProperty("version") ?: "1.0.0"
+
+    /** The commit this copy was built from, for the updater; "dev" for a build made elsewhere. */
+    val COMMIT: String = build.getProperty("commit") ?: "dev"
 }
 
 /** The phone's App.initializeSettings locale rule: setting, else the system's, else US/English. */

@@ -6,6 +6,7 @@
 package com.convx.desktop.ui.screens.settings
 
 import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -298,6 +299,22 @@ fun HelpHub() {
         }
     }
     SectionGap()
+    val update by com.convx.desktop.core.Updater.state.collectAsState()
+    SettingsSection {
+        LinkRow(
+            "App updates",
+            "Check for and install a newer build",
+            icon = "download",
+            tint = SystemColors.Blue,
+            value = when (update) {
+                is com.convx.desktop.core.Updater.State.Available -> "Update available"
+                com.convx.desktop.core.Updater.State.UpToDate -> "Up to date"
+                else -> null
+            },
+            badge = if (update is com.convx.desktop.core.Updater.State.Available) 1 else 0,
+        ) { SettingsNav.push(SettingsPage.Updates) }
+    }
+    SectionGap()
     SettingsSection(footer = "Built from the Convx Android app's own YouTube Music and lyrics code. Licensed under GPL-3.0.") {
         LinkRow("Convx on GitHub", "The phone app's project", icon = "link", tint = SystemColors.Gray) {
             openUrl("https://github.com/cosmictaserdev-creator/Convx")
@@ -312,6 +329,64 @@ fun HelpHub() {
         RowDivider()
         LinkRow("Crash report", "The last time the app closed unexpectedly", icon = "warning", tint = SystemColors.Red) {
             SettingsNav.push(SettingsPage.CrashReport)
+        }
+    }
+}
+
+/**
+ * The phone's System update page: this build, a check for a newer one with what it adds, and
+ * installing it, which closes Convx and opens it again when done.
+ */
+@Composable
+fun UpdatesPage() {
+    val state by com.convx.desktop.core.Updater.state.collectAsState()
+    val settings by AppSettings.state.collectAsState()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        if (state is com.convx.desktop.core.Updater.State.Idle) com.convx.desktop.core.Updater.check()
+    }
+    SettingsSection(footer = "Convx ${AppInfo.VERSION}, built from ${AppInfo.COMMIT.take(7)}.") {
+        when (val s = state) {
+            is com.convx.desktop.core.Updater.State.Available -> {
+                SettingsRow("Convx ${s.release.version} is available", "Installing closes Convx for a moment and opens it again.", icon = "download", tint = SystemColors.Blue)
+                RowDivider()
+                if (com.convx.desktop.core.Updater.canInstall) {
+                    ButtonRow("Download and install") { scope.launch { com.convx.desktop.core.Updater.downloadAndInstall() } }
+                } else {
+                    ButtonRow("Download the installer") { openUrl(s.release.installerUrl) }
+                }
+            }
+            is com.convx.desktop.core.Updater.State.Downloading ->
+                SettingsRow("Downloading ${s.release.version}… ${(s.progress * 100).roundToInt()}%", "Convx closes and installs it when the download is done.", icon = "download", tint = SystemColors.Blue)
+            com.convx.desktop.core.Updater.State.Checking -> SettingsRow("Checking for updates…", icon = "refresh", tint = SystemColors.Gray)
+            com.convx.desktop.core.Updater.State.UpToDate -> {
+                SettingsRow("Convx is up to date", icon = "check", tint = SystemColors.Green)
+                RowDivider()
+                ButtonRow("Check again") { scope.launch { com.convx.desktop.core.Updater.check() } }
+            }
+            is com.convx.desktop.core.Updater.State.Failed -> {
+                SettingsRow("Couldn't update", s.message, icon = "error", tint = SystemColors.Red)
+                RowDivider()
+                ButtonRow("Try again") { scope.launch { com.convx.desktop.core.Updater.check() } }
+            }
+            com.convx.desktop.core.Updater.State.Idle -> ButtonRow("Check for updates") { scope.launch { com.convx.desktop.core.Updater.check() } }
+        }
+    }
+    val changes = (state as? com.convx.desktop.core.Updater.State.Available)?.release?.changes
+        ?: (state as? com.convx.desktop.core.Updater.State.Downloading)?.release?.changes
+    if (!changes.isNullOrEmpty()) {
+        SectionGap()
+        SettingsSection("What's new") {
+            changes.take(40).forEachIndexed { index, change ->
+                if (index > 0) RowDivider(PlainInset)
+                SettingsRow(change)
+            }
+        }
+    }
+    SectionGap()
+    SettingsSection {
+        SwitchRow("Automatically check for updates", "Looks for a newer build each time Convx opens", settings.checkForUpdates, icon = "refresh", tint = SystemColors.Gray) { v ->
+            AppSettings.update { it.copy(checkForUpdates = v) }
         }
     }
 }

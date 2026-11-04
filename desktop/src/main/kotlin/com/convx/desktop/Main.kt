@@ -128,6 +128,7 @@ fun main() {
             com.convx.desktop.lyrics.LyricsTweaks.flush()
             exitApplication()
         }
+        com.convx.desktop.core.Updater.quit = ::quit
 
         Window(
             onCloseRequest = ::quit,
@@ -172,6 +173,18 @@ fun main() {
                     beforeAmbient[0] = null
                 }
                 WindowsChrome.keepAwake(Ambient.on)
+            }
+            // The phone's automatic update check: once a launch, a little after the window opens.
+            LaunchedEffect(Unit) {
+                if (!AppSettings.value.checkForUpdates || AppInfo.COMMIT == "dev") return@LaunchedEffect
+                delay(20_000)
+                val result = com.convx.desktop.core.Updater.check()
+                if (result is com.convx.desktop.core.Updater.State.Available) {
+                    com.convx.desktop.ui.components.Overlays.toast("Convx ${result.release.version} is available", "download", action = "See what's new") {
+                        navigator.navigate(com.convx.desktop.ui.shell.Screen.Settings)
+                        com.convx.desktop.ui.screens.settings.SettingsNav.push(com.convx.desktop.ui.screens.settings.SettingsPage.Updates)
+                    }
+                }
             }
             // The phone's "Disable screenshot": the window drops out of screenshots, recordings and screen shares.
             LaunchedEffect(Unit) {

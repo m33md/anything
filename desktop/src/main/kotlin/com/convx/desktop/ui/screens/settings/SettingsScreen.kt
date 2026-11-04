@@ -100,6 +100,7 @@ enum class SettingsPage(val title: String, val hub: String) {
     Storage("Storage", "privacy"),
     Backup("Backup & restore", "privacy"),
     CrashReport("Crash report", "help"),
+    Updates("App updates", "help"),
 }
 
 object SettingsHubs {
@@ -431,6 +432,7 @@ private val searchEntries: List<SearchEntry> by lazy {
         SearchEntry("Import an M3U playlist", null, h.privacy, SettingsPage.Backup, "m3u m3u8 playlist file import winamp foobar musicbee"),
         SearchEntry("Import a CSV playlist", "Spreadsheets and Exportify", h.privacy, SettingsPage.Backup, "csv excel exportify tunemymusic itunes txt takeout import"),
         SearchEntry("About", "Version and licence", h.help, keywords = "version license gpl"),
+        SearchEntry("App updates", "Check for and install a newer build", h.help, SettingsPage.Updates, "update upgrade new version download install changelog what's new"),
         SearchEntry("Crash report", "The last time the app closed unexpectedly", h.help, SettingsPage.CrashReport, "crash error bug log report problem"),
         SearchEntry("Copy recent log", "For when something goes wrong", h.help, keywords = "log debug bug problem copy"),
     )
@@ -577,6 +579,7 @@ private fun PageContent(page: SettingsPage) {
         SettingsPage.Storage -> StorageSettings()
         SettingsPage.Backup -> BackupSettings()
         SettingsPage.CrashReport -> CrashReportPage()
+        SettingsPage.Updates -> UpdatesPage()
     }
 }
 

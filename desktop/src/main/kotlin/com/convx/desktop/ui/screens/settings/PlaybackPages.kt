@@ -50,9 +50,16 @@ fun PlaybackHub() {
         }
     }
     SectionGap()
+    val navigator = com.convx.desktop.ui.shell.LocalNavigator.current
+    SettingsSection("Advanced") {
+        LinkRow("AI DJ analysis", "Analyze songs and build a mix", icon = "equalizer", tint = SystemColors.Purple) {
+            navigator.navigate(com.convx.desktop.ui.shell.Screen.AiDj())
+        }
+    }
+    SectionGap()
     InfoNote(
-        "The phone's offload, bit-perfect output, JioSaavn source and AI DJ analysis aren't on PC. " +
-            "Offload and bit-perfect are Android audio features; the other two may come later.",
+        "The phone's offload, bit-perfect output and JioSaavn source aren't on PC. " +
+            "Offload and bit-perfect are Android audio features, and JioSaavn only streams in India.",
     )
 }
 

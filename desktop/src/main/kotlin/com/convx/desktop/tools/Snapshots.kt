@@ -214,6 +214,8 @@ fun main(args: Array<String>) {
         shoot("07l-settings-network", seconds = 2) { SettingsNav.push(SettingsPage.Network) }
         shoot("07la-settings-privacy-hub", seconds = 2) { SettingsNav.openHub(SettingsHubs.privacy.id) }
         shoot("07lb-settings-backup", seconds = 2) { SettingsNav.push(SettingsPage.Backup) }
+        // A live check against the published build, which this one is newer than: "up to date".
+        shoot("07lc-settings-updates", seconds = 5) { SettingsNav.push(SettingsPage.Updates) }
         shoot("07ld-settings-privacy", seconds = 2) { SettingsNav.push(SettingsPage.Privacy) }
         shoot("07le-settings-storage", seconds = 4) { SettingsNav.push(SettingsPage.Storage) }
         val csv = java.io.File.createTempFile("Road trip", ".csv").apply {

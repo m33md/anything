@@ -1,12 +1,25 @@
 #!/usr/bin/env bash
-# Publishes the given files as the rolling "desktop-latest" pre-release, built from commit $1.
+# Publishes the given files as the rolling "desktop-latest" pre-release, built from commit $1 as
+# version $2. The installers keep the names the first download links used, whatever the version,
+# and the notes carry the version and commit for the app's updater.
 #
 # The tag points at a one-file commit rather than at the build commit: a GITHUB_TOKEN may not
 # create a ref whose tree adds workflow files, and every commit on convx-desktop carries them.
 set -euo pipefail
 sha=$1
-shift
+version=$2
+shift 2
 tag=desktop-latest
+
+files=()
+stable=$(mktemp -d)
+for file in "$@"; do
+  case "$file" in
+    *.msi) cp "$file" "$stable/Convx-1.0.0.msi"; files+=("$stable/Convx-1.0.0.msi") ;;
+    *.exe) cp "$file" "$stable/Convx-1.0.0.exe"; files+=("$stable/Convx-1.0.0.exe") ;;
+    *) files+=("$file") ;;
+  esac
+done
 
 gh release delete "$tag" --cleanup-tag --yes || true
 
@@ -21,5 +34,5 @@ git -C "$tmp" push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_R
 
 gh release create "$tag" --verify-tag --prerelease \
   --title "Convx for Windows" \
-  --notes "Download the .msi file below and double-click it. If Windows says it protected your PC, click More info, then Run anyway. Source: https://github.com/${GITHUB_REPOSITORY}/tree/${sha}" \
-  "$@"
+  --notes "Download the .msi file below and double-click it. If Windows says it protected your PC, click More info, then Run anyway. Version ${version}. Source: https://github.com/${GITHUB_REPOSITORY}/tree/${sha}" \
+  "${files[@]}"

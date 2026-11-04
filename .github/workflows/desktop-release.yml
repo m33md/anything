@@ -31,4 +31,6 @@ jobs:
           ls -la out
 
       - name: Publish
-        run: bash .github/scripts/publish-desktop-release.sh "$SHA" out/msi/*.msi out/exe/*.exe out/*.zip
+        run: |
+          version=$(basename out/msi/*.msi .msi)
+          bash .github/scripts/publish-desktop-release.sh "$SHA" "${version#Convx-}" out/msi/*.msi out/exe/*.exe out/*.zip
