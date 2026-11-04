@@ -599,14 +599,14 @@ fun Shelf(
                 },
             )
             Spacer(Modifier.height(8.dp))
-            // Runs out under the side bar, so cards scroll beneath its glass.
+            // Runs out under the side bar, so cards scroll beneath its glass. It stops at the Now
+            // Playing panel, whose lyrics would be hard to read over covers.
             val bleed = LocalPageInsets.current.start
-            val bleedEnd = LocalPageInsets.current.end
             LazyRow(
                 state = state,
-                contentPadding = PaddingValues(start = bleed + Gutter - 10.dp, end = bleedEnd + Gutter - 10.dp),
+                contentPadding = PaddingValues(start = bleed + Gutter - 10.dp, end = Gutter - 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(spacing),
-                modifier = Modifier.bleedStart(bleed, bleedEnd).fillMaxWidth(),
+                modifier = Modifier.bleedStart(bleed).fillMaxWidth(),
             ) {
                 content()
             }
