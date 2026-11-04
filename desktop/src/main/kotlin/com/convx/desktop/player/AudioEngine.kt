@@ -8,6 +8,7 @@ package com.convx.desktop.player
 import com.convx.desktop.audio.AudioEffects
 import com.convx.desktop.audio.EffectsChain
 import com.convx.desktop.audio.Sonic
+import com.convx.desktop.automix.DjEffects
 import com.convx.desktop.automix.DjFilter
 import com.convx.desktop.audio.softClip
 import com.convx.desktop.core.Log
@@ -53,6 +54,12 @@ class AudioEngine(private val listener: Listener) {
         /** Tempo matching, on top of Tempo and Pitch. */
         var rate: Float
         val filter: DjFilter
+
+        /** The creative transitions' tape stop, delay and reverb; made the first time they're asked for. */
+        val effects: DjEffects
+
+        /** Whether [effects] has been made, so stopping them needn't make them. */
+        val effectsMade: Boolean
     }
 
     interface Listener {
@@ -66,6 +73,7 @@ class AudioEngine(private val listener: Listener) {
         private const val SampleRate = 48_000
         private const val Channels = 2
         private const val BufferMs = 250
+        private const val TailChunkFrames = 4096
         private val Format = AudioFormat(SampleRate.toFloat(), 16, Channels, true, false)
 
         /** Loads the native libraries early so the first song doesn't pay for it. */
@@ -231,6 +239,9 @@ class AudioEngine(private val listener: Listener) {
         @Volatile override var mixGain: Float = initialMixGain
         @Volatile override var rate: Float = 1f
         override val filter = DjFilter(SampleRate)
+        private val effectsLazy = lazy { DjEffects(SampleRate) }
+        override val effects: DjEffects get() = effectsLazy.value
+        override val effectsMade: Boolean get() = effectsLazy.isInitialized()
         override val positionMs: Long get() = positionMs()
         private var appliedMix = initialMixGain
         @Volatile var finished = false
@@ -293,9 +304,10 @@ class AudioEngine(private val listener: Listener) {
 
         fun close() {
             closed = true
+            // The line may already be closed by a song that ended on its own.
             line?.let {
-                it.stop()
-                it.flush()
+                runCatching { it.stop() }
+                runCatching { it.flush() }
             }
             synchronized(signal) { signal.notifyAll() }
         }
@@ -360,6 +372,7 @@ class AudioEngine(private val listener: Listener) {
                         sonic.flush()
                         chain.reset()
                         filter.reset()
+                        if (effectsLazy.isInitialized()) effectsLazy.value.reset()
                         pendingSeekMs = -1
                         if (playing) l.start()
                     }
@@ -371,6 +384,7 @@ class AudioEngine(private val listener: Listener) {
                     if (frame == null) {
                         // End of stream: let the buffer play out unless we were interrupted.
                         if (pendingSeekMs >= 0) continue
+                        if (effectsLazy.isInitialized() && effectsLazy.value.isRinging) ringOut(l)
                         l.drain()
                         if (pendingSeekMs >= 0) continue
                         finished = true
@@ -405,6 +419,7 @@ class AudioEngine(private val listener: Listener) {
                         continue
                     }
                     filter.process(chain.output, count)
+                    if (effectsLazy.isInitialized()) effectsLazy.value.process(chain.output, count)
                     if (bytes.size < count * Channels * 2) bytes = ByteArray(count * Channels * 2)
                     val shaped = effects.shapesSound || trackGain > 1f
                     if (!encode(chain.output, count, bytes, gain * trackGain, shaped)) {
@@ -440,6 +455,33 @@ class AudioEngine(private val listener: Listener) {
                 fading -= this
             }
             if (finished && !closed) listener.onEnded(token)
+        }
+
+        /**
+         * The phone's processors' tail: past the song's last sample, silence is fed through its
+         * echoes and reverb for a few seconds so they die away instead of stopping dead.
+         */
+        private fun ringOut(l: SourceDataLine) {
+            val effects = effectsLazy.value
+            val silence = FloatArray(TailChunkFrames * Channels)
+            val bytes = ByteArray(TailChunkFrames * Channels * 2)
+            var left = SampleRate.toLong() * DjEffects.TailSeconds
+            while (left > 0 && !closed && pendingSeekMs < 0 && effects.isRinging) {
+                val frames = minOf(left, TailChunkFrames.toLong()).toInt()
+                silence.fill(0f)
+                filter.process(silence, frames)
+                effects.process(silence, frames)
+                if (!encode(silence, frames, bytes, gain * trackGain, shaped = true)) return
+                writtenFrames += frames
+                var offset = 0
+                val length = frames * Channels * 2
+                while (offset < length && !closed && pendingSeekMs < 0) {
+                    val written = l.write(bytes, offset, length - offset)
+                    if (written <= 0 && !playing) synchronized(signal) { signal.wait(50) }
+                    offset += written
+                }
+                left -= frames
+            }
         }
 
         private fun interleavedCount(samples: Array<java.nio.Buffer>): Int =

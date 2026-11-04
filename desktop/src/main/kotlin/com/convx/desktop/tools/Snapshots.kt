@@ -202,10 +202,10 @@ fun main(args: Array<String>) {
         }
         AppSettings.update { it.copy(equalizer = com.convx.desktop.audio.EqualizerSettings()) }
         shoot("07ga-settings-automix", seconds = 2) {
-            AppSettings.update { it.copy(crossfade = true, autoMix = true) }
+            AppSettings.update { it.copy(crossfade = true, autoMix = true, creativeTransitions = true) }
             SettingsNav.push(SettingsPage.Transitions)
         }
-        AppSettings.update { it.copy(crossfade = false, autoMix = false) }
+        AppSettings.update { it.copy(crossfade = false, autoMix = false, creativeTransitions = false) }
         shoot("07h-settings-lastfm", seconds = 2) { SettingsNav.push(SettingsPage.LastFm) }
         shoot("07i-settings-youtube", seconds = 2) { SettingsNav.push(SettingsPage.YouTubeMusic) }
         shoot("07j-apple-import", seconds = 2) { com.convx.desktop.ui.screens.settings.appleMusicImportDialog() }

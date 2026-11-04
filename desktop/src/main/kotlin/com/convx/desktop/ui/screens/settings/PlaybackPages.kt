@@ -120,6 +120,16 @@ fun SongTransitionsSettings() {
     }
     if (settings.crossfade && settings.autoMix) {
         SectionGap()
+        SettingsSection {
+            SwitchRow(
+                "Creative transitions",
+                "Adds reverb, tempo-synced delay and stereo shaping while tracks blend, with occasional echo tails and tape stops",
+                settings.creativeTransitions,
+                icon = "equalizer",
+                tint = SystemColors.Pink,
+            ) { v -> AppSettings.update { it.copy(creativeTransitions = v) } }
+        }
+        SectionGap()
         val progress by com.convx.desktop.automix.LibraryAnalysis.progress.collectAsState()
         val measured by com.convx.desktop.automix.TrackAnalyzer.measured.collectAsState()
         val stored = androidx.compose.runtime.remember(measured) { com.convx.desktop.automix.TrackAnalyzer.storedCount() }
@@ -135,6 +145,26 @@ fun SongTransitionsSettings() {
                 icon = "equalizer",
                 tint = SystemColors.Pink,
             ) { com.convx.desktop.automix.LibraryAnalysis.toggle() }
+        }
+        if (settings.creativeTransitions) {
+            SectionGap()
+            SettingsSection(footer = "Automatic varies the sound between transitions. Choose a type to keep its character.") {
+                ChoiceRow(
+                    "Reverb",
+                    options = com.convx.desktop.automix.ReverbType.entries.map { it to it.label },
+                    selected = settings.djReverb,
+                    icon = "equalizer",
+                    tint = SystemColors.Pink,
+                ) { v -> AppSettings.update { it.copy(djReverb = v) } }
+                RowDivider()
+                ChoiceRow(
+                    "Delay",
+                    options = com.convx.desktop.automix.DelayType.entries.map { it to it.label },
+                    selected = settings.djDelay,
+                    icon = "equalizer",
+                    tint = SystemColors.Pink,
+                ) { v -> AppSettings.update { it.copy(djDelay = v) } }
+            }
         }
     }
     if (settings.crossfade && !settings.autoMix) {

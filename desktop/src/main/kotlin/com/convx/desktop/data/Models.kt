@@ -392,6 +392,10 @@ data class Settings(
     val crossfadeSeconds: Float = 5f,
     /** The phone's AutoMix transition style: mixes planned from each song's tempo, beats and key. */
     val autoMix: Boolean = false,
+    /** The phone's Creative transitions: reverb, delay and stereo shaping while AutoMix blends. */
+    val creativeTransitions: Boolean = false,
+    val djReverb: com.convx.desktop.automix.ReverbType = com.convx.desktop.automix.ReverbType.AUTO,
+    val djDelay: com.convx.desktop.automix.DelayType = com.convx.desktop.automix.DelayType.AUTO,
     /** Restore the last queue at launch. */
     val persistentQueue: Boolean = true,
     val rememberShuffleRepeat: Boolean = true,

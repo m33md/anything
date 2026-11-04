@@ -43,7 +43,7 @@ fun main(args: Array<String>) {
             "kJQP7kiw5Fk",
         )
     }
-    val dspOk = dspCheck() and libraryCheck() and partyCheck() and backupCheck() and playlistFileCheck() and downloadsCheck() and lyricsMenuCheck() and homeOrderCheck() and statsCheck() and sonicCheck() and autoMixCheck()
+    val dspOk = dspCheck() and libraryCheck() and partyCheck() and backupCheck() and playlistFileCheck() and downloadsCheck() and lyricsMenuCheck() and homeOrderCheck() and statsCheck() and sonicCheck() and autoMixCheck() and djEffectsCheck()
     partyServerCheck()
     runBlocking(Dispatchers.IO) { initYouTube() }
     var passed = 0
@@ -142,6 +142,88 @@ private fun autoMixCheck(): Boolean {
         !plan.blocked && plan.fadeMs > 0 && plan.transitionStart in 30.0..90.0,
         "${plan.reason} ${plan.transitionStyle}, ${"%.1f".format(plan.transitionStart)}s to ${"%.1f".format(plan.transitionEnd)}s, " +
             "cue ${"%.1f".format(plan.incomingCueTime)}s, rate ${"%.3f".format(plan.incomingPlaybackRate)}, ${plan.policyReasons}",
+    )
+    return ok
+}
+
+/**
+ * Creative transitions: the delay answers a click one beat later and then dies away, the reverb
+ * leaves a tail that fades, the tape stop brakes a tone to silence, and the style sequence walks
+ * as the phone's does.
+ */
+private fun djEffectsCheck(): Boolean {
+    var ok = true
+    fun expect(name: String, pass: Boolean, detail: String) {
+        if (!pass) ok = false
+        println("${if (pass) "PASS" else "FAIL"} creative $name: $detail")
+    }
+    val rate = 48_000
+    fun peak(buffer: FloatArray, from: Int, to: Int): Float {
+        var p = 0f
+        for (frame in from until to) p = maxOf(p, kotlin.math.abs(buffer[frame * 2]), kotlin.math.abs(buffer[frame * 2 + 1]))
+        return p
+    }
+    fun rms(buffer: FloatArray, from: Int, to: Int): Double {
+        var sum = 0.0
+        for (i in from * 2 until to * 2) sum += buffer[i].toDouble() * buffer[i]
+        return kotlin.math.sqrt(sum / ((to - from) * 2).coerceAtLeast(1))
+    }
+    fun run(seconds: Int, effect: (FloatArray, Int) -> Unit, fill: (FloatArray) -> Unit): FloatArray {
+        val buffer = FloatArray(rate * seconds * 2).also(fill)
+        var at = 0
+        while (at < rate * seconds) {
+            val frames = minOf(1024, rate * seconds - at)
+            val chunk = buffer.copyOfRange(at * 2, (at + frames) * 2)
+            effect(chunk, frames)
+            chunk.copyInto(buffer, at * 2)
+            at += frames
+        }
+        return buffer
+    }
+
+    val delay = com.convx.desktop.automix.DjDelay(rate).apply {
+        delayType = com.convx.desktop.automix.DelayType.STEREO
+        setDelayMs(250)
+        wetMix = 0.45f
+    }
+    val echoed = run(8, delay::process) { it[0] = 0.8f; it[1] = 0.8f }
+    val echoAt = rate / 4
+    expect("delay echo at 250 ms", peak(echoed, echoAt - 10, echoAt + 10) > 0.1f && peak(echoed, 200, echoAt - 500) < 0.01f,
+        "%.3f at the beat, %.4f before it".format(peak(echoed, echoAt - 10, echoAt + 10), peak(echoed, 200, echoAt - 500)))
+    expect("delay dies away", peak(echoed, rate * 7, rate * 8) < peak(echoed, echoAt - 10, echoAt + 10) * 0.05f,
+        "%.5f in the last second".format(peak(echoed, rate * 7, rate * 8)))
+
+    val ambience = com.convx.desktop.automix.DjAmbience(rate).apply {
+        reverbType = com.convx.desktop.automix.ReverbType.HALL
+        wetMix = 0.5f
+    }
+    val clickAt = rate / 2
+    val washed = run(8, ambience::process) { it[clickAt * 2] = 0.8f; it[clickAt * 2 + 1] = 0.8f }
+    val early = rms(washed, clickAt + rate / 10, clickAt + rate)
+    val late = rms(washed, rate * 7, rate * 8)
+    expect("reverb tail", early > 1e-4 && late < early * 0.2 && washed.none { it.isNaN() },
+        "%.5f in its first second, %.6f at 7 s".format(early, late))
+
+    val tail = com.convx.desktop.automix.DjTail(rate)
+    var processed = 0
+    val braked = run(2, { chunk, frames ->
+        if (processed >= rate / 2 && processed - frames < rate / 2) tail.startTapeStop(400)
+        tail.process(chunk, frames)
+        processed += frames
+    }) { buffer -> for (frame in 0 until rate * 2) { val v = (0.5 * kotlin.math.sin(2 * Math.PI * 440 * frame / rate)).toFloat(); buffer[frame * 2] = v; buffer[frame * 2 + 1] = v } }
+    expect("tape stop", rms(braked, 0, rate / 2) > 0.3 && peak(braked, rate, rate * 2) == 0f,
+        "%.3f before, %.4f after it stops".format(rms(braked, 0, rate / 2), peak(braked, rate, rate * 2)))
+
+    val tier = com.convx.desktop.automix.DjMixTier.FullDj
+    val measured = com.convx.desktop.automix.TrackAnalysis(status = com.convx.desktop.automix.TrackAnalysis.STATUS_READY, bpm = 120.0, beatConfidence = 0.8)
+    val walk = (0L until 6L).map { com.convx.desktop.automix.CreativeSelector.select(tier, measured, null, true, emptyList(), it) }
+    val off = com.convx.desktop.automix.CreativeSelector.select(tier, measured, null, false, emptyList(), 0)
+    val noRepeat = com.convx.desktop.automix.CreativeSelector.select(tier, measured, null, true, listOf(com.convx.desktop.automix.CreativeStyle.REVERB_BLOOM), 3)
+    expect(
+        "style sequence",
+        walk.map { it.name } == listOf("REVERB_BLOOM", "DELAY_BLEND", "ECHO_FREEZE", "REVERB_BLOOM", "DELAY_BLEND", "TAPE_STOP") &&
+            off == com.convx.desktop.automix.CreativeStyle.TRANSPARENT && noRepeat == com.convx.desktop.automix.CreativeStyle.DELAY_BLEND,
+        "$walk, off $off, after a bloom $noRepeat",
     )
     return ok
 }

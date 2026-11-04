@@ -13,6 +13,7 @@ import com.convx.desktop.player.PlayerState
 import com.convx.desktop.data.RepeatMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -85,6 +86,19 @@ internal object AutoMix {
     private var fullDj = false
     private var armDeadline = 0L
     private var lastVerdict = ""
+    private var outgoingId: String? = null
+    private var planned = false
+
+    // The phone's DjEngine creative transitions: which effect this mix wears, and where it is.
+    private var creative = CreativeStyle.TRANSPARENT
+    private val recentStyles = ArrayDeque<CreativeStyle>()
+    private var transitionIndex = 0L
+    private var effectsActive = false
+    private var echoFrozen = false
+    private var tapeStarted = false
+    private var transitionBeatMs = FallbackBeatMs
+    private var ringingDeck: AudioEngine.Deck? = null
+    private var ringJob: Job? = null
 
     private val _mixing = MutableStateFlow(false)
 
@@ -142,7 +156,9 @@ internal object AutoMix {
 
     private fun begin(host: Host, s: PlayerState, index: Int, next: Song, plan: TransitionPlan, durationMs: Long) {
         val current = s.current ?: return
-        val djPlan = DjMixPlanner.plan(TrackAnalyzer.analysisFor(current.id), TrackAnalyzer.analysisFor(next.id))
+        val outgoingAnalysis = TrackAnalyzer.analysisFor(current.id)
+        val incomingAnalysis = TrackAnalyzer.analysisFor(next.id)
+        val djPlan = DjMixPlanner.plan(outgoingAnalysis, incomingAnalysis)
         fullDj = djPlan.tier == DjMixTier.FullDj
         val requested = if (djPlan.tier != DjMixTier.PlainCrossfade) djPlan.speed else plan.incomingPlaybackRate
         rate = requested.takeIf { it.isFinite() && it in 0.94..1.06 } ?: 1.0
@@ -152,13 +168,23 @@ internal object AutoMix {
         render = Render(plan.transitionStyle, plan.bassSwap, plan.bassSwapFraction, plan.filterSweep, plan.vocalOverlap)
         nextIndex = index
         nextId = next.id
+        outgoingId = current.id
         outgoingToken = host.engineToken
+        planned = true
+        creative = CreativeSelector.select(
+            tier = djPlan.tier,
+            outgoing = outgoingAnalysis.takeIf { it.status == TrackAnalysis.STATUS_READY },
+            incoming = incomingAnalysis.takeIf { it.status == TrackAnalysis.STATUS_READY },
+            creativeEnabled = creativeOn(),
+            recentStyles = recentStyles.toList(),
+            transitionIndex = transitionIndex,
+        )
         armDeadline = System.currentTimeMillis() + ArmTimeoutMs
         phase = Phase.Arming
         Log.i(
             Tag,
             "Arming ${current.id} -> ${next.id}: ${plan.reason}, ${plan.transitionStyle}, start ${"%.1f".format(plan.transitionStart)}s " +
-                "over ${fadeMs}ms, cue ${cueMs}ms, rate ${"%.3f".format(rate)}, ${djPlan.tier}",
+                "over ${fadeMs}ms, cue ${cueMs}ms, rate ${"%.3f".format(rate)}, ${djPlan.tier}, $creative",
         )
         prepareJob = host.scope.launch {
             val ready = host.prepare(next) ?: run {
@@ -195,11 +221,15 @@ internal object AutoMix {
 
     private fun startFade(host: Host, deck: AudioEngine.Deck) {
         val ready = prepared ?: return reset(host)
+        val playing = host.engine.current ?: return reset(host)
+        // Everything is set on both songs before the new one starts, so its first buffer is right.
+        startEffects(host, playing, deck)
+        rideFilters(0f, playing, deck)
+        deck.filter.snapToTargets()
         val out = host.engine.promote(deck) ?: return reset(host)
         outgoing = out
         phase = Phase.Fading
         _mixing.value = isRealMix()
-        rideFilters(0f, out, deck)
         host.mixedInto(nextIndex, ready, deck, cueMs)
         Log.i(Tag, "Mixing in at ${out.positionMs}ms of the outgoing song")
     }
@@ -214,8 +244,10 @@ internal object AutoMix {
         val progress = (elapsed.toFloat() / duration).coerceIn(0f, 1f)
 
         into.mixGain = sin(progress * PI.toFloat() / 2f)
-        out.mixGain = cos(progress * PI.toFloat() / 2f)
+        // A ringing wash fades the outgoing song's dry sound itself, so its level stays up.
+        out.mixGain = if (holdsTail) 1f else cos(progress * PI.toFloat() / 2f)
         rideFilters(progress, out, into)
+        driveEffects(out, into, progress)
         recoverTempo(into, progress)
 
         val outgoingDone = out.durationMs > 0 && out.positionMs >= out.durationMs - 30
@@ -232,21 +264,135 @@ internal object AutoMix {
 
     /** A seek or a skip mid-mix: the outgoing song goes at once and the new one plays plainly. */
     fun interrupt(host: Host) {
+        endRing(host)
         if (phase == Phase.Idle) return
         Log.i(Tag, "Mix interrupted")
-        finish(host)
+        finish(host, mayRing = false)
     }
 
-    private fun finish(host: Host) {
+    private fun finish(host: Host, mayRing: Boolean = true) {
         val out = outgoing
         val into = incoming
-        if (phase == Phase.Fading && into != null && host.engineToken == into.token) {
+        val handedOff = phase == Phase.Fading
+        // The phone's ring out: an outgoing song whose echoes or reverb are the sound being heard
+        // plays on silently for a few seconds so they die away instead of being cut.
+        val ringing = mayRing && handedOff && holdsTail && out != null
+        stopEffects(if (ringing) null else out, into)
+        if (handedOff && into != null && host.engineToken == into.token) {
             into.mixGain = 1f
             into.rate = 1f
             into.filter.open()
         }
-        out?.let { host.engine.retire(it) }
-        reset(host, keepIncoming = phase == Phase.Fading)
+        if (out != null) {
+            if (ringing) ringOut(host, out) else host.engine.retire(out)
+        }
+        reset(host, keepIncoming = handedOff)
+    }
+
+    private fun ringOut(host: Host, deck: AudioEngine.Deck) {
+        endRing(host)
+        ringingDeck = deck
+        ringJob = host.scope.launch {
+            delay(TailRingMs)
+            ringJob = null
+            endRing(host)
+        }
+    }
+
+    private fun endRing(host: Host) {
+        val deck = ringingDeck ?: return
+        ringingDeck = null
+        ringJob?.cancel()
+        ringJob = null
+        if (deck.effectsMade) deck.effects.stop()
+        host.engine.retire(deck)
+    }
+
+    private val holdsTail: Boolean get() = effectsActive && creative in TailStyles
+
+    private fun creativeOn(): Boolean = AppSettings.value.let { it.crossfade && it.autoMix && it.creativeTransitions }
+
+    /** The phone's startTransitionEffects: the wash goes on the outgoing song; the incoming stays dry. */
+    private fun startEffects(host: Host, out: AudioEngine.Deck, into: AudioEngine.Deck) {
+        stopEffects(out, into)
+        if (!creativeOn()) return
+        effectsActive = true
+        echoFrozen = false
+        tapeStarted = false
+        transitionBeatMs = measuredBeatMs(host) ?: FallbackBeatMs
+        val settings = AppSettings.value
+        val reverb = if (settings.djReverb == ReverbType.AUTO) ReverbPrograms[(transitionIndex % ReverbPrograms.size).toInt()] else settings.djReverb
+        val delayType = if (settings.djDelay == DelayType.AUTO) DelayPrograms[(transitionIndex % DelayPrograms.size).toInt()] else settings.djDelay
+        val effects = out.effects
+        effects.ambience.reverbType = reverb
+        effects.delay.let { echo ->
+            echo.delayType = if (creative == CreativeStyle.ECHO_FREEZE && delayType == DelayType.SLAPBACK) DelayType.FILTERED else delayType
+            echo.frozen = false
+            echo.clearTail()
+            echo.setDelayMs(if (creative != CreativeStyle.ECHO_FREEZE && delayType == DelayType.SLAPBACK) 110L else transitionBeatMs / 2)
+            if (creative == CreativeStyle.ECHO_FREEZE) {
+                echo.freezeFeedback = 0.72f
+                echo.wetMix = 0.25f
+            }
+        }
+        Log.i(Tag, "Effects $creative: $reverb reverb, $delayType delay, beat ${transitionBeatMs}ms")
+    }
+
+    /** The phone's driveTransitionEffects, on the mix's clock. */
+    private fun driveEffects(out: AudioEngine.Deck, into: AudioEngine.Deck, progress: Float) {
+        if (!effectsActive) return
+        if (!creativeOn()) {
+            stopEffects(out, into)
+            return
+        }
+        val position = progress.coerceIn(0f, 1f)
+        val effects = out.effects
+        if (creative !in TailStyles) out.filter.stereoWidth = 1f - 0.65f * position
+        if (creative in TailStyles) effects.delay.dryLevel = cos(position * (PI / 2)).toFloat()
+        into.filter.pan = orbitPan(position)
+        val wash = (position / WashPeakAt).coerceIn(0f, 1f).let { it * it * (3f - 2f * it) }
+        effects.ambience.wetMix = wash * if (creative == CreativeStyle.REVERB_BLOOM) 0.5f else 0.15f
+        if (creative != CreativeStyle.ECHO_FREEZE) {
+            effects.delay.wetMix = wash * if (creative == CreativeStyle.DELAY_BLEND) 0.45f else 0.12f
+        }
+        if (creative == CreativeStyle.ECHO_FREEZE && !echoFrozen && position >= EchoFreezeAt) {
+            effects.delay.frozen = true
+            echoFrozen = true
+        }
+        if (creative == CreativeStyle.TAPE_STOP && !tapeStarted && position >= TapeStartAt) {
+            val remaining = (fadeMs * (1f - position)).toLong().coerceAtLeast(100L)
+            effects.tail.startTapeStop(minOf(remaining, (transitionBeatMs * TapeStopBeats).toLong()))
+            tapeStarted = true
+        }
+    }
+
+    /** The phone's stopTailEffects, for the songs given. */
+    private fun stopEffects(vararg decks: AudioEngine.Deck?) {
+        if (effectsActive && creative != CreativeStyle.TRANSPARENT) Log.i(Tag, "Effect end $creative")
+        effectsActive = false
+        for (deck in decks) {
+            if (deck == null) continue
+            deck.filter.open()
+            if (deck.effectsMade) deck.effects.stop()
+        }
+    }
+
+    /**
+     * The incoming song enters hard on one side and circles the head, the circling slowing as it
+     * goes, until it settles in the centre as the transition ends.
+     */
+    private fun orbitPan(progress: Float): Float {
+        val side = if (transitionIndex % 2 == 0L) -1f else 1f
+        val remaining = 1f - progress
+        val turns = OrbitTurns * (1f - remaining * remaining)
+        return side * cos(2.0 * PI * turns).toFloat() * remaining
+    }
+
+    /** The outgoing song's beat in time heard, for echoes in time with it. */
+    private fun measuredBeatMs(host: Host): Long? {
+        val analysis = TrackAnalyzer.analysisFor(outgoingId ?: return null)
+        if (analysis.bpm <= 0 || analysis.beatConfidence < 0.2) return null
+        return (60_000.0 / analysis.bpm / host.engine.tempo.coerceIn(0.25f, 2f)).toLong().coerceIn(250L, 1_500L)
     }
 
     private fun reset(host: Host, keepIncoming: Boolean = false) {
@@ -260,11 +406,20 @@ internal object AutoMix {
                 current.filter.open()
             }
         }
+        if (planned) {
+            recentStyles.addFirst(creative)
+            while (recentStyles.size > StyleHistory) recentStyles.removeLast()
+            transitionIndex++
+        }
+        planned = false
+        creative = CreativeStyle.TRANSPARENT
+        effectsActive = false
         phase = Phase.Idle
         outgoing = null
         incoming = null
         prepared = null
         nextId = null
+        outgoingId = null
         nextIndex = -1
         rate = 1.0
         render = Render()
@@ -367,6 +522,18 @@ internal object AutoMix {
     /** Starting a touch early makes up for the new song's sound card buffer filling. */
     private const val StartLeadMs = 20L
     private const val TempoRecoveryFrom = 0.8f
+
+    private const val FallbackBeatMs = 500L
+    private const val TailRingMs = 8_000L
+    private const val TapeStopBeats = 1.5f
+    private const val EchoFreezeAt = 0.6f
+    private const val WashPeakAt = 0.75f
+    private const val OrbitTurns = 1.5f
+    private const val TapeStartAt = 0.82f
+    private const val StyleHistory = 6
+    private val ReverbPrograms = arrayOf(ReverbType.ROOM, ReverbType.PLATE, ReverbType.HALL)
+    private val DelayPrograms = arrayOf(DelayType.STEREO, DelayType.PING_PONG, DelayType.TAPE, DelayType.FILTERED, DelayType.SLAPBACK)
+    private val TailStyles = setOf(CreativeStyle.REVERB_BLOOM, CreativeStyle.DELAY_BLEND, CreativeStyle.ECHO_FREEZE)
 
     private const val OpenHz = 20_000f
     private const val OffHz = 20f
