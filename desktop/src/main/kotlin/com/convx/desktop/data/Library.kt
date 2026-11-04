@@ -163,6 +163,14 @@ object Library {
 
     fun clearHistory() = store.update { it.copy(history = emptyList()) }
 
+    // Recognize Music's history
+
+    fun addRecognition(recognition: Recognition) = store.update { it.copy(recognitions = listOf(recognition) + it.recognitions) }
+
+    fun removeRecognition(at: Long) = store.update { data -> data.copy(recognitions = data.recognitions.filterNot { it.at == at }) }
+
+    fun clearRecognitions() = store.update { it.copy(recognitions = emptyList()) }
+
     fun removeFromHistory(at: Long) = store.update { data -> data.copy(history = data.history.filterNot { it.at == at }) }
 
     /** Recently played, one entry per song. */

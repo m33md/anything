@@ -33,6 +33,8 @@ kotlin {
         "../innertube/src/main/kotlin",
         "../lyrics/src/main/kotlin",
         "../canvas/src/main/kotlin",
+        // Only the phone's Shazam client is copied there.
+        "../integrations/src/main/kotlin",
     )
 }
 

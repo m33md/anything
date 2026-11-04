@@ -30,6 +30,12 @@ sealed interface Screen {
     data object Uploaded : Screen
     data object Settings : Screen
     data object Party : Screen
+    /** The phone's Radio tab, and one of its stations. */
+    data object Radio : Screen
+    data class RadioStation(val seed: com.convx.desktop.data.Song) : Screen
+    /** The phone's Recognize Music and the songs it found. */
+    data object Recognition : Screen
+    data object RecognitionHistory : Screen
     data class Album(val browseId: String) : Screen
     data class Artist(val browseId: String) : Screen
     data class Playlist(val id: String) : Screen

@@ -166,6 +166,8 @@ fun main(args: Array<String>) {
         film("01c-home-strip-folding", listOf(120L, 300L)) { UiState.openSection(Section.Home, navigator) }
         shoot("01d-home", seconds = 2)
         shoot("02-search") { navigator.navigate(Screen.Search) }
+        // The phone's Radio tab before anything has played.
+        shoot("02a-radio-empty", seconds = 2) { navigator.navigate(Screen.Radio) }
         shoot("03-search-results") { navigator.navigate(Screen.SearchResults("the weeknd")) }
         album?.let { shoot("04-album") { navigator.navigate(Screen.Album(it.browseId)) } }
         artist?.let { shoot("05-artist") { navigator.navigate(Screen.Artist(it.id)) } }
@@ -407,6 +409,25 @@ fun main(args: Array<String>) {
             Replay.close()
             shoot("22-my-top", seconds = 4) { navigator.navigate(Screen.MyTop) }
             shoot("22a-uploaded", seconds = 4) { navigator.navigate(Screen.Uploaded) }
+            // The Radio tab from the plays above, and one station from YouTube Music.
+            shoot("24-radio", seconds = 6) { navigator.navigate(Screen.Radio) }
+            shoot("24a-radio-station", seconds = 10) { navigator.navigate(Screen.RadioStation(songs.first())) }
+            // Recognize Music (no microphone on the build machine, so only its first page), and a
+            // history of three finds: today, yesterday and last month.
+            shoot("25-recognition", seconds = 2) { navigator.navigate(Screen.Recognition) }
+            songs.take(3).forEachIndexed { i, song ->
+                Library.addRecognition(
+                    com.convx.desktop.data.Recognition(
+                        trackId = "ci-$i",
+                        title = song.title,
+                        artist = song.artistText,
+                        album = song.album?.name,
+                        coverArt = song.thumbnail,
+                        at = now - listOf(25L * 86_400_000L, 86_400_000L, 3_600_000L)[i],
+                    ),
+                )
+            }
+            shoot("25a-recognition-history", seconds = 4) { navigator.navigate(Screen.RecognitionHistory) }
             // The phone's AI DJ Mix from a song; with no AI key it's that song's related songs.
             shoot("23-ai-dj", seconds = 3) { navigator.navigate(Screen.AiDj(seed = songs.first())) }
             shoot("23a-ai-dj-set", seconds = 12) {

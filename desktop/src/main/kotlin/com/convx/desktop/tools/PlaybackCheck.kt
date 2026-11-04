@@ -43,7 +43,7 @@ fun main(args: Array<String>) {
             "kJQP7kiw5Fk",
         )
     }
-    val dspOk = dspCheck() and libraryCheck() and partyCheck() and backupCheck() and playlistFileCheck() and downloadsCheck() and lyricsMenuCheck() and homeOrderCheck() and statsCheck() and sonicCheck() and autoMixCheck() and djEffectsCheck()
+    val dspOk = dspCheck() and libraryCheck() and partyCheck() and backupCheck() and playlistFileCheck() and downloadsCheck() and lyricsMenuCheck() and homeOrderCheck() and statsCheck() and sonicCheck() and autoMixCheck() and djEffectsCheck() and recognitionCheck()
     partyServerCheck()
     runBlocking(Dispatchers.IO) { initYouTube() }
     var passed = 0
@@ -230,6 +230,70 @@ private fun djEffectsCheck(): Boolean {
             off == com.convx.desktop.automix.CreativeStyle.TRANSPARENT && noRepeat == com.convx.desktop.automix.CreativeStyle.DELAY_BLEND,
         "$walk, off $off, after a bloom $noRepeat",
     )
+    return ok
+}
+
+/**
+ * Recognize Music without a microphone: the resampler keeps a 1 kHz tone and drops one above
+ * 16 kHz's Nyquist, and the phone's signature generator makes a Shazam signature from made-up
+ * music. Shazam is then asked about it; that answer is printed, not held to.
+ */
+private fun recognitionCheck(): Boolean {
+    var ok = true
+    fun expect(name: String, pass: Boolean, detail: String) {
+        if (!pass) ok = false
+        println("${if (pass) "PASS" else "FAIL"} recognition $name: $detail")
+    }
+    fun tone(rate: Int, seconds: Int, vararg hz: Double): ByteArray {
+        val frames = rate * seconds
+        val out = ByteArray(frames * 2)
+        for (i in 0 until frames) {
+            val s = (hz.sumOf { kotlin.math.sin(2 * Math.PI * it * i / rate) } * 8000 / hz.size).toInt()
+            out[i * 2] = s.toByte()
+            out[i * 2 + 1] = (s shr 8).toByte()
+        }
+        return out
+    }
+    fun rms(pcm: ByteArray): Double {
+        var sum = 0.0
+        val n = pcm.size / 2
+        for (i in 0 until n) {
+            val s = (pcm[i * 2].toInt() and 0xFF) or (pcm[i * 2 + 1].toInt() shl 8)
+            sum += s.toDouble() * s
+        }
+        return kotlin.math.sqrt(sum / n.coerceAtLeast(1))
+    }
+    val low = com.convx.desktop.recognition.Recognizer.resample(tone(48_000, 1, 1000.0), 48_000, 16_000)
+    val high = com.convx.desktop.recognition.Recognizer.resample(tone(44_100, 1, 12_000.0), 44_100, 16_000)
+    val lowDb = 20 * kotlin.math.log10(rms(low) / (8000 / kotlin.math.sqrt(2.0)))
+    val highDb = 20 * kotlin.math.log10(rms(high).coerceAtLeast(1e-3) / (8000 / kotlin.math.sqrt(2.0)))
+    expect("resampler", low.size / 2 in 15_990..16_000 && lowDb > -0.5 && highDb < -30, "${low.size / 2} samples, 1 kHz at ${"%.2f".format(lowDb)} dB, 12 kHz at ${"%.1f".format(highDb)} dB")
+
+    // Ten seconds of a little tune: a note every quarter second over a held bass.
+    val rate = 16_000
+    val notes = doubleArrayOf(440.0, 523.25, 659.25, 587.33, 493.88, 392.0, 349.23, 329.63)
+    val tune = ByteArray(rate * 10 * 2)
+    for (i in 0 until rate * 10) {
+        val note = notes[(i / (rate / 4)) % notes.size]
+        val t = i.toDouble() / rate
+        val s = (kotlin.math.sin(2 * Math.PI * note * t) * 6000 + kotlin.math.sin(2 * Math.PI * 110.0 * t) * 3000 +
+            kotlin.math.sin(2 * Math.PI * note * 2 * t) * 2000).toInt()
+        tune[i * 2] = s.toByte()
+        tune[i * 2 + 1] = (s shr 8).toByte()
+    }
+    val signature = runCatching { com.convx.desktop.recognition.ShazamSignatureGenerator.fromI16(tune) }
+    val uri = signature.getOrNull().orEmpty()
+    val prefix = "data:audio/vnd.shazam.sig;base64,"
+    val bytes = runCatching { java.util.Base64.getDecoder().decode(uri.removePrefix(prefix)) }.getOrNull()
+    expect(
+        "signature",
+        uri.startsWith(prefix) && bytes != null && bytes.size > 48,
+        signature.exceptionOrNull()?.let { "failed: ${it.message}" } ?: "${bytes?.size ?: 0} bytes",
+    )
+    if (uri.isNotEmpty()) {
+        val answer = runCatching { runBlocking { com.music.shazamkit.Shazam.recognize(uri, 10_000) } }
+        println("INFO recognition Shazam answered: " + (answer.getOrNull()?.fold({ "${it.title} by ${it.artist}" }, { it.message }) ?: answer.exceptionOrNull()?.message))
+    }
     return ok
 }
 

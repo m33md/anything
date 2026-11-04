@@ -7,6 +7,7 @@ on:
       - "innertube/**"
       - "lyrics/**"
       - "canvas/**"
+      - "integrations/**"
       - ".github/workflows/desktop.yml"
   pull_request:
     paths:
@@ -14,6 +15,7 @@ on:
       - "innertube/**"
       - "lyrics/**"
       - "canvas/**"
+      - "integrations/**"
       - ".github/workflows/desktop.yml"
   workflow_dispatch:
 

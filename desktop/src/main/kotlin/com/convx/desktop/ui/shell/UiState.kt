@@ -39,10 +39,14 @@ enum class LibraryTab(val label: String, val title: String) {
     Artists("Artists", "Artists"),
 }
 
-/** The three places the top bar leads to, each with its own sections under it. */
-enum class Section(val label: String, val icon: String, val root: Screen) {
+/**
+ * The places the top bar leads to, the phone's tabs: most have their own sections under them,
+ * which unfold in a strip; Radio is one page and has none.
+ */
+enum class Section(val label: String, val icon: String, val root: Screen, val hasStrip: Boolean = true) {
     Home("Home", "sf_house_fill", Screen.Home),
     Explore("Explore", "sf_square_grid_fill", Screen.Explore),
+    Radio("Radio", "sf_dot_radiowaves", Screen.Radio, hasStrip = false),
     Library("Library", "sf_music_note_square_stack", Screen.Library),
 }
 
@@ -50,6 +54,7 @@ enum class Section(val label: String, val icon: String, val root: Screen) {
 fun Screen.section(): Section? = when (this) {
     Screen.Home -> Section.Home
     Screen.Explore -> Section.Explore
+    Screen.Radio -> Section.Radio
     Screen.Library, Screen.Liked, Screen.LocalFiles, Screen.Downloads, Screen.History, Screen.Stats, Screen.MyTop, Screen.Cached, Screen.Uploaded -> Section.Library
     else -> null
 }
@@ -127,9 +132,9 @@ object UiState {
         when {
             here != section -> {
                 navigator.openRoot(section.root)
-                openSection = section
+                openSection = section.takeIf { it.hasStrip }
             }
-            openSection == section -> openSection = null
+            openSection == section || !section.hasStrip -> openSection = null
             else -> openSection = section
         }
     }

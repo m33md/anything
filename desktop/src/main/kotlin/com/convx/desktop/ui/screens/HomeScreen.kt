@@ -232,8 +232,8 @@ fun HomeScreen() {
             }
         }
 
-        // The phone's Home shuffle: something at random from your feed, as a radio for a song. Its
-        // sound search sits beside it there; the PC has no song recognition, so it's shuffle alone.
+        // The phone's Home shuffle: something at random from your feed, as a radio for a song, with
+        // Recognize Music's button above it.
         val canShuffle = feed.quickPicks?.isNotEmpty() == true || feed.keepListening.isNotEmpty() || feed.homePage?.sections?.isNotEmpty() == true
         AnimatedVisibility(
             visible = settings.showHomeShuffle && selectedChip == null && canShuffle && listState.isScrollingUp(),
@@ -241,18 +241,24 @@ fun HomeScreen() {
             exit = slideOutVertically { it * 2 },
             modifier = Modifier.align(Alignment.BottomEnd).padding(end = Gutter, bottom = LocalPageInsets.current.bottom + 16.dp),
         ) {
-            GlassCircleButton(
-                onClick = {
-                    when (val pick = HomeFeed.randomItem(feed)) {
-                        is SongItem -> PlayerController.startRadio(pick.toSong())
-                        null -> Unit
-                        else -> ItemActions.play(pick)
-                    }
-                },
-                size = 56.dp,
-                tooltip = "Shuffle",
-            ) {
-                ConvxIcon("shuffle", tint = Color.White, size = 24.dp)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                GlassCircleButton(onClick = { navigator.navigate(Screen.Recognition) }, tooltip = "Recognize music") {
+                    ConvxIcon("mic", tint = Color.White, size = 20.dp)
+                }
+                Spacer(Modifier.height(12.dp))
+                GlassCircleButton(
+                    onClick = {
+                        when (val pick = HomeFeed.randomItem(feed)) {
+                            is SongItem -> PlayerController.startRadio(pick.toSong())
+                            null -> Unit
+                            else -> ItemActions.play(pick)
+                        }
+                    },
+                    size = 56.dp,
+                    tooltip = "Shuffle",
+                ) {
+                    ConvxIcon("shuffle", tint = Color.White, size = 24.dp)
+                }
             }
         }
     }

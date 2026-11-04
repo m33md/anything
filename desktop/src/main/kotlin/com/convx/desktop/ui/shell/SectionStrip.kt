@@ -310,6 +310,7 @@ private fun rememberStripEntries(section: Section): List<StripEntry> {
                 UiState.exploreJump = anchor
             }
         }
+        Section.Radio -> emptyList()
         Section.Library -> {
             fun openTab(tab: LibraryTab) {
                 UiState.libraryTab = tab

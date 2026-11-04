@@ -103,6 +103,28 @@ data class LibraryData(
     val artistPictures: Map<String, String> = emptyMap(),
     /** Your YouTube Music uploads, as the account last listed them: the phone's "Uploaded" playlist. */
     val uploaded: List<Song> = emptyList(),
+    /** Songs Recognize Music found, newest first: the phone's recognition history. */
+    val recognitions: List<Recognition> = emptyList(),
+)
+
+/** A song Recognize Music found, with what Shazam said about it, as the phone keeps one. */
+@Serializable
+data class Recognition(
+    val trackId: String,
+    val title: String,
+    val artist: String,
+    val album: String? = null,
+    val coverArt: String? = null,
+    val coverArtHq: String? = null,
+    val genre: String? = null,
+    val releaseDate: String? = null,
+    val label: String? = null,
+    val shazamUrl: String? = null,
+    val appleMusicUrl: String? = null,
+    val spotifyUrl: String? = null,
+    val isrc: String? = null,
+    val youtubeVideoId: String? = null,
+    val at: Long = System.currentTimeMillis(),
 )
 
 /** A Speed dial pin, as the phone keeps one: enough of the item to show it and open it again. */
@@ -398,6 +420,8 @@ data class Settings(
     val djDelay: com.convx.desktop.automix.DelayType = com.convx.desktop.automix.DelayType.AUTO,
     /** The phone's "Automatically check for updates": looks for a newer build at launch. */
     val checkForUpdates: Boolean = true,
+    /** The sound input Recognize Music listens with, by its name; null is Windows' default. */
+    val recognitionInput: String? = null,
     /** Restore the last queue at launch. */
     val persistentQueue: Boolean = true,
     val rememberShuffleRepeat: Boolean = true,

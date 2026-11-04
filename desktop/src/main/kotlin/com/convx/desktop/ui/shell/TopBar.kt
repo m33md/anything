@@ -128,7 +128,8 @@ fun TopBar(modifier: Modifier = Modifier) {
         val leftWidth = 190.dp
         val rightWidth = WindowTitleBar.rightInset + sides + NavButtonSize * 2 + 8.dp + 12.dp
         // The middle stays centred in the window, as Spotify's does, and gives way on narrow ones.
-        val room = maxWidth - 2 * maxOf(leftWidth, rightWidth) - 2 * (TopBarButtonSize + 10.dp)
+        val buttons = listOf(Section.Home, Section.Radio, Section.Library).count { it !in hidden }
+        val room = maxWidth - 2 * maxOf(leftWidth, rightWidth) - buttons * (TopBarButtonSize + 10.dp)
         val fieldWidth = room.coerceIn(260.dp, 480.dp)
 
         Row(
@@ -158,6 +159,7 @@ fun TopBar(modifier: Modifier = Modifier) {
                 onExplore = { UiState.openSection(Section.Explore, navigator) },
                 showExplore = Section.Explore !in hidden,
             )
+            if (Section.Radio !in hidden) SectionButton(Section.Radio, lit == Section.Radio) { UiState.openSection(Section.Radio, navigator) }
             if (Section.Library !in hidden) SectionButton(Section.Library, lit == Section.Library) { UiState.openSection(Section.Library, navigator) }
         }
 
@@ -337,6 +339,13 @@ private fun SearchField(width: Dp, exploreLit: Boolean, onExplore: () -> Unit, s
                 navigator.searchQuery = ""
                 if (navigator.current.screen is Screen.SearchResults) navigator.navigate(Screen.Search)
                 runCatching { UiState.searchFocus.requestFocus() }
+            }
+        }
+        // The phone opens Recognize Music from a long press on Search; here it's the field's mic.
+        if (query.isEmpty()) {
+            val listening = screen == Screen.Recognition || screen == Screen.RecognitionHistory
+            FieldButton("mic", "Recognize music", if (listening) LocalAccent.current else GlassTokens.Icon) {
+                navigator.navigate(Screen.Recognition)
             }
         }
         if (showExplore) {

@@ -16,6 +16,7 @@ import com.convx.desktop.data.LibraryData
 import com.convx.desktop.data.LikedSong
 import com.convx.desktop.data.LocalPlaylist
 import com.convx.desktop.data.PlayEvent
+import com.convx.desktop.data.Recognition
 import com.convx.desktop.data.SavedAlbum
 import com.convx.desktop.data.SavedArtist
 import com.convx.desktop.data.SavedPlaylist
@@ -76,6 +77,8 @@ object Backup {
         val skippedLocal: Int,
         /** Every YouTube artist's picture the phone had, for Stats. */
         val artistPictures: Map<String, String> = emptyMap(),
+        /** What the phone's Recognize Music found. */
+        val recognitions: List<Recognition> = emptyList(),
     )
 
     private val _state = MutableStateFlow<State>(State.Idle)
@@ -351,7 +354,35 @@ object Backup {
             history += PlayEvent(song, row.long("timestamp") ?: return@query, playedMs = row.long("playTime") ?: 0L)
         }
 
-        return PhoneLibrary(liked, playlists, savedPlaylists, albums, artists, history, skippedLocal, pictures)
+        // Older phones have no such table.
+        val recognitions = mutableListOf<Recognition>()
+        runCatching {
+            connection.query("SELECT * FROM recognition_history ORDER BY recognizedAt DESC") { row ->
+                // The phone keeps its local clock time as if it were UTC.
+                val stamp = row.long("recognizedAt") ?: return@query
+                val at = java.time.LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(stamp), java.time.ZoneOffset.UTC)
+                    .atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                recognitions += Recognition(
+                    trackId = row.string("trackId").orEmpty(),
+                    title = row.string("title") ?: return@query,
+                    artist = row.string("artist").orEmpty(),
+                    album = row.string("album"),
+                    coverArt = row.string("coverArtUrl"),
+                    coverArtHq = row.string("coverArtHqUrl"),
+                    genre = row.string("genre"),
+                    releaseDate = row.string("releaseDate"),
+                    label = row.string("label"),
+                    shazamUrl = row.string("shazamUrl"),
+                    appleMusicUrl = row.string("appleMusicUrl"),
+                    spotifyUrl = row.string("spotifyUrl"),
+                    isrc = row.string("isrc"),
+                    youtubeVideoId = row.string("youtubeVideoId"),
+                    at = at,
+                )
+            }
+        }
+
+        return PhoneLibrary(liked, playlists, savedPlaylists, albums, artists, history, skippedLocal, pictures, recognitions)
     }
 
     /** Adds what the phone had without taking anything away from this PC's library. */
@@ -391,6 +422,8 @@ object Backup {
                     .sortedByDescending { it.at }
                     .take(Library.HistoryLimit),
                 artistPictures = phone.artistPictures + data.artistPictures,
+                recognitions = (data.recognitions + phone.recognitions.filter { r -> data.recognitions.none { it.trackId == r.trackId && it.at == r.at } })
+                    .sortedByDescending { it.at },
             )
         }
         Library.flush()
@@ -398,6 +431,7 @@ object Backup {
             append("Added from your phone: $newLiked liked songs, ${phone.playlists.size} playlists")
             if (newSaved > 0) append(", $newSaved saved playlists")
             append(", $newAlbums albums, $newArtists artists and ${phone.history.size} plays of history.")
+            if (phone.recognitions.isNotEmpty()) append(" ${phone.recognitions.size} songs Recognize Music found came too.")
             if (phone.skippedLocal > 0) append(" ${phone.skippedLocal} songs were files on the phone, which this PC doesn't have.")
             append(" The phone's settings stay on the phone.")
         }

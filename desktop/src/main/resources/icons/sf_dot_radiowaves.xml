@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- dot.radiowaves.left.and.right, drawn after the SF Symbol the phone's Radio tab uses. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M9.8,12a2.2,2.2 0 1,0 4.4,0a2.2,2.2 0 1,0 -4.4,0z" />
+    <path android:fillColor="#00000000" android:strokeColor="#FFFFFFFF" android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M15.08,8.58A4.6,4.6 0 0,1 15.08,15.42M8.92,8.58A4.6,4.6 0 0,0 8.92,15.42" />
+    <path android:fillColor="#00000000" android:strokeColor="#FFFFFFFF" android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M17.53,5.41A8.6,8.6 0 0,1 17.53,18.59M6.47,5.41A8.6,8.6 0 0,0 6.47,18.59" />
+</vector>
