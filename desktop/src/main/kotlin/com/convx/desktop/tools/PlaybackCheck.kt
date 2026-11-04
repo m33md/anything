@@ -197,12 +197,17 @@ private fun djEffectsCheck(): Boolean {
         reverbType = com.convx.desktop.automix.ReverbType.HALL
         wetMix = 0.5f
     }
-    val clickAt = rate / 2
-    val washed = run(8, ambience::process) { it[clickAt * 2] = 0.8f; it[clickAt * 2 + 1] = 0.8f }
-    val early = rms(washed, clickAt + rate / 10, clickAt + rate)
-    val late = rms(washed, rate * 7, rate * 8)
-    expect("reverb tail", early > 1e-4 && late < early * 0.2 && washed.none { it.isNaN() },
-        "%.5f in its first second, %.6f at 7 s".format(early, late))
+    // A second of noise, then silence: what is heard after it stops is the reverb's tail.
+    val noise = java.util.Random(7)
+    val washed = run(9, ambience::process) { buffer -> for (i in 0 until rate * 2) buffer[i] = (noise.nextGaussian() * 0.3).toFloat() }
+    val input = 0.3
+    val early = rms(washed, rate + rate / 10, rate + rate * 6 / 10)
+    val late = rms(washed, rate * 8, rate * 9)
+    expect("reverb tail", early > input * 0.003 && late < early * 0.2 && washed.none { it.isNaN() },
+        "%.1f dB below the sound just after it, %.1f dB at 7 s".format(
+            20 * kotlin.math.log10(input / early.coerceAtLeast(1e-12)),
+            20 * kotlin.math.log10(input / late.coerceAtLeast(1e-12)),
+        ))
 
     val tail = com.convx.desktop.automix.DjTail(rate)
     var processed = 0

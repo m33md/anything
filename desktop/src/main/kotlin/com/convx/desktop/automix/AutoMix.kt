@@ -613,3 +613,34 @@ internal object DjMixPlanner {
         return ((relativeMajor * 7 + 7) % 12) + 1 to minor
     }
 }
+
+/**
+ * The phone's DjSetOrderer: from the first song on, each next one is whichever mixes best from the
+ * last, by AutoMix tier and then by closeness of tempo. Unmeasured songs keep their order.
+ */
+internal object DjSetOrderer {
+    fun order(songs: List<Song>): List<Song> {
+        if (songs.size <= 2) return songs
+        val analyses = songs.associate { it.id to TrackAnalyzer.analysisFor(it.id) }
+        val remaining = songs.toMutableList()
+        val ordered = ArrayList<Song>(songs.size)
+        ordered += remaining.removeAt(0)
+        while (remaining.isNotEmpty()) {
+            val last = analyses.getValue(ordered.last().id)
+            var bestIndex = 0
+            var bestScore = Double.NEGATIVE_INFINITY
+            for (index in remaining.indices) {
+                val next = analyses.getValue(remaining[index].id)
+                val tier = DjMixPlanner.plan(last, next).tier
+                val bpmDelta = if (last.bpm > 0 && next.bpm > 0) abs(last.bpm - next.bpm) else 1000.0
+                val score = -tier.ordinal * 10_000.0 - bpmDelta
+                if (score > bestScore) {
+                    bestScore = score
+                    bestIndex = index
+                }
+            }
+            ordered += remaining.removeAt(bestIndex)
+        }
+        return ordered
+    }
+}

@@ -32,9 +32,8 @@ class AiDjSet(val name: String, val songs: List<Song>, val unmatched: List<Strin
  * AI's opener, rising, peak and closer order. With only a song it's that song's related songs,
  * no AI involved.
  *
- * The phone then orders a vibe set by the BPM and key it measured while playing each song. The
- * PC doesn't measure them, so the AI's own order is kept, which is the order the phone falls
- * back to for songs it hasn't measured.
+ * A vibe set is then put in mixing order by the tempo and key AutoMix measured for each song,
+ * as the phone does; songs not measured yet keep the AI's order, as they do on the phone.
  */
 object AiDjSetBuilder {
     private const val MaxLibraryCandidates = 150
@@ -116,7 +115,9 @@ object AiDjSetBuilder {
         } else {
             resolved.values.toList()
         }
-        val songs = listOfNotNull(seed) + ordered
+        val picked = listOfNotNull(seed) + ordered
+        // The AI's concert arc is kept as it is: reordering by tempo would break it.
+        val songs = if (concert && roles.isNotEmpty()) picked else com.convx.desktop.automix.DjSetOrderer.order(picked)
         val name = name(concert, concept, vibe, seed?.title)
         log("Done! Built \"$name\" with ${songs.size} songs.")
         AiDjSet(name, songs, unmatched, method)

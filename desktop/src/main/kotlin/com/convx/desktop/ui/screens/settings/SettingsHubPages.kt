@@ -304,7 +304,53 @@ fun HelpHub() {
         }
         RowDivider()
         LinkRow("Logs", "For when something goes wrong", icon = "bug_report", tint = SystemColors.Orange) { openFolder(AppDirs.logs) }
+        RowDivider()
+        LinkRow("Copy recent log", "Paste it into a message to show what went wrong", icon = "content_copy", tint = SystemColors.Blue) {
+            copyText(com.convx.desktop.core.Log.recent())
+            Overlays.toast("Recent log copied")
+        }
+        RowDivider()
+        LinkRow("Crash report", "The last time the app closed unexpectedly", icon = "warning", tint = SystemColors.Red) {
+            SettingsNav.push(SettingsPage.CrashReport)
+        }
     }
+}
+
+/** The phone's Crash report page: the latest report, to copy into a message. */
+@Composable
+fun CrashReportPage() {
+    val report = androidx.compose.runtime.remember {
+        runCatching { com.convx.desktop.core.Log.crashFile.takeIf { it.isFile }?.readText() }.getOrNull()
+    }
+    if (report == null) {
+        SettingsSection {
+            SettingsRow("No crash report yet", "A report will be saved here if the app closes unexpectedly.", icon = "check", tint = SystemColors.Green)
+        }
+        return
+    }
+    SettingsSection {
+        LinkRow("Copy report", "Paste it into a message to show what went wrong", icon = "content_copy", tint = SystemColors.Blue) {
+            copyText(report)
+            Overlays.toast("Crash report copied")
+        }
+        RowDivider()
+        LinkRow("Open logs folder", null, icon = "bug_report", tint = SystemColors.Orange) { openFolder(AppDirs.logs) }
+    }
+    SectionGap()
+    SettingsSection("Latest report") {
+        Text(
+            report.lines().take(60).joinToString("\n"),
+            style = ConvxType.Footnote,
+            color = ConvxColors.SecondaryLabel,
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+        )
+    }
+}
+
+internal fun copyText(text: String) {
+    runCatching {
+        java.awt.Toolkit.getDefaultToolkit().systemClipboard.setContents(java.awt.datatransfer.StringSelection(text), null)
+    }.onFailure { Overlays.toast("Couldn't copy", "error") }
 }
 
 internal fun formatBytes(bytes: Long): String = when {

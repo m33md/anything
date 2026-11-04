@@ -80,7 +80,7 @@ import java.awt.Window as AwtWindow
 @OptIn(FlowPreview::class)
 fun main() {
     Log.i("Startup", "Convx ${AppInfo.VERSION} on ${System.getProperty("os.name")} ${System.getProperty("os.arch")}, Java ${System.getProperty("java.version")}")
-    Thread.setDefaultUncaughtExceptionHandler { thread, error -> Log.e("Crash", "Uncaught on ${thread.name}", error) }
+    Thread.setDefaultUncaughtExceptionHandler { thread, error -> Log.crash(thread, error) }
 
     // Before any HTTP client exists, so they all go through the proxy if one is set.
     Network.apply(AppSettings.value)
