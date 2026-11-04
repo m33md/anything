@@ -13,27 +13,30 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
- * Room the floating glass chrome takes from a page: Your Library on the left, the top bar (and
- * a section's strip under it) at the top, and the now playing pill at the bottom. Pages spend
- * it as list padding, as the phone's tab view does, so rows start clear of the glass while the
- * list still spans the whole window and scrolls underneath it.
+ * Room the floating glass chrome takes from a page: Your Library on the left, the now playing
+ * panel on the right, the top bar (and a section's strip under it) at the top, and the now
+ * playing pill at the bottom. Pages spend it as list padding, as the phone's tab view does, so
+ * rows start clear of the glass while the list still spans the whole window and scrolls
+ * underneath it.
  */
 @Immutable
-data class PageInsets(val start: Dp = 0.dp, val top: Dp = 64.dp, val bottom: Dp = 0.dp)
+data class PageInsets(val start: Dp = 0.dp, val top: Dp = 64.dp, val bottom: Dp = 0.dp, val end: Dp = 0.dp)
 
 val LocalPageInsets = compositionLocalOf { PageInsets() }
 
 /**
- * Widens a list item [start] to the left, out to the window's edge, so a sideways shelf or a
- * hero photo runs under the side bar's glass instead of stopping at its inset.
+ * Widens a list item [start] to the left and [end] to the right, out to the window's edges, so
+ * a sideways shelf or a hero photo runs under the side panels' glass instead of stopping at
+ * their insets.
  */
-fun Modifier.bleedStart(start: Dp): Modifier = if (start <= 0.dp) this else layout { measurable, constraints ->
-    val extra = start.roundToPx()
+fun Modifier.bleedStart(start: Dp, end: Dp = 0.dp): Modifier = if (start <= 0.dp && end <= 0.dp) this else layout { measurable, constraints ->
+    val left = start.coerceAtLeast(0.dp).roundToPx()
+    val right = end.coerceAtLeast(0.dp).roundToPx()
     if (!constraints.hasBoundedWidth) {
         val placeable = measurable.measure(constraints)
         return@layout layout(placeable.width, placeable.height) { placeable.place(0, 0) }
     }
-    val width = constraints.maxWidth + extra
+    val width = constraints.maxWidth + left + right
     val placeable = measurable.measure(constraints.copy(minWidth = width, maxWidth = width))
-    layout(constraints.maxWidth, placeable.height) { placeable.place(-extra, 0) }
+    layout(constraints.maxWidth, placeable.height) { placeable.place(-left, 0) }
 }

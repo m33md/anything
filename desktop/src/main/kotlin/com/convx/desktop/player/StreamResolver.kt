@@ -39,6 +39,8 @@ data class ResolvedStream(
     val durationMs: Long?,
     val client: String,
     val expiresAt: Long,
+    /** YouTube's count of plays for this video, when the player response carries it. */
+    val viewCount: Long? = null,
 ) {
     val codec: String
         get() = mimeType.substringAfter("codecs=\"", "").substringBefore('"').substringBefore('.').ifBlank {
@@ -161,6 +163,7 @@ object StreamResolver {
                             client = client.clientName,
                             expiresAt = System.currentTimeMillis() +
                                 (response.streamingData?.expiresInSeconds ?: 21600) * 1000L,
+                            viewCount = response.videoDetails?.viewCount?.toLongOrNull(),
                         )
                         Log.i(Tag, "$videoId: playing via ${client.clientName}, ${stream.badge}")
                         if (!preferAac) cache[videoId] = stream

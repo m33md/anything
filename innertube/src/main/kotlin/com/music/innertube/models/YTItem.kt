@@ -39,7 +39,9 @@ data class SongItem(
     val setVideoId: String? = null,
     val libraryAddToken: String? = null,
     val libraryRemoveToken: String? = null,
-    val historyRemoveToken: String? = null
+    val historyRemoveToken: String? = null,
+    /** The play count YouTube Music prints beside the song ("1.2B plays"), in its own words. */
+    val plays: String? = null,
 ) : YTItem() {
     val isPodcastEpisode: Boolean
         get() = musicVideoType == MUSIC_VIDEO_TYPE_PODCAST_EPISODE

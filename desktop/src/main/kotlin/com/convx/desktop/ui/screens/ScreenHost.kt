@@ -99,14 +99,14 @@ fun PageList(
         // The list spans the whole window and scrolls under the glass; its padding keeps rows clear of it.
         LazyColumn(
             state = state,
-            contentPadding = PaddingValues(start = insets.start, top = topPadding, bottom = insets.bottom + 40.dp),
+            contentPadding = PaddingValues(start = insets.start, end = insets.end, top = topPadding, bottom = insets.bottom + 40.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
             content()
         }
         VerticalScrollbar(
             rememberScrollbarAdapter(state),
-            Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(top = insets.top, bottom = insets.bottom + 8.dp, end = 2.dp),
+            Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(top = insets.top, bottom = insets.bottom + 8.dp, end = insets.end + 2.dp),
         )
     }
 }

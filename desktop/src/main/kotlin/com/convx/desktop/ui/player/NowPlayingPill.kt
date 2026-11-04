@@ -197,6 +197,24 @@ fun NowPlayingPill(modifier: Modifier = Modifier) {
                 UiState.fullPlayerMode = FullPlayerMode.Queue
                 UiState.fullPlayer = true
             }
+            // Spotify's Now Playing view button, for the panel on the right.
+            val panelOpen = AppSettings.state.collectAsState().value.rightPanel != null
+            val panelShown = panelOpen && UiState.rightPanelFits
+            GlassGlyph(
+                "right_panel",
+                if (panelShown) "Hide Now Playing view" else "Show Now Playing view",
+                controlSize,
+                iconSize,
+                TransportTint.copy(alpha = if (panelShown) TransportTint.alpha else 0.4f),
+                bounce = true,
+            ) {
+                if (UiState.rightPanelFits) {
+                    UiState.toggleNowPlayingPanel()
+                } else {
+                    UiState.openSidePanel(com.convx.desktop.ui.shell.SidePanel.NowPlaying)
+                    com.convx.desktop.ui.components.Overlays.toast("Make the window wider to fit the Now Playing view", "right_panel")
+                }
+            }
             PillVolume(state, controlSize, iconSize, slider = roomy)
         }
         AppMenu(menu) {

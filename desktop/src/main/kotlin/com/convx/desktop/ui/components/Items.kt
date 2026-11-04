@@ -320,6 +320,8 @@ fun CompactSongRow(
     modifier: Modifier = Modifier,
     /** The phone's heart on a liked song; Home's rows can turn it off. */
     showLiked: Boolean = true,
+    /** A note at the row's end, such as YouTube's play count on an artist's top songs. */
+    trailing: String? = null,
 ) {
     val playback = LocalPlayback.current
     val accent = LocalAccent.current
@@ -363,6 +365,15 @@ fun CompactSongRow(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+            }
+            if (trailing != null) {
+                Text(
+                    trailing,
+                    style = ConvxType.Subhead,
+                    color = ConvxColors.SecondaryLabel,
+                    maxLines = 1,
+                    modifier = Modifier.padding(start = 10.dp, end = 4.dp),
+                )
             }
             if (hovered) {
                 IconButton("more_horiz", { menu.offset = androidx.compose.ui.unit.DpOffset.Zero; menu.expanded = true }, size = 30.dp, iconSize = 18.dp)
@@ -590,11 +601,12 @@ fun Shelf(
             Spacer(Modifier.height(8.dp))
             // Runs out under the side bar, so cards scroll beneath its glass.
             val bleed = LocalPageInsets.current.start
+            val bleedEnd = LocalPageInsets.current.end
             LazyRow(
                 state = state,
-                contentPadding = PaddingValues(start = bleed + Gutter - 10.dp, end = Gutter - 10.dp),
+                contentPadding = PaddingValues(start = bleed + Gutter - 10.dp, end = bleedEnd + Gutter - 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(spacing),
-                modifier = Modifier.bleedStart(bleed).fillMaxWidth(),
+                modifier = Modifier.bleedStart(bleed, bleedEnd).fillMaxWidth(),
             ) {
                 content()
             }
@@ -644,6 +656,8 @@ fun SongShelf(
     modifier: Modifier = Modifier,
     subtitle: String? = null,
     onTitleClick: (() -> Unit)? = null,
+    /** YouTube's play count by song id, shown at each row's end (an artist's top songs). */
+    plays: Map<String, String> = emptyMap(),
     onPlay: (Int) -> Unit,
 ) {
     if (songs.isEmpty()) return
@@ -658,7 +672,7 @@ fun SongShelf(
     ) {
         items(columns, key = { it.first().value.id + it.first().index }) { column ->
             Column(Modifier.width(380.dp).padding(start = 4.dp)) {
-                column.forEach { (index, song) -> CompactSongRow(song, { onPlay(index) }) }
+                column.forEach { (index, song) -> CompactSongRow(song, { onPlay(index) }, trailing = plays[song.id]) }
             }
         }
     }

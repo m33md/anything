@@ -492,12 +492,13 @@ fun MoodGrid(title: String, moods: List<MoodAndGenres.Item>, onTitleClick: (() -
         SectionHeader(title, Modifier.padding(horizontal = Gutter), onAction = onTitleClick)
         Spacer(Modifier.height(10.dp))
         val bleed = LocalPageInsets.current.start
+        val bleedEnd = LocalPageInsets.current.end
         LazyHorizontalGrid(
             rows = GridCells.Fixed(3),
-            contentPadding = PaddingValues(start = bleed + Gutter, end = Gutter),
+            contentPadding = PaddingValues(start = bleed + Gutter, end = bleedEnd + Gutter),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier.bleedStart(bleed).fillMaxWidth().height(60.dp * 3 + 20.dp),
+            modifier = Modifier.bleedStart(bleed, bleedEnd).fillMaxWidth().height(60.dp * 3 + 20.dp),
         ) {
             items(moods, key = { it.title }) { mood ->
                 MoodTile(mood) { navigator.navigate(Screen.Browse(mood.endpoint.browseId, mood.endpoint.params, mood.title)) }

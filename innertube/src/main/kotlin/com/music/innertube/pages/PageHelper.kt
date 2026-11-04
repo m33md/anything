@@ -32,6 +32,19 @@ object PageHelper {
         return iconType in LIBRARY_SAVED_ICONS
     }
 
+    /**
+     * The play count a song row shows ("1.2B plays", worded in the request's language): the
+     * first plain run after the title that starts with a digit. Times and years don't count.
+     */
+    fun extractPlays(columns: List<FlexColumn>): String? =
+        columns.drop(1)
+            .flatMap { it.musicResponsiveListItemFlexColumnRenderer.text?.runs.orEmpty() }
+            .map { it.navigationEndpoint to it.text.trim() }
+            .firstOrNull { (endpoint, text) ->
+                endpoint == null && text.firstOrNull()?.isDigit() == true && ':' !in text &&
+                    !text.all { it.isDigit() } && text.any { it.isLetter() }
+            }?.second
+
     fun extractRuns(columns: List<FlexColumn>, typeLike: String): List<Run> {
         val filteredRuns = mutableListOf<Run>()
         for (column in columns) {

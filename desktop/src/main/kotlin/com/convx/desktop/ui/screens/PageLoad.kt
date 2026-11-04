@@ -89,7 +89,7 @@ fun <T : Any> PageContent(page: PageLoad<T>, modifier: Modifier = Modifier, cont
     val value = page.value
     // Spinners and errors centre in the space the glass leaves, not under it.
     val insets = LocalPageInsets.current
-    val padded = modifier.padding(start = insets.start, bottom = insets.bottom)
+    val padded = modifier.padding(start = insets.start, end = insets.end, bottom = insets.bottom)
     when {
         value != null -> content(value)
         page.error != null -> MessageState(

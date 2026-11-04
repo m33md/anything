@@ -129,6 +129,10 @@ fun ArtistScreen(browseId: String) {
             val followed = library.artists.any { it.id == artist.id }
             val songSection = data.sections.firstOrNull { section -> section.items.isNotEmpty() && section.items.all { it is SongItem } }
             val topSongs = remember(songSection) { songSection?.items?.filterIsInstance<SongItem>()?.distinctBy { it.id }?.map { it.toSong() }.orEmpty() }
+            // What YouTube Music prints beside each top song: its plays there, not Spotify's.
+            val topPlays = remember(songSection) {
+                songSection?.items?.filterIsInstance<SongItem>()?.mapNotNull { s -> s.plays?.let { s.id to it } }?.toMap().orEmpty()
+            }
             val featured = remember(data) { data.sections.featuredRelease() }
             val isThisPlaying = playback.isPlaying &&
                 (topSongs.any { it.id == playback.currentId } || PlayerController.state.value.queueTitle == artist.title)
@@ -224,6 +228,7 @@ fun ArtistScreen(browseId: String) {
                             onTitleClick = songSection.moreEndpoint?.let { more ->
                                 { navigator.navigate(Screen.ArtistItems(more.browseId, more.params, "${artist.title}: ${songSection.title}")) }
                             },
+                            plays = topPlays,
                             onPlay = { i -> PlayerController.playSongs(topSongs, i, artist.title) },
                         )
                         Spacer(Modifier.height(20.dp))

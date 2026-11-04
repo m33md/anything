@@ -75,6 +75,9 @@ object UiState {
 
     /** F11: the window over the whole screen, taskbar and all, whatever it shows. */
     var windowFullscreen by mutableStateOf(false)
+
+    /** Whether the window is wide enough for the Now Playing panel beside the pages. */
+    var rightPanelFits by mutableStateOf(true)
     var fullPlayerMode by mutableStateOf(FullPlayerMode.Lyrics)
 
     /** Lyrics across the whole player, the phone's full-screen lyrics; only while the lyrics are open. */
@@ -162,6 +165,11 @@ object UiState {
 
     fun closeSidePanel() {
         AppSettings.update { it.copy(rightPanel = null) }
+    }
+
+    /** The Now Playing panel's button: closes whatever the panel shows, or opens it on Now Playing. */
+    fun toggleNowPlayingPanel() {
+        AppSettings.update { it.copy(rightPanel = if (it.rightPanel != null) null else SidePanel.NowPlaying.key) }
     }
 }
 

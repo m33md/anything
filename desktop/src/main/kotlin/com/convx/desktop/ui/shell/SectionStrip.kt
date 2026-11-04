@@ -131,7 +131,7 @@ private data class StripEntry(
  * shelves, the Library's views. One glass capsule with a glass puck under the one you're on.
  */
 @Composable
-fun SectionStrip(motion: StripMotion, open: Section?, startInset: Dp, modifier: Modifier = Modifier) {
+fun SectionStrip(motion: StripMotion, open: Section?, startInset: Dp, modifier: Modifier = Modifier, endInset: Dp = 0.dp) {
     // The strip keeps drawing the section it folds away from.
     var shown by remember { mutableStateOf(open ?: Section.Home) }
     if (open != null) shown = open
@@ -143,7 +143,7 @@ fun SectionStrip(motion: StripMotion, open: Section?, startInset: Dp, modifier: 
         var contentWidth by remember(shown) { mutableIntStateOf(0) }
         val px = { dp: Dp -> with(density) { dp.toPx() } }
         val windowWidth = constraints.maxWidth.toFloat()
-        val maxWidth = (windowWidth - px(startInset) - 2 * px(StripMargin)).coerceAtLeast(px(160.dp))
+        val maxWidth = (windowWidth - px(startInset) - px(endInset) - 2 * px(StripMargin)).coerceAtLeast(px(160.dp))
         val target = (contentWidth + 2 * px(StripPadding)).coerceAtMost(maxWidth)
 
         // Content that changes while open (moods arriving, another section) springs to its width.
@@ -158,7 +158,7 @@ fun SectionStrip(motion: StripMotion, open: Section?, startInset: Dp, modifier: 
         val circle = button.height
         val stripHeight = px(SectionStripHeight)
         val w = openWidth.value.coerceAtLeast(circle)
-        val openCenterX = (windowWidth / 2f).coerceIn(px(startInset) + px(StripMargin) + w / 2f, windowWidth - px(StripMargin) - w / 2f)
+        val openCenterX = (windowWidth / 2f).coerceIn(px(startInset) + px(StripMargin) + w / 2f, (windowWidth - px(endInset) - px(StripMargin) - w / 2f).coerceAtLeast(px(startInset) + px(StripMargin) + w / 2f))
         val openCenterY = px(TopBarHeight) + px(StripGap) + stripHeight / 2f
 
         val t = motion.travel.value
@@ -170,7 +170,7 @@ fun SectionStrip(motion: StripMotion, open: Section?, startInset: Dp, modifier: 
         val contentAlpha = ((motion.body.value - 0.35f) / 0.65f).coerceIn(0f, 1f)
         // The width's swell mid-flight would reach over Your Library; keep it to the page's side.
         val minLeft = px(startInset) + px(StripMargin)
-        val maxRight = windowWidth - px(StripMargin)
+        val maxRight = windowWidth - px(endInset) - px(StripMargin)
         val left = (centerX - width / 2f).let { if (width <= maxRight - minLeft) it.coerceIn(minLeft, maxRight - width) else it }
 
         val glow = rememberInteractiveHighlight()

@@ -164,10 +164,10 @@ private val SidebarWidth = 360.dp
 fun SettingsScreen() {
     val insets = LocalPageInsets.current
     BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)) {
-        val split = maxWidth - insets.start >= SplitWidth
+        val split = maxWidth - insets.start - insets.end >= SplitWidth
         val rootState = rememberLazyListState()
         if (split) {
-            Row(Modifier.fillMaxSize().padding(start = insets.start)) {
+            Row(Modifier.fillMaxSize().padding(start = insets.start, end = insets.end)) {
                 Box(Modifier.width(SidebarWidth).fillMaxHeight()) {
                     RootList(rootState, sidebar = true)
                 }
@@ -176,7 +176,7 @@ fun SettingsScreen() {
                 }
             }
         } else {
-            Box(Modifier.fillMaxSize().padding(start = insets.start)) {
+            Box(Modifier.fillMaxSize().padding(start = insets.start, end = insets.end)) {
                 if (SettingsNav.hubOpen) {
                     DetailPane(sidebar = false)
                 } else {

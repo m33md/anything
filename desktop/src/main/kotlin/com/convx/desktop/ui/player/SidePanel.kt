@@ -83,26 +83,48 @@ import com.convx.desktop.ui.theme.ConvxShapes
 import com.convx.desktop.ui.theme.ConvxType
 import com.convx.desktop.ui.theme.LocalAccent
 import kotlin.math.roundToInt
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.sp
+import com.convx.desktop.ui.glass.GlassConfig
+import com.convx.desktop.ui.glass.GlassShapes
+import com.convx.desktop.ui.glass.liquidGlass
+import com.convx.desktop.ui.glass.rememberInteractiveHighlight
+import com.convx.desktop.ui.shell.FullPlayerMode
 
-/** The right-hand panel: now playing, lyrics or the queue. */
+/** How wide the Now Playing panel on the right of the window is. */
+val NowPlayingPanelWidth: Dp = 340.dp
+
+/** The live lyrics card's window onto the song. */
+private val LyricsCardHeight = 300.dp
+
+/**
+ * Spotify's Now Playing view, built from the phone's pieces: the same glass as Your Library, on
+ * the right of the window. Now Playing shows the cover, the song with its heart, YouTube's play
+ * count, a card of lyrics that follows the song (its corner button opens the player's lyrics),
+ * the album and what plays next. Lyrics and Queue fill the panel instead.
+ */
 @Composable
 fun RightPanel(panel: SidePanel, modifier: Modifier = Modifier) {
     val state by PlayerController.state.collectAsState()
-    val hero by rememberHeroColors(state.current?.thumbnail)
-    val tint = hero?.background ?: Color(0xFF1C1C1E)
+    val shape = GlassShapes.Panel
+    // Measured against the whole panel, so a small radius keeps the glow near the pointer.
+    val glow = rememberInteractiveHighlight(radiusScale = 0.3f)
     Column(
         modifier
-            .width(360.dp)
+            .width(NowPlayingPanelWidth)
             .fillMaxHeight()
-            .panel()
-            .background(Brush.verticalGradient(0f to tint.copy(alpha = 0.55f), 0.6f to tint.copy(alpha = 0.12f), 1f to Color.Transparent)),
+            .clip(shape)
+            .liquidGlass(shape, GlassConfig.SidePanel, highlightAlpha = 0.3f)
+            .then(glow.modifier)
+            .then(glow.gestureModifier),
     ) {
         Row(
-            Modifier.fillMaxWidth().padding(start = 12.dp, end = 8.dp, top = 10.dp, bottom = 6.dp),
+            Modifier.fillMaxWidth().padding(start = 12.dp, end = 8.dp, top = 12.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Row(
-                Modifier.weight(1f).clip(ConvxShapes.Capsule).background(Color.Black.copy(alpha = 0.25f)).padding(3.dp),
+                Modifier.weight(1f).clip(GlassShapes.Capsule).background(Color.White.copy(alpha = 0.08f)).padding(3.dp),
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 for (p in SidePanel.entries) {
@@ -111,7 +133,7 @@ fun RightPanel(panel: SidePanel, modifier: Modifier = Modifier) {
                         Modifier
                             .weight(1f)
                             .height(30.dp)
-                            .clip(ConvxShapes.Capsule)
+                            .clip(GlassShapes.Capsule)
                             .background(if (selected) Color.White.copy(alpha = 0.18f) else Color.Transparent)
                             .pressable({ UiState.openSidePanel(p) }, pressScale = 0.97f),
                         contentAlignment = Alignment.Center,
@@ -124,6 +146,7 @@ fun RightPanel(panel: SidePanel, modifier: Modifier = Modifier) {
                             },
                             style = ConvxType.SubheadStrong,
                             color = if (selected) Color.White else ConvxColors.SecondaryLabel,
+                            maxLines = 1,
                         )
                     }
                 }
@@ -135,11 +158,17 @@ fun RightPanel(panel: SidePanel, modifier: Modifier = Modifier) {
         Crossfade(panel, modifier = Modifier.weight(1f)) { p ->
             when (p) {
                 SidePanel.NowPlaying -> NowPlayingPanel(state)
-                SidePanel.Lyrics -> LyricsView(
-                    state.current,
-                    Modifier.fillMaxSize(),
-                    style = ConvxType.LyricsCompact,
-                )
+                // The full player covers the panel; its own lyrics are the ones to keep running.
+                SidePanel.Lyrics -> Box(Modifier.fillMaxSize()) {
+                    if (!UiState.fullPlayer) {
+                        LyricsView(
+                            state.current,
+                            Modifier.fillMaxSize(),
+                            style = ConvxType.LyricsCompact,
+                            horizontalPadding = 16.dp,
+                        )
+                    }
+                }
                 SidePanel.Queue -> QueueList(state, Modifier.fillMaxSize())
             }
         }
@@ -161,13 +190,14 @@ private fun NowPlayingPanel(state: PlayerState) {
     val navigator = LocalNavigator.current
     val menu = rememberMenuAnchor()
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 8.dp),
     ) {
-        val coverModifier = Modifier.fillMaxWidth().aspectRatio(1f).shadow(18.dp, RoundedCornerShape(12.dp)).pressable({ UiState.fullPlayer = true }, pressScale = 0.99f)
+        val coverShape = RoundedCornerShape(14.dp)
+        val coverModifier = Modifier.fillMaxWidth().aspectRatio(1f).shadow(18.dp, coverShape).pressable({ UiState.fullPlayer = true }, pressScale = 0.99f)
         if (settings.hidePlayerArtwork) {
-            HiddenArtwork(coverModifier.clip(RoundedCornerShape(12.dp)), markSize = 96.dp)
+            HiddenArtwork(coverModifier.clip(coverShape), markSize = 96.dp)
         } else {
-            Artwork(song.thumbnail, coverModifier, size = 800, shape = RoundedCornerShape(12.dp), iconSize = 56.dp)
+            Artwork(song.thumbnail, coverModifier, size = 800, shape = coverShape, iconSize = 56.dp)
         }
         Spacer(Modifier.height(18.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -180,18 +210,31 @@ private fun NowPlayingPanel(state: PlayerState) {
                 { Library.toggleLike(song) },
                 tint = if (liked) LocalAccent.current else Color.White,
                 tooltip = if (liked) "Remove from Liked Songs" else "Add to Liked Songs",
+                slot = if (liked) com.convx.desktop.ui.components.PlayerIconSlot.LIKED else com.convx.desktop.ui.components.PlayerIconSlot.LIKE,
             )
             Box {
                 IconButton("more_horiz", { menu.expanded = true }, tooltip = "More options")
                 AppMenu(menu) { SongMenuContent(song, { menu.expanded = false }) }
             }
         }
-        state.stream?.takeIf { settings.showAudioQualityBadge }?.let { stream ->
-            Spacer(Modifier.height(10.dp))
-            QualityBadge(stream.badge, stream.detail, ConvxColors.SecondaryLabel)
+        // YouTube's own count for the video this plays: Convx has no Spotify numbers to show.
+        val stream = state.stream?.takeIf { it.videoId == song.id }
+        stream?.viewCount?.let { views ->
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "${java.text.NumberFormat.getIntegerInstance().format(views)} plays on YouTube",
+                style = ConvxType.Subhead,
+                color = ConvxColors.SecondaryLabel,
+            )
         }
+        stream?.takeIf { settings.showAudioQualityBadge }?.let {
+            Spacer(Modifier.height(10.dp))
+            QualityBadge(it.badge, it.detail, ConvxColors.SecondaryLabel)
+        }
+        Spacer(Modifier.height(18.dp))
+        LyricsCard(song)
         song.album?.let { album ->
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(12.dp))
             InfoCard("From the album") {
                 Row(
                     Modifier.fillMaxWidth().pressable({ navigator.navigate(Screen.Album(album.id)) }, pressScale = 0.99f),
@@ -213,11 +256,46 @@ private fun NowPlayingPanel(state: PlayerState) {
                 QueueRow(next, state.index + 1, false, Modifier, removable = false)
             }
         }
-        Spacer(Modifier.height(12.dp))
-        InfoCard("Lyrics", action = "Show", onAction = { UiState.openSidePanel(SidePanel.Lyrics) }) {
-            Text("Synced, word by word when available.", style = ConvxType.Subhead, color = ConvxColors.SecondaryLabel)
-        }
+        // Room to scroll the last card clear of the pill that floats over the window's foot.
         Spacer(Modifier.height(24.dp))
+    }
+}
+
+/**
+ * Spotify's lyrics card: the phone's lyrics in the chosen style, following the song in a short
+ * window. The corner button opens them in the player, as Spotify's opens its lyrics page.
+ */
+@Composable
+private fun LyricsCard(song: Song) {
+    Column(Modifier.fillMaxWidth().clip(ConvxShapes.Card).background(Color.White.copy(alpha = 0.07f))) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 14.dp, end = 6.dp, top = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Lyrics", style = ConvxType.Headline, modifier = Modifier.weight(1f))
+            IconButton(
+                "lyrics_expand",
+                {
+                    UiState.fullPlayerMode = FullPlayerMode.Lyrics
+                    UiState.lyricsFullscreen = com.convx.desktop.data.AppSettings.value.oneTapFullscreenLyrics
+                    UiState.fullPlayer = true
+                },
+                size = 32.dp,
+                iconSize = 15.dp,
+                tooltip = "Open lyrics",
+            )
+        }
+        Box(Modifier.fillMaxWidth().height(LyricsCardHeight).clipToBounds()) {
+            // The full player covers the panel; its own lyrics are the ones to keep running.
+            if (!UiState.fullPlayer) {
+                LyricsView(
+                    song,
+                    Modifier.fillMaxSize(),
+                    style = ConvxType.LyricsCompact.copy(fontSize = 19.sp, lineHeight = 25.sp),
+                    horizontalPadding = 14.dp,
+                )
+            }
+        }
     }
 }
 

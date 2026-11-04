@@ -76,6 +76,13 @@ fun main(args: Array<String>) {
     val playlist = runBlocking(Dispatchers.IO) { first("today's top hits", SearchFilter.FILTER_FEATURED_PLAYLIST) }
         .filterIsInstance<PlaylistItem>().firstOrNull()
 
+    // What the artist page's top songs carry as YouTube's play count, to check the parser.
+    artist?.let { a ->
+        val rows = runBlocking(Dispatchers.IO) { YouTube.artist(a.id) }.getOrNull()?.sections.orEmpty()
+            .flatMap { it.items }.filterIsInstance<SongItem>().take(5)
+        File(out, "plays.txt").writeText(rows.joinToString("\n") { "${it.title}: ${it.plays}" } + "\n")
+    }
+
     AppSettings.update { it.copy(rightPanel = null, sidebarCollapsed = false) }
     com.convx.desktop.ui.theme.AppFonts.start()
     val navigator = Navigator()
@@ -251,6 +258,11 @@ fun main(args: Array<String>) {
             AppSettings.update { it.copy(askBeforeReplacingQueue = false) }
             artist?.let {
                 shoot("10-artist-playing", seconds = 6) { navigator.navigate(Screen.Artist(it.id)) }
+                // Spotify's Now Playing view in the phone's glass: the cover, the heart, the lyrics card.
+                shoot("10a-now-playing-panel", seconds = 8) { AppSettings.update { s -> s.copy(rightPanel = "nowPlaying") } }
+                shoot("10b-now-playing-panel-home", seconds = 4) { navigator.navigate(Screen.Home) }
+                shoot("10c-now-playing-panel-queue", seconds = 2) { AppSettings.update { s -> s.copy(rightPanel = "queue") } }
+                AppSettings.update { s -> s.copy(rightPanel = null) }
                 film("11-library-strip", listOf(100L, 220L)) { UiState.openSection(Section.Library, navigator) }
             }
             shoot("12-full-player-lyrics", seconds = 12) {
