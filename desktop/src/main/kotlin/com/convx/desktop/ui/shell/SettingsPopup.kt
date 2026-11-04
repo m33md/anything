@@ -48,6 +48,7 @@ import com.convx.desktop.ui.theme.ConvxType
 fun SettingsPopup(dismiss: () -> Unit) {
     val navigator = LocalNavigator.current
     val account by YouTubeAccount.state.collectAsState()
+    val identity = com.convx.desktop.ui.screens.rememberProfileIdentity()
     val settings by AppSettings.state.collectAsState()
     val library by Library.state.collectAsState()
     val signedIn = account as? YouTubeAccount.State.SignedIn
@@ -58,20 +59,28 @@ fun SettingsPopup(dismiss: () -> Unit) {
     }
 
     Column(Modifier.width(300.dp).padding(vertical = 4.dp)) {
+        // You, as your profile shows you (Spotify's picture and name when it's linked); a click opens the profile.
         Row(
-            Modifier.fillMaxWidth().pressable({ openSettings(SettingsPage.YouTubeMusic) }, pressScale = 0.99f).padding(horizontal = 14.dp, vertical = 8.dp),
+            Modifier.fillMaxWidth().pressable({
+                dismiss()
+                navigator.navigate(Screen.Profile)
+            }, pressScale = 0.99f).padding(horizontal = 14.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            val picture = signedIn?.profile?.thumbnail
+            val picture = identity.picture
             if (picture != null) {
                 Artwork(picture, Modifier.size(36.dp), size = 96, shape = CircleShape, placeholderIcon = "person")
             } else {
                 ConvxIcon("account", tint = ConvxColors.SecondaryLabel, size = 36.dp)
             }
             Column(Modifier.padding(start = 12.dp).weight(1f)) {
-                Text(signedIn?.profile?.name ?: "Anonymous", style = ConvxType.Body, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(identity.name.takeIf { identity.source != null } ?: "Anonymous", style = ConvxType.Body, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    if (signedIn != null) signedIn.profile.email?.takeIf { it.isNotBlank() } ?: "Logged in" else "Not signed in",
+                    when {
+                        identity.source == "Spotify" -> "View profile · Spotify"
+                        signedIn != null -> signedIn.profile.email?.takeIf { it.isNotBlank() } ?: "View profile"
+                        else -> "View profile"
+                    },
                     style = ConvxType.Subhead,
                     color = ConvxColors.SecondaryLabel,
                     maxLines = 1,

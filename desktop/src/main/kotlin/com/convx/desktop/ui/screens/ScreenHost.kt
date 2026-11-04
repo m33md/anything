@@ -46,6 +46,7 @@ fun ScreenHost(screen: Screen) {
         Screen.Downloads -> DownloadsScreen()
         Screen.History -> HistoryScreen()
         Screen.Stats -> StatsScreen()
+        Screen.Profile -> ProfileScreen()
         Screen.MyTop -> MyTopScreen()
         Screen.Cached -> CachedScreen()
         Screen.Uploaded -> UploadedScreen()

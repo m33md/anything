@@ -332,6 +332,8 @@ data class Settings(
     val discordButton2: Boolean = true,
     /** Blank for "Visit Convx". */
     val discordButton2Text: String = "",
+    /** A Discord application of your own to show the status under; blank uses the phone's ("Metrolist"). */
+    val discordApplicationId: String = "",
     val glass: GlassSettings = GlassSettings(),
     // The phone's Layout & home page and its Arrange home feed, with its defaults.
     /** home, search or library: where Convx opens. */

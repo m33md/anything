@@ -258,6 +258,12 @@ private fun shortcut(event: KeyEvent, navigator: Navigator): Boolean {
             UiState.fullPlayer = !UiState.fullPlayer
             true
         }
+        // Settings, now that the picture at the top opens your profile.
+        ctrl && event.key == Key.Comma -> {
+            UiState.fullPlayer = false
+            navigator.navigate(com.convx.desktop.ui.shell.Screen.Settings)
+            true
+        }
         event.key == Key.MediaPlayPause -> {
             PlayerController.togglePlay()
             true

@@ -117,18 +117,27 @@ fun SpotifySettings() {
     if (state is SpotifyAccount.State.SignedIn) {
         var liked by remember { mutableStateOf<Int?>(null) }
         var playlists by remember { mutableStateOf<Int?>(null) }
+        var problem by remember { mutableStateOf<String?>(null) }
         var reloads by remember { mutableStateOf(0) }
         LaunchedEffect(reloads) {
-            playlists = SpotifyApi.playlists(refresh = reloads > 0).getOrNull()?.size
-            liked = SpotifyApi.likedSongs(refresh = reloads > 0).getOrNull()?.size
+            val lists = SpotifyApi.playlists(refresh = reloads > 0)
+            val count = SpotifyApi.likedCount()
+            playlists = lists.getOrNull()?.size
+            liked = count.getOrNull()
+            // Shown rather than an endless "…", so it's clear what Spotify said.
+            problem = (lists.exceptionOrNull() ?: count.exceptionOrNull())?.let { it.message ?: "Spotify didn't answer" }
         }
         SectionGap()
-        SettingsSection("In Your Library", footer = "Your Spotify lists sit in Your Library next to your Convx ones, marked with Spotify's logo.") {
-            LinkRow("Liked Songs", icon = "favorite", tint = Color(0xFF6A3DE8), value = liked?.toString() ?: "…") {
+        SettingsSection(
+            "In Your Library",
+            footer = problem?.let { "Couldn't read your Spotify library: $it" }
+                ?: "Your Spotify lists sit in Your Library next to your Convx ones, marked with Spotify's logo.",
+        ) {
+            LinkRow("Liked Songs", icon = "favorite", tint = Color(0xFF6A3DE8), value = liked?.toString() ?: if (problem != null) "–" else "…") {
                 navigator.navigate(Screen.SpotifyLiked)
             }
             RowDivider()
-            LinkRow("Playlists", icon = "queue_music", tint = SystemColors.Green, value = playlists?.toString() ?: "…") {
+            LinkRow("Playlists", icon = "queue_music", tint = SystemColors.Green, value = playlists?.toString() ?: if (problem != null) "–" else "…") {
                 UiState.libraryTab = LibraryTab.Playlists
                 navigator.switchTo(Screen.Library)
             }
@@ -137,6 +146,7 @@ fun SpotifySettings() {
                 SpotifyApi.clearCache()
                 liked = null
                 playlists = null
+                problem = null
                 reloads++
             }
         }
@@ -246,6 +256,40 @@ fun DiscordSettings() {
     }
 
     SectionGap()
+    SettingsSection(
+        "Name on Discord",
+        footer = "Discord shows the name of the Discord application a status belongs to. The phone's is registered as \"Metrolist\": " +
+            "the phone renames it through your Discord login, but the Discord app on a PC doesn't allow that. To read \"Convx\", make an " +
+            "application of your own: open discord.com/developers/applications, click New Application, name it Convx, " +
+            "optionally give it the Convx icon, then copy its Application ID here.",
+    ) {
+        val own = DiscordPresence.usesOwnApplication(settings)
+        SettingsRow(
+            "Discord application ID",
+            if (own) settings.discordApplicationId.trim() else "The phone's (shows as Metrolist)",
+            icon = "discord",
+            tint = DiscordBlurple,
+            onClick = {
+                Overlays.prompt("Discord application ID", settings.discordApplicationId, confirm = "Use it") { text ->
+                    val id = text.filter { it.isDigit() }
+                    if (id.length in 17..20) {
+                        AppSettings.update { it.copy(discordApplicationId = id) }
+                        Overlays.toast("Discord status now uses your application")
+                    } else {
+                        Overlays.toast("That isn't an application ID. It's a long number on the app's General Information page.", "error")
+                    }
+                }
+            },
+        ) {
+            if (own) PillButton("Use the phone's", { AppSettings.update { it.copy(discordApplicationId = "") } })
+        }
+        RowDivider()
+        LinkRow("Open the Discord Developer Portal", icon = "link", tint = SystemColors.Gray) {
+            openUrl("https://discord.com/developers/applications")
+        }
+    }
+
+    SectionGap()
     Text(
         "Preview",
         style = ConvxType.SubheadStrong,
@@ -283,11 +327,14 @@ private fun RichPresencePreview(look: DiscordPresence.Look) {
     val player by PlayerController.state.collectAsState()
     val position by PlayerController.position.collectAsState()
     val song = player.current
+    // What Discord's member list says: the artists or the song where Discord can show them, else the application's name.
+    val settings by AppSettings.state.collectAsState()
+    val name = if (DiscordPresence.usesOwnApplication(settings)) "Convx" else "Metrolist"
     val verb = when (look.type) {
-        "playing" -> "Playing Convx"
-        "watching" -> "Watching Convx"
-        "competing" -> "Competing in Convx"
-        else -> "Listening to Convx"
+        "playing" -> "Playing $name"
+        "watching" -> "Watching $name"
+        "competing" -> "Competing in $name"
+        else -> "Listening to $name"
     }
     Column(
         Modifier

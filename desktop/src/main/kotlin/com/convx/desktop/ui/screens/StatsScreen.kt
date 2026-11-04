@@ -172,7 +172,7 @@ internal fun statsLine(plays: Int, playedMs: Long): String =
  * Pictures for played artists you don't follow, looked up a few at a time and kept, as the phone's
  * Stats fills in its artists. Only the ones on screen are asked for.
  */
-private object ArtistPictureLookup {
+internal object ArtistPictureLookup {
     private val asked = Collections.synchronizedSet(HashSet<String>())
     private val requests = Semaphore(3)
 

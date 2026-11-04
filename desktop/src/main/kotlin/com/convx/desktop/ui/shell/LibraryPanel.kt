@@ -343,8 +343,14 @@ fun LibraryPanel(collapsed: Boolean, modifier: Modifier = Modifier) {
             spotifyLiked = null
             return@LaunchedEffect
         }
-        spotifyLists = SpotifyApi.playlists().getOrNull()
-        spotifyLiked = SpotifyApi.likedSongs().getOrNull()?.size
+        // A failed read (Spotify busy, the network down) is tried again a little later, three times.
+        for (wait in listOf(0L, 15_000L, 60_000L, 180_000L)) {
+            kotlinx.coroutines.delay(wait)
+            val lists = SpotifyApi.playlists()
+            spotifyLiked = SpotifyApi.likedCount().getOrNull() ?: spotifyLiked
+            lists.onSuccess { spotifyLists = it }.onFailure { com.convx.desktop.core.Log.w("Spotify", "Couldn't read your playlists: ${it.message}") }
+            if (lists.isSuccess) break
+        }
     }
     val localIndex by com.convx.desktop.player.LocalMusic.index.collectAsState()
     val downloaded by com.convx.desktop.player.Downloads.done.collectAsState()

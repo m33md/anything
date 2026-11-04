@@ -177,8 +177,10 @@ fun TopBar(modifier: Modifier = Modifier) {
                 ConvxIcon("group", tint = if (party != null || screen == Screen.Party) LocalAccent.current else GlassTokens.Icon, size = 22.dp)
             }
             Spacer(Modifier.width(8.dp))
-            val inSettings = screen == Screen.Settings
-            // The phone's "Enable settings popup": the account button opens a quick popup first.
+            val inProfile = screen == Screen.Profile || screen == Screen.Settings
+            // Your picture, from Spotify when it's linked, opens your profile, as Spotify's does.
+            // The phone's "Enable settings popup" puts its quick popup first.
+            val identity = com.convx.desktop.ui.screens.rememberProfileIdentity()
             val popup = rememberMenuAnchor()
             Box {
                 GlassCircleButton(
@@ -187,13 +189,24 @@ fun TopBar(modifier: Modifier = Modifier) {
                             popup.offset = DpOffset(0.dp, NavButtonSize + 6.dp)
                             popup.expanded = true
                         } else {
-                            navigator.navigate(Screen.Settings)
+                            navigator.navigate(Screen.Profile)
                         }
                     },
                     size = NavButtonSize,
-                    tooltip = "Settings and account",
+                    tooltip = identity.name.takeIf { identity.source != null } ?: "Profile",
                 ) {
-                    ConvxIcon("account", tint = if (inSettings || popup.expanded) LocalAccent.current else GlassTokens.Icon, size = 22.dp)
+                    if (identity.picture != null) {
+                        com.convx.desktop.ui.components.Artwork(
+                            identity.picture,
+                            Modifier.size(NavButtonSize - 8.dp),
+                            size = 96,
+                            shape = CircleShape,
+                            placeholderIcon = "account",
+                            iconSize = 18.dp,
+                        )
+                    } else {
+                        ConvxIcon("account", tint = if (inProfile || popup.expanded) LocalAccent.current else GlassTokens.Icon, size = 22.dp)
+                    }
                 }
                 AppMenu(popup) { SettingsPopup { popup.expanded = false } }
             }

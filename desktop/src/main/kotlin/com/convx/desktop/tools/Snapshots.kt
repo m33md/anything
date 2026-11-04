@@ -461,6 +461,8 @@ fun main(args: Array<String>) {
                 )
             }
             shoot("25a-recognition-history", seconds = 4) { navigator.navigate(Screen.RecognitionHistory) }
+            // The profile, Spotify-style, from the plays above (no account signed in on the build machine).
+            shoot("26-profile", seconds = 5) { navigator.navigate(Screen.Profile) }
             // The phone's AI DJ Mix from a song; with no AI key it's that song's related songs.
             shoot("23-ai-dj", seconds = 3) { navigator.navigate(Screen.AiDj(seed = songs.first())) }
             shoot("23a-ai-dj-set", seconds = 12) {

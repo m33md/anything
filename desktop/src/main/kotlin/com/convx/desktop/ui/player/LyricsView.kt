@@ -528,6 +528,8 @@ private fun lineEnd(lines: List<LyricLine>, index: Int): Long {
 internal suspend fun LazyListState.followLyricLine(itemIndex: Int) {
     // On open this runs before the list's first layout, when it has no items yet.
     snapshotFlow { layoutInfo.totalItemsCount }.first { it > 0 }
+    // That answer can arrive in the middle of a layout pass; scrolling there throws, so wait for the next frame.
+    withFrameNanos { }
     if (itemIndex !in 0 until layoutInfo.totalItemsCount) return
     var item = layoutInfo.visibleItemsInfo.firstOrNull { it.index == itemIndex }
     if (item == null) {

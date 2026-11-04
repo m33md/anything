@@ -295,7 +295,7 @@ fun LibraryScreen() {
 }
 
 @Composable
-private fun SavedCard(
+internal fun SavedCard(
     title: String,
     subtitle: String,
     thumbnail: String? = null,

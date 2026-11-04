@@ -98,18 +98,18 @@ private fun spotifyImportDialog() {
     Overlays.showDialog {
         var playlists by remember { mutableStateOf<List<SpotifyPlaylist>?>(null) }
         var liked by remember { mutableStateOf<Int?>(null) }
-        var failed by remember { mutableStateOf(false) }
+        var failed by remember { mutableStateOf<String?>(null) }
         var selected by remember { mutableStateOf(setOf<String>()) }
         LaunchedEffect(Unit) {
             val result = SpotifyApi.playlists()
             playlists = result.getOrNull()
-            failed = result.isFailure
-            liked = SpotifyApi.likedSongs().getOrNull()?.size
+            failed = result.exceptionOrNull()?.let { it.message ?: "Spotify didn't answer" }
+            liked = SpotifyApi.likedCount().getOrNull()
         }
         val ids = listOf(LikedKey) + playlists.orEmpty().map { it.id }
         DialogCard("Select playlists to import") {
             when {
-                failed -> Text("Couldn't load your Spotify playlists. Check your connection and try again.", style = ConvxType.Body, color = SystemColors.Red)
+                failed != null -> Text("Couldn't load your Spotify playlists ($failed). Check your connection and try again.", style = ConvxType.Body, color = SystemColors.Red)
                 playlists == null -> Text("Loading your playlists…", style = ConvxType.Body, color = ConvxColors.SecondaryLabel)
                 else -> {
                     Text("${playlists!!.size} playlists available", style = ConvxType.Subhead, color = ConvxColors.SecondaryLabel)

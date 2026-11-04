@@ -25,6 +25,8 @@ sealed interface Screen {
     data object Downloads : Screen
     data object History : Screen
     data object Stats : Screen
+    /** Your profile, Spotify-style: picture, name, top artists and songs, playlists. */
+    data object Profile : Screen
     data object MyTop : Screen
     data object Cached : Screen
     data object Uploaded : Screen

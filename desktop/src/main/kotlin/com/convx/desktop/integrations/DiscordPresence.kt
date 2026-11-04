@@ -8,6 +8,7 @@ package com.convx.desktop.integrations
 import com.convx.desktop.core.AppScope
 import com.convx.desktop.core.Log
 import com.convx.desktop.data.AppSettings
+import com.convx.desktop.data.Library
 import com.convx.desktop.data.Settings
 import com.convx.desktop.data.Song
 import com.convx.desktop.player.PlayerController
@@ -55,8 +56,19 @@ import kotlin.math.abs
 object DiscordPresence {
     private const val Tag = "Discord"
 
-    /** The phone's Discord application (DiscordRPC.kt), so the status carries its name and icon. */
+    /**
+     * The phone's Discord application (DiscordRPC.kt). Discord registered it under the name
+     * "Metrolist", which the phone hides by renaming the activity through its login; through the
+     * Discord app the name can't be changed, so Settings can point at an application of your own.
+     */
     private const val ApplicationId = "1411019391843172514"
+
+    /** The application the status is shown under: one set in Settings, else the phone's. */
+    fun applicationId(settings: Settings = AppSettings.value): String =
+        settings.discordApplicationId.trim().takeIf { it.matches(Regex("\\d{17,20}")) } ?: ApplicationId
+
+    /** Whether the status goes under an application set in Settings rather than the phone's "Metrolist". */
+    fun usesOwnApplication(settings: Settings = AppSettings.value) = applicationId(settings) != ApplicationId
     private const val SongUrl = "https://convx.aryavl.com/watch/?v="
     private const val ProjectUrl = "https://github.com/cosmictaserdev-creator/Convx"
 
@@ -121,8 +133,12 @@ object DiscordPresence {
     private var lastSendAt = 0L
     private var nextConnectAt = 0L
 
-    /** Fields this Discord build turned down, left out from then on. */
-    private var plainActivity = false
+    /**
+     * How much of the newer status this Discord build turned down: 1 leaves out the song's link,
+     * 2 also which line the member list shows. Each refusal steps down once; a new connection tries all again.
+     */
+    private var trimLevel = 0
+    private var connectedApplication: String? = null
 
     /** Starts following the player. The setting decides whether anything is shown. */
     fun start() {
@@ -162,6 +178,12 @@ object DiscordPresence {
         }
 
         val now = System.currentTimeMillis()
+        // A different application in Settings needs a new handshake.
+        if (pipe != null && connectedApplication != applicationId(settings)) {
+            runCatching { pipe?.let { setActivity(it, null) } }
+            disconnect()
+            nextConnectAt = 0L
+        }
         val connected = pipe ?: run {
             if (now < nextConnectAt) return
             _status.value = Status.Connecting
@@ -206,22 +228,27 @@ object DiscordPresence {
     }
 
     private fun activity(song: Song, startMs: Long, durationMs: Long, look: Look): JsonObject = buildJsonObject {
-        // Listening unless advanced mode picked another verb; plain Discord builds only know Playing.
-        if (!plainActivity || look.typeCode == 0) put("type", look.typeCode) else put("type", 2)
+        // Listening unless advanced mode picked another verb; older Discord builds only know Listening and Playing.
+        if (trimLevel < 2 || look.typeCode == 0) put("type", look.typeCode) else put("type", 2)
         put("details", fit(song.title))
         put("state", fit(song.artistText.ifBlank { "Unknown artist" }))
-        if (!plainActivity) {
-            put("details_url", SongUrl + song.id)
-            // Which line the member list shows after "Listening to": the artists, or the song.
-            put("status_display_type", if (look.useDetails) 2 else 1)
-        }
+        if (trimLevel < 1 && !com.convx.desktop.player.LocalMusic.isLocal(song.id)) put("details_url", SongUrl + song.id)
+        // Which line the member list shows after "Listening to": the artists or the song, not the application's name.
+        if (trimLevel < 2) put("status_display_type", if (look.useDetails) 2 else 1)
         putJsonObject("timestamps") {
             put("start", startMs)
             if (durationMs > 0) put("end", startMs + durationMs)
         }
         putJsonObject("assets") {
-            artworkUrl(song.thumbnail, 512)?.let { put("large_image", it) }
+            cover(song)?.let { put("large_image", it) }
             put("large_text", fit(song.album?.name ?: song.title))
+            // The phone's small picture: the first artist's, with their name.
+            val artist = song.artists.firstOrNull { it.id != null && Library.artistPicture(it.id!!) != null }
+            val picture = artist?.id?.let { Library.artistPicture(it) }?.let(::webImage)
+            if (artist != null && picture != null) {
+                put("small_image", picture)
+                put("small_text", fit(artist.name))
+            }
         }
         if ((look.button1 != null && !com.convx.desktop.player.LocalMusic.isLocal(song.id)) || look.button2 != null) {
             putJsonArray("buttons") {
@@ -242,6 +269,16 @@ object DiscordPresence {
         }
     }
 
+    /**
+     * The cover as a web address Discord fetches itself. Discord takes up to 256 characters there,
+     * and some covers' addresses are longer, so those fall back to YouTube's picture of the song.
+     */
+    private fun cover(song: Song): String? =
+        artworkUrl(song.thumbnail, 512)?.let(::webImage)
+            ?: song.id.takeIf { it.matches(Regex("[A-Za-z0-9_-]{11}")) }?.let { "https://i.ytimg.com/vi/$it/hqdefault.jpg" }
+
+    private fun webImage(url: String): String? = url.takeIf { it.startsWith("https://") && it.length <= 256 }
+
     /** Discord cuts button labels at 32 characters and refuses empty ones. */
     private fun button(text: String): String = text.trim().ifEmpty { "Convx" }.take(32)
 
@@ -253,10 +290,10 @@ object DiscordPresence {
         val reply = pipe.request(command("SET_ACTIVITY", activity))
         if (reply?.get("evt")?.jsonPrimitive?.contentOrNull != "ERROR") return true
         val message = reply["data"]?.jsonObject?.get("message")?.jsonPrimitive?.contentOrNull
-        Log.w(Tag, "Discord turned the status down: $message")
-        if (activity == null || plainActivity) return true
-        // An older Discord that doesn't know the newer fields: send without them.
-        plainActivity = true
+        Log.w(Tag, "Discord turned the status down (level $trimLevel): $message")
+        if (activity == null || trimLevel >= 2) return true
+        // A Discord that doesn't know a newer field: send again without it, one at a time.
+        trimLevel++
         return false
     }
 
@@ -275,7 +312,7 @@ object DiscordPresence {
             try {
                 opened.write(OpHandshake, buildJsonObject {
                     put("v", 1)
-                    put("client_id", ApplicationId)
+                    put("client_id", applicationId())
                 })
                 val (op, body) = opened.readFrame(5_000) ?: throw IOException("No answer to the handshake")
                 if (op == OpClose) throw IOException("Discord closed the connection: $body")
@@ -291,6 +328,8 @@ object DiscordPresence {
                 }
                 pipe = opened
                 shown = null
+                trimLevel = 0
+                connectedApplication = applicationId()
                 _status.value = Status.Connected
                 Log.i(Tag, "Connected to Discord (pipe $index) as ${_user.value?.name}")
                 return opened

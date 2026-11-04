@@ -113,6 +113,12 @@ object SpotifyApi {
         tracks
     }
 
+    /** How many Liked Songs there are, in one request rather than reading them all. */
+    suspend fun likedCount(): Result<Int> = runCatching {
+        liked?.let { return@runCatching it.size }
+        get("$Base/me/tracks?limit=1").int("total") ?: 0
+    }
+
     suspend fun likedSongs(refresh: Boolean = false): Result<List<SpotifyTrack>> = runCatching {
         if (!refresh) liked?.let { return@runCatching it }
         val tracks = pages("$Base/me/tracks?limit=50&market=from_token").mapNotNull { row ->
@@ -184,6 +190,8 @@ object SpotifyApi {
                 val message = runCatching {
                     json.parseToJsonElement(body).jsonObject.obj("error")?.str("message")
                 }.getOrNull()
+                // What Spotify said, so "Copy recent log" shows why a list didn't load.
+                Log.w(Tag, "${url.substringBefore('?').removePrefix(Base)} answered $code${retryAfter?.let { " (retry after ${it}s)" }.orEmpty()}: ${message ?: body.take(200)}")
                 throw SpotifyException(code, message?.let { "Spotify: $it" } ?: "Spotify answered $code")
             }
         }
