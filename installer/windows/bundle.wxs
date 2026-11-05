@@ -13,7 +13,7 @@
     <Bundle Name="Convx" Version="$(var.Version)" Manufacturer="Convx"
             UpgradeCode="{92884143-65B7-467F-83F5-5D79C7BA988D}"
             IconSourceFile="$(var.Icon)"
-            AboutUrl="https://github.com/m33md/anything/tree/convx-desktop"
+            AboutUrl="https://github.com/m33md/convx-desktop"
             DisableModify="button">
         <BootstrapperApplication>
             <!-- The hyperlink theme's payload group carries the information WixStdBA needs to start;

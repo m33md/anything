@@ -28,7 +28,7 @@ import java.io.File
  */
 object Updater {
     private const val Tag = "Updater"
-    private const val Repo = "m33md/anything"
+    private const val Repo = "m33md/convx-desktop"
     private const val ReleaseTag = "desktop-latest"
 
     class Release(val version: String, val commit: String, val installerUrl: String, val installerSize: Long, val changes: List<String>) {

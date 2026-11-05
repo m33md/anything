@@ -4,7 +4,7 @@
 # Convx-1.0.71-portable.zip), and the notes carry the version and commit for the app's updater.
 #
 # The tag points at a one-file commit rather than at the build commit: a GITHUB_TOKEN may not
-# create a ref whose tree adds workflow files, and every commit on convx-desktop carries them.
+# create a ref whose tree adds workflow files, and every commit on this branch carries them.
 set -euo pipefail
 sha=$1
 version=$2
@@ -43,7 +43,7 @@ gh release delete "$tag" --cleanup-tag --yes || true
 
 tmp=$(mktemp -d)
 git -C "$tmp" init -q -b release
-printf 'Windows build of Convx, from commit %s of the convx-desktop branch.\nSource: https://github.com/%s/tree/%s\n' \
+printf 'Windows build of Convx, from commit %s.\nSource: https://github.com/%s/tree/%s\n' \
   "$sha" "$GITHUB_REPOSITORY" "$sha" > "$tmp/README.md"
 git -C "$tmp" add README.md
 git -C "$tmp" -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \

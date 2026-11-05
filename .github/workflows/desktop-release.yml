@@ -5,7 +5,7 @@ name: Desktop release
 # desktop.yml republishes after every later build.
 on:
   push:
-    branches: [convx-desktop]
+    branches: [main, convx-desktop]
     paths: [".github/workflows/desktop-release.yml"]
 
 jobs:
@@ -24,7 +24,7 @@ jobs:
 
       - name: Download the newest Windows build
         run: |
-          run=$(gh run list -b convx-desktop -w "Desktop build" -s success -L 1 --json databaseId -q '.[0].databaseId')
+          run=$(gh run list -b "$GITHUB_REF_NAME" -w "Desktop build" -s success -L 1 --json databaseId -q '.[0].databaseId')
           echo "SHA=$(gh run view "$run" --json headSha -q .headSha)" >> "$GITHUB_ENV"
           gh run download "$run" -n Convx-windows-installers -D out
           gh run download "$run" -n Convx-windows-portable -D out

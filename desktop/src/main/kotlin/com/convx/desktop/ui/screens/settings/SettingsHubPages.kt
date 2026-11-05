@@ -331,15 +331,15 @@ fun HelpHub() {
     }
     SectionGap()
     SettingsSection(
-        footer = "Unofficial Windows port of Convx by Aryan (Cosmic Taser), built from the phone app's own " +
-            "YouTube Music and lyrics code. Free software under GPL-3.0, with no warranty.",
+        footer = "The Windows version of Convx, the music app by Aryan (Cosmic Taser), maintained by m33md and " +
+            "built from the phone app's own YouTube Music and lyrics code. Free software under GPL-3.0, with no warranty.",
     ) {
         LinkRow("Convx on GitHub", "The phone app's project", icon = "link", tint = SystemColors.Gray) {
             openUrl("https://github.com/cosmictaserdev-creator/convx")
         }
         RowDivider()
-        LinkRow("Source code", "This Windows port, under GPL-3.0", icon = "link", tint = SystemColors.Gray) {
-            openUrl("https://github.com/m33md/anything/tree/convx-desktop")
+        LinkRow("Source code", "Convx for Windows, under GPL-3.0", icon = "link", tint = SystemColors.Gray) {
+            openUrl("https://github.com/m33md/convx-desktop")
         }
         RowDivider()
         LinkRow("Logs", "For when something goes wrong", icon = "bug_report", tint = SystemColors.Orange) { openFolder(AppDirs.logs) }

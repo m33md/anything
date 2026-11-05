@@ -1,27 +1,30 @@
 # Convx for Windows
 
-An unofficial Windows port of [Convx](https://github.com/cosmictaserdev-creator/convx), the
-Android music app by [Aryan (Cosmic Taser)](https://github.com/cosmictaserdev-creator). It is not
-made or endorsed by Convx's author.
+The Windows version of [Convx](https://github.com/cosmictaserdev-creator/convx), the free music
+app by [Aryan (Cosmic Taser)](https://github.com/cosmictaserdev-creator). Convx's author has made
+this the official Windows version of Convx. It is maintained here by
+[m33md](https://github.com/m33md), while Aryan keeps making the Android app.
 
-It is laid out like the phone app's tablet view, sized for a PC:
+It looks and works like the phone app, sized for a PC:
 
-- Liquid glass on true black, in Convx's red, as on the phone.
-- A glass top bar in the window's title area, holding back and forward, Home, search with
-  Explore, Library, your profile and the window buttons.
-- A side panel with your library, and a glass now-playing bar at the bottom.
-- The full-screen player has the phone's lyrics styles. Flamingo is the default, with
-  word- and letter-synced lyrics.
-
-It is written with Compose Multiplatform. It compiles the phone app's own YouTube Music
-(`innertube/`) and lyrics (`lyrics/`) code. Audio is decoded with FFmpeg.
+- Liquid glass on true black, in Convx's red, with a glass top bar, a library panel and a
+  now-playing bar.
+- Your YouTube Music account: Home, search, library, liked songs and playlists.
+- The phone's lyrics styles, with word- and letter-synced lyrics.
+- AutoMix transitions, an equalizer, Replay, and the AI features.
+- Discord status, Last.fm and ListenBrainz scrobbling, and importing playlists from Spotify.
+- Windows media keys and the taskbar's play controls.
 
 ## Download
 
-Get the latest build from the
-[desktop-latest release](https://github.com/m33md/anything/releases/tag/desktop-latest) and run
-`Convx-Setup-<version>.exe`. If Windows says it protected your PC, click **More info**, then
-**Run anyway**. The app updates itself from the same page (Settings > Help & About > App updates).
+**[Download the latest version](https://github.com/m33md/convx-desktop/releases/latest)** and run
+`Convx-Setup-<version>.exe`.
+
+If Windows says it protected your PC, click **More info**, then **Run anyway**. Convx updates
+itself from the same page (Settings > Help & About > App updates).
+
+You can also get an `.msi` installer, or a portable `.zip` that runs without installing, from the
+same page.
 
 ## Build it yourself
 
@@ -33,12 +36,35 @@ cd desktop
 ./gradlew packageMsi          # Windows installer in build/compose/binaries/main/msi
 ```
 
-## Where things live
+Every push to `main` is built on GitHub Actions (`.github/workflows/desktop.yml`), and the
+finished installers replace the ones on the
+[latest release](https://github.com/m33md/convx-desktop/releases/latest).
+
+## How it's made
+
+It is written in Kotlin with Compose Multiplatform. It compiles the phone app's own YouTube Music,
+lyrics, artwork and song recognition code, so both apps fetch music the same way. Audio is
+decoded with FFmpeg.
+
+| Path | What |
+| --- | --- |
+| `desktop/` | The Windows app |
+| `innertube/`, `lyrics/`, `canvas/`, `integrations/` | Code from the Convx phone app: YouTube Music, lyrics, animated artwork and song recognition |
+| `installer/windows/` | Convx's setup window (a WiX bundle around the app's MSI) |
+
+The app keeps its data in two places on your PC:
 
 | Path | What |
 | --- | --- |
 | `%APPDATA%\Convx` | Library (likes, playlists, history) and settings |
 | `%LOCALAPPDATA%\Convx` | Song and artwork cache, logs |
+
+## Credits
+
+Convx, its design and its shared YouTube Music and lyrics code are by Aryan (Cosmic Taser). Get the
+Android app, report phone bugs and join the community at
+[cosmictaserdev-creator/convx](https://github.com/cosmictaserdev-creator/convx). Code adapted
+from other open-source projects is listed in `NOTICE`.
 
 ## License
 
