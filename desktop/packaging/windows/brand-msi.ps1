@@ -101,7 +101,9 @@ try {
         $flag = $found[0]
         $font = if ($title[1] -match '^(\{[^}]*\})') { $Matches[1] } else { '' }
         $titleText = $title[1].Substring($font.Length).Replace('[ProductName]', $productName)
-        $bodyText = $text[1].Replace('[ProductName]', $productName)
+        # A fresh install names the version it brings: "will install Convx 1.0.70 on your computer".
+        $productVersion = (Rows $db "SELECT ``Value`` FROM ``Property`` WHERE ``Property`` = 'ProductVersion'" 1)[0][0]
+        $bodyText = $text[1].Replace('[ProductName]', "$productName $productVersion")
         Run $db 'INSERT INTO `Property` (`Property`, `Value`) VALUES (?, ?)' @('ConvxWelcomeTitle', $titleText)
         Run $db 'INSERT INTO `Property` (`Property`, `Value`) VALUES (?, ?)' @('ConvxWelcomeText', $bodyText)
         Run $db "UPDATE ``Control`` SET ``Text`` = ? WHERE ``Dialog_`` = 'WelcomeDlg' AND ``Control`` = 'Title'" @("$font[ConvxWelcomeTitle]")

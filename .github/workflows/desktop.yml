@@ -115,6 +115,15 @@ jobs:
           $msi = Get-ChildItem build/compose/binaries/main/msi/*.msi | Select-Object -First 1
           ./packaging/windows/brand-msi.ps1 -Msi $msi.FullName -Banner packaging/windows/banner.bmp -Dialog packaging/windows/dialog.bmp
 
+      # The setup .exe: Convx's icon instead of Java's, and the branded MSI above inside it.
+      - name: Brand the setup exe
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem build/compose/binaries/main/exe/*.exe | Select-Object -First 1
+          $msi = Get-ChildItem build/compose/binaries/main/msi/*.msi | Select-Object -First 1
+          ./packaging/windows/brand-exe.ps1 -Exe $exe.FullName -Msi $msi.FullName -Icon src/main/resources/convx.ico
+
       - name: Zip portable build
         shell: pwsh
         run: Compress-Archive -Path build/compose/binaries/main/app/Convx -DestinationPath build/Convx-portable-windows.zip
