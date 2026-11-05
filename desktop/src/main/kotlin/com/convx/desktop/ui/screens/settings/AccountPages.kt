@@ -131,10 +131,13 @@ fun SpotifySettings() {
             // Shown rather than an endless "…", so it's clear what Spotify said.
             problem = (lists.exceptionOrNull() ?: count.exceptionOrNull())?.let { it.message ?: "Spotify didn't answer" }
         }
+        val waiting by SpotifyApi.waiting.collectAsState()
+        val loading = problem == null && (liked == null || playlists == null)
         SectionGap()
         SettingsSection(
             "In Your Library",
             footer = problem?.let { "Couldn't read your Spotify library: $it" }
+                ?: waiting?.takeIf { loading }
                 ?: "Your Spotify lists sit in Your Library next to your Convx ones, marked with Spotify's logo.",
         ) {
             LinkRow("Liked Songs", icon = "favorite", tint = Color(0xFF6A3DE8), value = liked?.toString() ?: if (problem != null) "–" else "…") {
@@ -146,7 +149,7 @@ fun SpotifySettings() {
                 navigator.switchTo(Screen.Library)
             }
             RowDivider()
-            ButtonRow("Reload from Spotify", color = SpotifyGreen) {
+            ButtonRow("Reload from Spotify", color = SpotifyGreen, enabled = !loading) {
                 SpotifyApi.clearCache()
                 liked = null
                 playlists = null

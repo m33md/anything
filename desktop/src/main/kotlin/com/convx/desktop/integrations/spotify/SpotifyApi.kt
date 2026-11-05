@@ -9,6 +9,11 @@ import com.convx.desktop.core.Http
 import com.convx.desktop.core.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -63,6 +68,17 @@ object SpotifyApi {
     @Volatile private var playlists: List<SpotifyPlaylist>? = null
     @Volatile private var liked: List<SpotifyTrack>? = null
 
+    // One reading of each list at a time: the library, Settings and Profile all ask for the playlists
+    // as they open, and each asking Spotify separately is what gets a shared client rationed.
+    private val playlistsLock = Mutex()
+    private val likedLock = Mutex()
+    private val trackLocks = ConcurrentHashMap<String, Mutex>()
+
+    private val _waiting = MutableStateFlow<String?>(null)
+
+    /** While Spotify has asked Convx to slow down, what it said, so a page can show it instead of "…". */
+    val waiting: StateFlow<String?> = _waiting.asStateFlow()
+
     /**
      * [runCatching] for these calls, except that a cancelled caller stays cancelled: a page that
      * closes mid-request mustn't come back with "the coroutine scope left the composition" as if
@@ -94,6 +110,12 @@ object SpotifyApi {
 
     suspend fun playlists(refresh: Boolean = false): Result<List<SpotifyPlaylist>> = attempt {
         if (!refresh) playlists?.let { return@attempt it }
+        playlistsLock.withLock { readPlaylists(refresh) }
+    }
+
+    private suspend fun readPlaylists(refresh: Boolean): List<SpotifyPlaylist> {
+        // Whoever waited for the lock may find the list already read.
+        if (!refresh) playlists?.let { return it }
         val items = pages("$Base/me/playlists?limit=50").mapNotNull { element ->
             val obj = element as? JsonObject ?: return@mapNotNull null
             val id = obj.str("id") ?: return@mapNotNull null
@@ -109,11 +131,16 @@ object SpotifyApi {
             )
         }
         playlists = items
-        items
+        return items
     }
 
     suspend fun playlistTracks(id: String, refresh: Boolean = false): Result<List<SpotifyTrack>> = attempt {
         if (!refresh) playlistTracks[id]?.let { return@attempt it }
+        trackLocks.getOrPut(id) { Mutex() }.withLock { readPlaylistTracks(id, refresh) }
+    }
+
+    private suspend fun readPlaylistTracks(id: String, refresh: Boolean): List<SpotifyTrack> {
+        if (!refresh) playlistTracks[id]?.let { return it }
         val fields = "limit=100&additional_types=track&market=from_token"
         val rows = try {
             pages("$Base/playlists/$id/items?$fields")
@@ -123,7 +150,7 @@ object SpotifyApi {
         }
         val tracks = rows.mapNotNull { row -> track((row as? JsonObject)?.let { it.obj("item") ?: it.obj("track") }) }
         playlistTracks[id] = tracks
-        tracks
+        return tracks
     }
 
     /** Spotify's tracks for a search, best first by Spotify's own ranking; a handful is plenty for one song. */
@@ -141,11 +168,16 @@ object SpotifyApi {
 
     suspend fun likedSongs(refresh: Boolean = false): Result<List<SpotifyTrack>> = attempt {
         if (!refresh) liked?.let { return@attempt it }
+        likedLock.withLock { readLiked(refresh) }
+    }
+
+    private suspend fun readLiked(refresh: Boolean): List<SpotifyTrack> {
+        if (!refresh) liked?.let { return it }
         val tracks = pages("$Base/me/tracks?limit=50&market=from_token").mapNotNull { row ->
             track((row as? JsonObject)?.let { it.obj("track") ?: it.obj("item") })
         }
         liked = tracks
-        tracks
+        return tracks
     }
 
     private fun track(obj: JsonObject?): SpotifyTrack? {
@@ -212,7 +244,12 @@ object SpotifyApi {
             code == 429 && attempt < 3 -> {
                 val wait = (retryAfter ?: 2L).coerceIn(1L, 30L)
                 Log.w(Tag, "Spotify asked to slow down; waiting ${wait}s")
-                delay(wait * 1000)
+                _waiting.value = "Spotify asked Convx to slow down, so it's waiting $wait s (try ${attempt + 1} of 3)…"
+                try {
+                    delay(wait * 1000)
+                } finally {
+                    _waiting.value = null
+                }
                 get(url, attempt + 1)
             }
             else -> {
