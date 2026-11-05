@@ -47,15 +47,16 @@ import kotlin.random.Random
  */
 object CoverArt {
     /** Raised whenever the drawing changes, so covers an older Convx drew are drawn again. */
-    const val Version = 1
+    const val Version = 2
 
     enum class Style { Collage, Type, Stars, Prism, Mono, Duotone, Pixel, Glow }
 
     /**
      * What a cover is made from. [covers] are the songs' pictures, the most typical first; [words]
-     * are the songs' titles and artists; [seed] changes the design ("New design").
+     * are the songs' titles and artists; [seed] varies the drawing; [design] counts "New cover
+     * design" presses, which move on to the next fitting print.
      */
-    class Source(val name: String, val covers: List<Image>, val words: List<String>, val seed: Int, val style: Style? = null)
+    class Source(val name: String, val covers: List<Image>, val words: List<String>, val seed: Int, val design: Int = 0, val style: Style? = null)
 
     /** [display] sets the playlist's name on Type prints; null falls back to Windows' bold sans. */
     class Fonts(val display: Typeface?)
@@ -120,8 +121,10 @@ object CoverArt {
         if (palette.saturation < 0.18f) score[Style.Mono] = score[Style.Mono]!! + 1.5
         if (palette.brightness < 0.3f) score[Style.Prism] = score[Style.Prism]!! + 0.8
         if (palette.saturation > 0.45f) score[Style.Glow] = score[Style.Glow]!! + 0.5
-        // Among the three likeliest, so "New design" gives something else but still fitting.
+        // A name that says what it is (Chiptune, Rainy nights) gets that print first; "New cover
+        // design" then goes through the other two likeliest. Without such a word, a weighted pick.
         val ranked = score.entries.filter { it.value > 0 }.sortedByDescending { it.value }.take(3)
+        if (ranked.isNotEmpty() && ranked.first().value >= 6.0) return ranked[source.design % ranked.size].key
         val total = ranked.sumOf { it.value }
         var pick = random.nextDouble() * total
         for (entry in ranked) {
