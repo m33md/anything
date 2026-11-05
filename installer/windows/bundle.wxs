@@ -36,6 +36,12 @@
             <Payload Name="mark.png" SourceFile="$(sys.SOURCEFILEDIR)theme\mark.png" />
             <Payload Name="mark@2x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\mark@2x.png" />
             <Payload Name="mark@3x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\mark@3x.png" />
+            <Payload Name="primary-focus.png" SourceFile="$(sys.SOURCEFILEDIR)theme\primary-focus.png" />
+            <Payload Name="primary-focus@2x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\primary-focus@2x.png" />
+            <Payload Name="primary-focus@3x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\primary-focus@3x.png" />
+            <Payload Name="secondary-focus.png" SourceFile="$(sys.SOURCEFILEDIR)theme\secondary-focus.png" />
+            <Payload Name="secondary-focus@2x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\secondary-focus@2x.png" />
+            <Payload Name="secondary-focus@3x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\secondary-focus@3x.png" />
             <Payload Name="primary-hover.png" SourceFile="$(sys.SOURCEFILEDIR)theme\primary-hover.png" />
             <Payload Name="primary-hover@2x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\primary-hover@2x.png" />
             <Payload Name="primary-hover@3x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\primary-hover@3x.png" />

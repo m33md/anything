@@ -8,15 +8,18 @@ Pictures that must stay sharp come in 1x, 2x and 3x; Burn picks the closest for 
 scaling. The window background is 1x only (Burn stretches it), so it holds only soft shapes.
 """
 import math
+import sys
 from pathlib import Path
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "desktop" / "packaging"))
+import make_icon  # noqa: E402
+
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "installer" / "windows" / "theme"
 FONT = ROOT / "desktop" / "src" / "main" / "resources" / "fonts" / "plus_jakarta_sans.ttf"
-ICON = ROOT / "desktop" / "src" / "main" / "resources" / "convx.png"
 
 W, H = 560, 360
 RED = (0xFA, 0x2D, 0x48)
@@ -29,23 +32,12 @@ def save(img, name, scale):
     img.convert("RGB").save(OUT / f"{name}{suffix}.png", optimize=True)
 
 
-def mark_alpha():
-    """The Convx mark's coverage, from the app icon (red mark on a black tile)."""
-    src = np.asarray(Image.open(ICON).convert("RGBA")).astype(np.float32)
-    alpha = np.clip(src[:, :, 0] / 250.0, 0, 1) * (src[:, :, 3] / 255.0)
-    ys, xs = np.nonzero(alpha > 0.03)
-    crop = alpha[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
-    return Image.fromarray((crop * 255).astype(np.uint8), "L")
-
-
 def mark(size, scale):
+    """Convx's crimson monogram on black, drawn from its vector (desktop/packaging/make_icon.py)."""
     px = size * scale
-    a = mark_alpha()
-    w, h = a.size
-    k = px / max(w, h)
-    a = a.resize((max(1, round(w * k)), max(1, round(h * k))), Image.LANCZOS)
+    m = make_icon.monogram(px)
     img = Image.new("RGB", (px, px), BLACK)
-    img.paste(Image.new("RGB", a.size, RED), ((px - a.size[0]) // 2, (px - a.size[1]) // 2), a)
+    img.paste(m, ((px - m.width) // 2, (px - m.height) // 2), m)
     return img
 
 
@@ -60,10 +52,16 @@ def wordmark(scale):
     return img
 
 
-def pill(w, h, color, scale, ss=4):
+def pill(w, h, color, scale, ss=4, rim=None):
+    """A rounded button. [rim] adds a lit edge, as the app's glass has, for the keyboard-focused button."""
     S = scale * ss
     img = Image.new("RGB", (w * S, h * S), BLACK)
-    ImageDraw.Draw(img).rounded_rectangle((0, 0, w * S - 1, h * S - 1), radius=h * S // 2, fill=color)
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle((0, 0, w * S - 1, h * S - 1), radius=h * S // 2, fill=color)
+    if rim:
+        inset = round(2 * S / scale)
+        d.rounded_rectangle((inset, inset, w * S - 1 - inset, h * S - 1 - inset), radius=h * S // 2 - inset,
+                            outline=rim, width=max(1, round(1.5 * S / scale)))
     return img.resize((w * scale, h * scale), Image.LANCZOS)
 
 
@@ -122,9 +120,11 @@ def main():
         save(pill(156, 44, RED, s), "primary", s)
         save(pill(156, 44, (0xFF, 0x4D, 0x66), s), "primary-hover", s)
         save(pill(156, 44, (0xD6, 0x1F, 0x3A), s), "primary-pressed", s)
+        save(pill(156, 44, RED, s, rim=(0xFF, 0xB3, 0xBF)), "primary-focus", s)
         save(pill(120, 44, (0x1C, 0x1C, 0x1E), s), "secondary", s)
         save(pill(120, 44, (0x2C, 0x2C, 0x2E), s), "secondary-hover", s)
         save(pill(120, 44, (0x3A, 0x3A, 0x3C), s), "secondary-pressed", s)
+        save(pill(120, 44, (0x1C, 0x1C, 0x1E), s, rim=(0x6E, 0x6E, 0x73)), "secondary-focus", s)
         save(close_glyph(28, s, (0x8E, 0x8E, 0x93)), "close", s)
         save(close_glyph(28, s, (0xFF, 0xFF, 0xFF), ring=(0x2C, 0x2C, 0x2E)), "close-hover", s)
         save(close_glyph(28, s, (0xFF, 0xFF, 0xFF), ring=(0x3A, 0x3A, 0x3C)), "close-pressed", s)

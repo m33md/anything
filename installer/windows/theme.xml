@@ -20,6 +20,14 @@
         <AlternateResolution ImageFile="wordmark@2x.png" />
         <AlternateResolution ImageFile="wordmark@3x.png" />
     </Image>
+    <Image Id="PrimaryFocus" ImageFile="primary-focus.png">
+        <AlternateResolution ImageFile="primary-focus@2x.png" />
+        <AlternateResolution ImageFile="primary-focus@3x.png" />
+    </Image>
+    <Image Id="SecondaryFocus" ImageFile="secondary-focus.png">
+        <AlternateResolution ImageFile="secondary-focus@2x.png" />
+        <AlternateResolution ImageFile="secondary-focus@3x.png" />
+    </Image>
     <Image Id="Primary" ImageFile="primary.png">
         <AlternateResolution ImageFile="primary@2x.png" />
         <AlternateResolution ImageFile="primary@3x.png" />
@@ -67,6 +75,7 @@
         <Label X="106" Y="76" Width="200" Height="18" FontId="3" DisablePrefix="yes">#(loc.Version)</Label>
         <Button X="-16" Y="16" Width="28" Height="28">
             <ButtonImage ImageId="Close" />
+            <ButtonFocusImage ImageId="Close" />
             <ButtonHoverImage ImageId="CloseHover" />
             <ButtonSelectedImage ImageId="ClosePressed" />
             <CloseWindowAction />
@@ -79,6 +88,7 @@
             <Button X="40" Y="-40" Width="120" Height="44" TabStop="yes" FontId="4">
                 <Text>#(loc.CloseButton)</Text>
                 <ButtonImage ImageId="Secondary" />
+                <ButtonFocusImage ImageId="SecondaryFocus" />
                 <ButtonHoverImage ImageId="SecondaryHover" />
                 <ButtonSelectedImage ImageId="SecondaryPressed" />
                 <CloseWindowAction />
@@ -97,6 +107,7 @@
                 <Text>#(loc.InstallButton)</Text>
                 <Text Condition="ConvxInstalledVersion &gt; v0.0.0.0">#(loc.UpdateButton)</Text>
                 <ButtonImage ImageId="Primary" />
+                <ButtonFocusImage ImageId="PrimaryFocus" />
                 <ButtonHoverImage ImageId="PrimaryHover" />
                 <ButtonSelectedImage ImageId="PrimaryPressed" />
             </Button>
@@ -107,12 +118,14 @@
             <Button Name="UninstallButton" X="40" Y="-40" Width="156" Height="44" TabStop="yes" FontId="4">
                 <Text>#(loc.UninstallButton)</Text>
                 <ButtonImage ImageId="Primary" />
+                <ButtonFocusImage ImageId="PrimaryFocus" />
                 <ButtonHoverImage ImageId="PrimaryHover" />
                 <ButtonSelectedImage ImageId="PrimaryPressed" />
             </Button>
             <Button X="208" Y="-40" Width="120" Height="44" TabStop="yes" FontId="4">
                 <Text>#(loc.CloseButton)</Text>
                 <ButtonImage ImageId="Secondary" />
+                <ButtonFocusImage ImageId="SecondaryFocus" />
                 <ButtonHoverImage ImageId="SecondaryHover" />
                 <ButtonSelectedImage ImageId="SecondaryPressed" />
                 <CloseWindowAction />
@@ -131,20 +144,10 @@
             <Button Name="ProgressCancelButton" X="40" Y="-40" Width="120" Height="44" TabStop="yes" FontId="4">
                 <Text>#(loc.CancelButton)</Text>
                 <ButtonImage ImageId="Secondary" />
+                <ButtonFocusImage ImageId="SecondaryFocus" />
                 <ButtonHoverImage ImageId="SecondaryHover" />
                 <ButtonSelectedImage ImageId="SecondaryPressed" />
             </Button>
-        </Page>
-        <Page Name="ProgressPassive">
-            <Label X="40" Y="136" Width="300" Height="36" FontId="1" DisablePrefix="yes">
-                <Text>#(loc.ProgressHeader)</Text>
-                <Text Condition="WixBundleAction = 3 OR WixBundleAction = 4">#(loc.ProgressUninstallHeader)</Text>
-                <Text Condition="ConvxInstalledVersion &gt; v0.0.0.0">#(loc.ProgressUpdateHeader)</Text>
-            </Label>
-            <Label X="40" Y="180" Width="300" Height="24" FontId="2" DisablePrefix="yes">#(loc.ProgressMessage)</Label>
-            <Progressbar Name="OverallCalculatedProgressbar" X="40" Y="232" Width="300" Height="6">
-                <ProgressbarImage ImageId="Progress" />
-            </Progressbar>
         </Page>
         <Page Name="Success">
             <Label X="40" Y="136" Width="300" Height="36" FontId="1" DisablePrefix="yes">
@@ -161,18 +164,21 @@
             <Button Name="LaunchButton" X="40" Y="-40" Width="156" Height="44" TabStop="yes" FontId="4" HideWhenDisabled="yes">
                 <Text>#(loc.LaunchButton)</Text>
                 <ButtonImage ImageId="Primary" />
+                <ButtonFocusImage ImageId="PrimaryFocus" />
                 <ButtonHoverImage ImageId="PrimaryHover" />
                 <ButtonSelectedImage ImageId="PrimaryPressed" />
             </Button>
             <Button Name="SuccessRestartButton" X="40" Y="-40" Width="156" Height="44" TabStop="yes" FontId="4" HideWhenDisabled="yes">
                 <Text>#(loc.RestartButton)</Text>
                 <ButtonImage ImageId="Primary" />
+                <ButtonFocusImage ImageId="PrimaryFocus" />
                 <ButtonHoverImage ImageId="PrimaryHover" />
                 <ButtonSelectedImage ImageId="PrimaryPressed" />
             </Button>
             <Button X="208" Y="-40" Width="120" Height="44" TabStop="yes" FontId="4" VisibleCondition="WixBundleAction = 6 AND NOT WixStdBARestartRequired">
                 <Text>#(loc.CloseButton)</Text>
                 <ButtonImage ImageId="Secondary" />
+                <ButtonFocusImage ImageId="SecondaryFocus" />
                 <ButtonHoverImage ImageId="SecondaryHover" />
                 <ButtonSelectedImage ImageId="SecondaryPressed" />
                 <CloseWindowAction />
@@ -180,6 +186,7 @@
             <Button X="40" Y="-40" Width="120" Height="44" TabStop="yes" FontId="4" VisibleCondition="WixBundleAction &lt;&gt; 6 AND NOT WixStdBARestartRequired">
                 <Text>#(loc.CloseButton)</Text>
                 <ButtonImage ImageId="Secondary" />
+                <ButtonFocusImage ImageId="SecondaryFocus" />
                 <ButtonHoverImage ImageId="SecondaryHover" />
                 <ButtonSelectedImage ImageId="SecondaryPressed" />
                 <CloseWindowAction />
@@ -196,12 +203,14 @@
             <Button Name="FailureRestartButton" X="40" Y="-40" Width="156" Height="44" TabStop="yes" FontId="4" HideWhenDisabled="yes">
                 <Text>#(loc.RestartButton)</Text>
                 <ButtonImage ImageId="Primary" />
+                <ButtonFocusImage ImageId="PrimaryFocus" />
                 <ButtonHoverImage ImageId="PrimaryHover" />
                 <ButtonSelectedImage ImageId="PrimaryPressed" />
             </Button>
             <Button X="40" Y="-40" Width="120" Height="44" TabStop="yes" FontId="4" VisibleCondition="NOT WixStdBARestartRequired">
                 <Text>#(loc.CloseButton)</Text>
                 <ButtonImage ImageId="Secondary" />
+                <ButtonFocusImage ImageId="SecondaryFocus" />
                 <ButtonHoverImage ImageId="SecondaryHover" />
                 <ButtonSelectedImage ImageId="SecondaryPressed" />
                 <CloseWindowAction />

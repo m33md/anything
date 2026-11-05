@@ -33,6 +33,7 @@ public static class SetupUi {
     [StructLayout(LayoutKind.Sequential)] struct RECT { public int L, T, R, B; }
     [DllImport("user32")] static extern bool GetWindowRect(IntPtr h, out RECT r);
     [DllImport("user32")] static extern bool PrintWindow(IntPtr h, IntPtr hdc, uint flags);
+    [DllImport("user32", CharSet = CharSet.Unicode)] static extern int GetClassNameW(IntPtr h, StringBuilder sb, int n);
 
     static string Text(IntPtr h) {
         var sb = new StringBuilder(1024);
@@ -69,6 +70,23 @@ public static class SetupUi {
         PostMessageW(parent, 0x0111 /* WM_COMMAND, BN_CLICKED */, (IntPtr)(GetDlgCtrlID(button) & 0xFFFF), button);
         return true;
     }
+
+    // A message box with this title (Windows' dialog class), such as the error the setup shows
+    // before its Failure page.
+    public static IntPtr FindBox(string title) {
+        IntPtr found = IntPtr.Zero;
+        EnumWindows((h, p) => {
+            if (!IsWindowVisible(h) || Text(h) != title) return true;
+            var sb = new StringBuilder(64);
+            GetClassNameW(h, sb, sb.Capacity);
+            if (sb.ToString() == "#32770") { found = h; return false; }
+            return true;
+        }, IntPtr.Zero);
+        return found;
+    }
+
+    // Presses a message box's button by its id (1 OK, 2 Cancel, 3 Abort).
+    public static void Answer(IntPtr box, int id) { PostMessageW(box, 0x0111, (IntPtr)id, IntPtr.Zero); }
 
     public static void Close(IntPtr h) { PostMessageW(h, 0x0010 /* WM_CLOSE */, IntPtr.Zero, IntPtr.Zero); }
 
@@ -185,15 +203,33 @@ Step 'A fresh install that fails (a drive that does not exist)' {
     Wait-For $s 'Install Convx'
     Shot $s '7-install'
     Click $s 'Install'
-    Wait-For $s 'Setup didn*' 180
-    Shot $s '8-failed'
+    # Windows Installer's own error comes first, in a message box; answer it as a person would.
+    $deadline = (Get-Date).AddSeconds(180)
+    $answered = $false
+    while ((Get-Date) -lt $deadline -and -not ([SetupUi]::Texts($s.Window) | Where-Object { $_ -like 'Setup didn*' })) {
+        $box = [SetupUi]::FindBox('Convx Setup')
+        if ($box -ne [IntPtr]::Zero -and -not $answered) {
+            Start-Sleep -Milliseconds 500
+            [SetupUi]::Shot($box, (Join-Path $OutDir '8-error-box.png'))
+            Write-Host "Error box says: $(([SetupUi]::Texts($box)) -join ' | ')"
+            foreach ($id in 2, 3, 1) {
+                [SetupUi]::Answer($box, $id)
+                Start-Sleep -Milliseconds 800
+                if ([SetupUi]::FindBox('Convx Setup') -eq [IntPtr]::Zero) { break }
+            }
+            $answered = $true
+        }
+        Start-Sleep -Milliseconds 300
+    }
+    Wait-For $s 'Setup didn*' 30
+    Shot $s '9-failed'
     Finish $s
 }
 
 Step 'The updater way: /passive with the install folder' {
     $s = Start-Setup 'passive.log' @('/passive', '/norestart', "InstallFolder=$(Split-Path -Parent $exe)")
     Wait-For $s 'Installing Convx*' 60
-    Shot $s '9-passive'
+    Shot $s '10-passive'
     if (-not $s.Process.WaitForExit(300000)) { throw 'The passive install never finished' }
     Write-Host "Passive setup exited with $($s.Process.ExitCode); Convx.exe there: $(Test-Path $exe)"
 }
