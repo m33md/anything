@@ -1,0 +1,78 @@
+[0874:1F6C][2026-11-05T17:18:24]i001: Burn x86 v5.0.2+aa65968c419420d32e3e1b647aea0082f5ca5b78, Windows v10.0 x64 (Build 26100: Service Pack 0), path: D:\a\anything\anything\build\Convx-Setup.exe
+[0874:1F6C][2026-11-05T17:18:24]i000: Initializing formatted variable 'LaunchTarget' to value '[InstallFolder]\Convx.exe'
+[0874:1F6C][2026-11-05T17:18:24]i000: Initializing formatted variable 'InstallFolder' to value '[LocalAppDataFolder]Convx'
+[0874:1F6C][2026-11-05T17:18:24]i009: Command Line: '-log D:\a\anything\anything\build\preview\uninstall.log'
+[0874:1F6C][2026-11-05T17:18:24]i000: Setting string variable 'WixBundleOriginalSource' to value 'D:\a\anything\anything\build\Convx-Setup.exe'
+[0874:1F6C][2026-11-05T17:18:24]i000: Setting string variable 'WixBundleOriginalSourceFolder' to value 'D:\a\anything\anything\build\'
+[0874:1F6C][2026-11-05T17:18:25]i000: Setting string variable 'WixBundleLog' to value 'D:\a\anything\anything\build\preview\uninstall.log'
+[0874:195C][2026-11-05T17:18:25]i000: Setting version variable 'WixBundleFileVersion' to value '5.0.2.0'
+[0874:195C][2026-11-05T17:18:25]i000: Setting numeric variable 'WixStdBASuppressOptionsUI' to value 1
+[0874:195C][2026-11-05T17:18:25]i000: Setting numeric variable 'WixStdBALanguageId' to value 1033
+[0874:1F6C][2026-11-05T17:18:25]i100: Detect begin, 1 packages
+[0874:1F6C][2026-11-05T17:18:25]i000: Setting version variable 'ConvxInstalledVersion' to value '1.0.74'
+[0874:1F6C][2026-11-05T17:18:25]i101: Detected package: ConvxMsi, state: Present, cached: Yes, install registration state: Present, cache registration state: Present
+[0874:1F6C][2026-11-05T17:18:25]i199: Detect complete, result: 0x0, registration state: Full, cached: Yes, eligible for cleanup: No
+[0874:1F6C][2026-11-05T17:18:26]i200: Plan begin, 1 packages, action: Uninstall
+[0874:1F6C][2026-11-05T17:18:26]i000: Setting string variable 'WixBundleRollbackLog_ConvxMsi' to value 'D:\a\anything\anything\build\preview\uninstall_000_ConvxMsi_rollback.log'
+[0874:1F6C][2026-11-05T17:18:26]i000: Setting string variable 'WixBundleLog_ConvxMsi' to value 'D:\a\anything\anything\build\preview\uninstall_000_ConvxMsi.log'
+[0874:1F6C][2026-11-05T17:18:26]i222: Planned rollback boundary: 'WixDefaultBoundary', vital: Yes, transaction: No (default: No)
+[0874:1F6C][2026-11-05T17:18:26]i201: Planned package: ConvxMsi, state: Present, default requested: Absent, ba requested: Absent, execute: Uninstall, rollback: Install, default cache strategy: Keep, ba requested strategy: Keep, cache: NonVital, uncache: Yes, dependency: Unregister, expected install registration state: Absent, expected cache registration state: Absent
+[0874:1F6C][2026-11-05T17:18:26]i299: Plan complete, result: 0x0
+[0874:195C][2026-11-05T17:18:26]i052: Condition 'WixBundleAction = 3 OR WixBundleAction = 4' evaluates to true.
+[0874:1F6C][2026-11-05T17:18:26]i300: Apply begin
+[0874:1F6C][2026-11-05T17:18:26]i370: Session begin, registration key: SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{DC2E0AAF-63DD-4F46-AD24-E4F94575DBD5}, options: 0x3, disable resume: No
+[0874:1F6C][2026-11-05T17:18:26]i000: Caching bundle from: 'C:\Windows\TEMP\{7C025ED5-68B2-47C3-B5A9-8E619D18665C}\.be\Convx-Setup.exe' to: 'C:\Users\runneradmin\AppData\Local\Package Cache\{DC2E0AAF-63DD-4F46-AD24-E4F94575DBD5}\Convx-Setup.exe'
+[0874:1F6C][2026-11-05T17:18:26]i320: Registering bundle dependency provider: {DC2E0AAF-63DD-4F46-AD24-E4F94575DBD5}, version: 1.0.74
+[0874:1F6C][2026-11-05T17:18:26]i371: Updating session, registration key: SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{DC2E0AAF-63DD-4F46-AD24-E4F94575DBD5}, resume: Active, restart initiated: No, disable resume: No
+[0874:1708][2026-11-05T17:18:27]i304: Verified existing payload: ConvxMsi at path: C:\Users\runneradmin\AppData\Local\Package Cache\{CDC7EA93-35EB-3A8A-8C42-376BDEF83179}v1.0.74\Convx.msi.
+[0874:1F6C][2026-11-05T17:18:27]i326: Removed dependency: {DC2E0AAF-63DD-4F46-AD24-E4F94575DBD5} on package provider: {CDC7EA93-35EB-3A8A-8C42-376BDEF83179}_v1.0.74, package ConvxMsi
+[0874:1F6C][2026-11-05T17:18:27]i329: Removed package dependency provider: {CDC7EA93-35EB-3A8A-8C42-376BDEF83179}_v1.0.74, package: ConvxMsi
+[0874:1F6C][2026-11-05T17:18:27]i301: Applying execute package: ConvxMsi, action: Uninstall, path: (null), arguments: ' INSTALLDIR="C:\Users\runneradmin\AppData\Local\Convx" ARPSYSTEMCOMPONENT="1" MSIFASTINSTALL="7" BURNMSIUNINSTALL=1 REBOOT=ReallySuppress IGNOREDEPENDENCIES=ALL'
+[0874:1F6C][2026-11-05T17:18:35]i319: Applied execute package: ConvxMsi, result: 0x0, restart: None
+[0874:1F6C][2026-11-05T17:18:35]i351: Removing cached package: ConvxMsi, from path: C:\Users\runneradmin\AppData\Local\Package Cache\{CDC7EA93-35EB-3A8A-8C42-376BDEF83179}v1.0.74\
+[0874:1F6C][2026-11-05T17:18:35]i373: Calculating whether to keep registration
+[0874:1F6C][2026-11-05T17:18:35]i374:   package: ConvxMsi, install registration state: Absent, cache registration state: Absent
+[0874:1F6C][2026-11-05T17:18:35]i372: Session end, registration key: SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{DC2E0AAF-63DD-4F46-AD24-E4F94575DBD5}, resume: None, restart: None, disable resume: No, default registration: None, ba requested registration: None
+[0874:1F6C][2026-11-05T17:18:35]i330: Removed bundle dependency provider: {DC2E0AAF-63DD-4F46-AD24-E4F94575DBD5}
+[0874:1F6C][2026-11-05T17:18:35]i326: Removed dependency: {DC2E0AAF-63DD-4F46-AD24-E4F94575DBD5} on package provider: {CDC7EA93-35EB-3A8A-8C42-376BDEF83179}_v1.0.74, package ConvxMsi
+[0874:1F6C][2026-11-05T17:18:35]i329: Removed package dependency provider: {CDC7EA93-35EB-3A8A-8C42-376BDEF83179}_v1.0.74, package: ConvxMsi
+[0874:1F6C][2026-11-05T17:18:35]i352: Removing cached bundle: {DC2E0AAF-63DD-4F46-AD24-E4F94575DBD5}, from path: C:\Users\runneradmin\AppData\Local\Package Cache\{DC2E0AAF-63DD-4F46-AD24-E4F94575DBD5}\
+[0874:1F6C][2026-11-05T17:18:35]i371: Updating session, registration key: SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{DC2E0AAF-63DD-4F46-AD24-E4F94575DBD5}, resume: None, restart initiated: No, disable resume: No
+[0874:195C][2026-11-05T17:18:35]i000: Setting string variable 'WixStdBARestartRequired' to value ''
+[0874:1F6C][2026-11-05T17:18:35]i399: Apply complete, result: 0x0, restart: None, ba requested restart:  No
+[0874:195C][2026-11-05T17:18:35]i052: Condition 'WixBundleAction = 3 OR WixBundleAction = 4' evaluates to true.
+[0874:195C][2026-11-05T17:18:35]i052: Condition 'WixBundleAction = 3 OR WixBundleAction = 4' evaluates to true.
+[0874:195C][2026-11-05T17:18:35]i052: Condition 'WixStdBARestartRequired' evaluates to false.
+[0874:195C][2026-11-05T17:18:35]i052: Condition 'WixBundleAction = 6 AND NOT WixStdBARestartRequired' evaluates to false.
+[0874:195C][2026-11-05T17:18:35]i052: Condition 'WixBundleAction <> 6 AND NOT WixStdBARestartRequired' evaluates to true.
+[0874:1F6C][2026-11-05T17:18:37]i500: Shutting down, exit code: 0x0
+[0874:1F6C][2026-11-05T17:18:37]i502: Cleanup begin.
+[0874:1F6C][2026-11-05T17:18:37]i503: Cleanup not required due to running Apply.
+[0874:1F6C][2026-11-05T17:18:37]i599: Cleanup complete, result: 0x0
+[0874:1F6C][2026-11-05T17:18:37]i410: Variable: ConvxInstalledVersion = 1.0.74
+[0874:1F6C][2026-11-05T17:18:37]i410: Variable: InstallFolder = C:\Users\runneradmin\AppData\Local\Convx
+[0874:1F6C][2026-11-05T17:18:37]i410: Variable: LaunchTarget = C:\Users\runneradmin\AppData\Local\Convx\Convx.exe
+[0874:1F6C][2026-11-05T17:18:37]i410: Variable: LocalAppDataFolder = C:\Users\runneradmin\AppData\Local\
+[0874:1F6C][2026-11-05T17:18:37]i410: Variable: RebootPending = 0
+[0874:1F6C][2026-11-05T17:18:37]i410: Variable: WixBundleAction = 4
+[0874:1F6C][2026-11-05T17:18:37]i410: Variable: WixBundleCommandLineAction = 6
+[0874:1F6C][2026-11-05T17:18:37]i410: Variable: WixBundleElevated = 1
+[0874:1F6C][2026-11-05T17:18:37]i410: Variable: WixBundleFileVersion = 5.0.2.0
+[0874:1F6C][2026-11-05T17:18:37]i410: Variable: WixBundleInProgressName = 
+[0874:1F6C][2026-11-05T17:18:37]i410: Variable: WixBundleInstalled = 1
+[0874:1F6C][2026-11-05T17:18:37]i410: Variable: WixBundleLog = D:\a\anything\anything\build\preview\uninstall.log
+[0874:1F6C][2026-11-05T17:18:37]i410: Variable: WixBundleLog_ConvxMsi = D:\a\anything\anything\build\preview\uninstall_000_ConvxMsi.log
+[0874:1F6C][2026-11-05T17:18:37]i410: Variable: WixBundleManufacturer = Convx
+[0874:1F6C][2026-11-05T17:18:37]i410: Variable: WixBundleName = Convx
+[0874:1F6C][2026-11-05T17:18:37]i410: Variable: WixBundleOriginalSource = D:\a\anything\anything\build\Convx-Setup.exe
+[0874:1F6C][2026-11-05T17:18:37]i410: Variable: WixBundleOriginalSourceFolder = D:\a\anything\anything\build\
+[0874:1F6C][2026-11-05T17:18:37]i410: Variable: WixBundleProviderKey = {DC2E0AAF-63DD-4F46-AD24-E4F94575DBD5}
+[0874:1F6C][2026-11-05T17:18:37]i410: Variable: WixBundleRollbackLog_ConvxMsi = D:\a\anything\anything\build\preview\uninstall_000_ConvxMsi_rollback.log
+[0874:1F6C][2026-11-05T17:18:37]i410: Variable: WixBundleTag = 
+[0874:1F6C][2026-11-05T17:18:37]i410: Variable: WixBundleUILevel = 4
+[0874:1F6C][2026-11-05T17:18:37]i410: Variable: WixBundleVersion = 1.0.74
+[0874:1F6C][2026-11-05T17:18:37]i410: Variable: WixCanRestart = 1
+[0874:1F6C][2026-11-05T17:18:37]i410: Variable: WixStdBALanguageId = 1033
+[0874:1F6C][2026-11-05T17:18:37]i410: Variable: WixStdBARestartRequired = 
+[0874:1F6C][2026-11-05T17:18:37]i410: Variable: WixStdBASuppressOptionsUI = 1
+[0874:1F6C][2026-11-05T17:18:37]i007: Exit code: 0x0, restarting: No
