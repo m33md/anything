@@ -145,11 +145,11 @@ fun LyricsMenuContent(song: Song, dismiss: () -> Unit) {
             }
         }
         if (lyrics != null) {
-            MenuRow("Wrong lyrics", "close", subtitle = "These are another song's. Hide them; Search finds the right ones") {
+            MenuRow("Wrong lyrics", "close", subtitle = "These are another song's. Hide them; Search finds the right ones", onClick = {
                 dismiss()
                 LyricsService.markWrong(song)
                 Overlays.toast("Lyrics hidden for this song. Search or Refetch brings lyrics back.", "lyrics")
-            }
+            })
         }
         // The phone saves the reduction when the slider is let go, and it stays on for every song.
         var reduction by remember { mutableFloatStateOf(settings.vocalReduction) }
@@ -360,7 +360,7 @@ private fun editLyrics(song: Song, lyrics: Lyrics?) {
                 PillButton("Save", {
                     val lines = parseLyricsText(text)
                     if (lines.any { it.text.isNotBlank() }) {
-                        LyricsService.use(song, Lyrics(lines, lyrics?.source ?: "You"))
+                        LyricsService.use(song, Lyrics(lines, lyrics?.source ?: "You", lyrics?.credit))
                         Overlays.dismissDialog()
                     }
                 }, filled = true)

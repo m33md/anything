@@ -47,6 +47,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -226,6 +227,47 @@ fun LyricsView(
             }
         }
         if (song != null) TranslationStatus(song, Modifier.align(Alignment.TopCenter).padding(top = 8.dp))
+        // A source that asks to be named wherever its lyrics are (Spicy Lyrics) stays named, pinned
+        // under the lines rather than scrolling away with them.
+        (state as? LyricsState.Ready)?.lyrics?.credit?.let { credit ->
+            LyricsCreditLine(credit, Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp, start = 12.dp, end = 12.dp))
+        }
+    }
+}
+
+/** "Lyrics from Spicy Lyrics · uploaded by A, made by B", each name opening its page. */
+@Composable
+private fun LyricsCreditLine(credit: com.convx.desktop.lyrics.LyricsCredit, modifier: Modifier = Modifier) {
+    val style = ConvxType.Caption.copy(fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight.Medium)
+    val dim = Color.White.copy(alpha = 0.55f)
+    @Composable
+    fun Name(link: com.convx.desktop.lyrics.CreditLink) {
+        val url = link.url?.takeIf { it.startsWith("https://") || it.startsWith("http://") }
+        Text(
+            link.name,
+            style = style.copy(fontWeight = FontWeight.Bold),
+            color = Color.White.copy(alpha = 0.8f),
+            maxLines = 1,
+            modifier = if (url != null) Modifier.clickable { com.convx.desktop.ui.screens.settings.openUrl(url) } else Modifier,
+        )
+    }
+    Row(
+        modifier
+            .clip(RoundedCornerShape(50))
+            .background(Color.Black.copy(alpha = 0.35f))
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val via = if (credit.provider == "Spicy Lyrics") "" else ", via Spicy Lyrics"
+        Text("Lyrics from ${credit.provider}$via", style = style, color = dim, maxLines = 1)
+        credit.uploader?.let {
+            Text(" · uploaded by ", style = style, color = dim, maxLines = 1)
+            Name(it)
+        }
+        credit.maker?.let {
+            Text(if (credit.uploader != null) ", made by " else " · made by ", style = style, color = dim, maxLines = 1)
+            Name(it)
+        }
     }
 }
 

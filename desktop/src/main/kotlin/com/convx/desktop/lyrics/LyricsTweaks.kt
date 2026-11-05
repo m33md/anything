@@ -32,6 +32,10 @@ data class SongLyricsTweaks(
     val translation: SavedTranslation? = null,
     /** You said the lyrics found were another song's: show none until Refetch or a pick. */
     val wrong: Boolean = false,
+    /** The credit [lyrics] must keep showing, when their source asks for one. */
+    val credit: LyricsCredit? = null,
+    /** When [lyrics] were kept; a credited source's copy is dropped after its time is up. */
+    val keptAt: Long = 0L,
 )
 
 /** One song's translation, line for line with its non-empty lines, and what it was made for. */

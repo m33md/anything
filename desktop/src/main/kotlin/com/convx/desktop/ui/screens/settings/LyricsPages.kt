@@ -502,6 +502,29 @@ fun LyricsSourcesSettings() {
         }
     }
     SectionGap()
+    val hasSpicyKey = !secrets[com.convx.desktop.lyrics.SpicyLyrics.KeyName].isNullOrBlank()
+    val spicyProblem by com.convx.desktop.lyrics.SpicyLyrics.problem.collectAsState()
+    SettingsSection(
+        "Spicy Lyrics",
+        footer = spicyProblem ?: ("Word-synced lyrics from Spicy Lyrics' community, Apple Music and Spotify. The key is free: " +
+            "make an application at developers.spicylyrics.org, turn on client access with \"No origin header\", and paste its " +
+            "sl_pk_ key here. Songs are found by their Spotify ID, through your Spotify link or song.link. As its terms ask, " +
+            "its lyrics always show who they're from and aren't saved as .lrc files."),
+    ) {
+        LinkRow("Spicy Lyrics key", icon = "lock", tint = SystemColors.Gray, value = if (hasSpicyKey) "Set" else "Not set") { editSpicyLyricsKey() }
+        RowDivider()
+        LinkRow("Get a key at developers.spicylyrics.org", icon = "link", tint = SystemColors.Gray) {
+            openUrl("https://developers.spicylyrics.org/dashboard")
+        }
+        if (hasSpicyKey) {
+            RowDivider()
+            ButtonRow("Remove key", color = SystemColors.Red) {
+                LyricsService.setSpicyLyricsKey(null)
+                Overlays.toast("Spicy Lyrics key removed")
+            }
+        }
+    }
+    SectionGap()
     SettingsSection {
         ButtonRow("Reset to the phone's order") {
             AppSettings.update { it.copy(lyricsProviders = emptyList(), lyricsProvidersOff = emptyList()) }
@@ -532,6 +555,30 @@ private fun editPaxSenixKey() {
                         Overlays.toast("PaxSenix key saved")
                     }
                 }, filled = key.isNotBlank())
+            }
+        }
+    }
+}
+
+private fun editSpicyLyricsKey() {
+    Overlays.showDialog {
+        var key by remember { mutableStateOf("") }
+        val trimmed = key.trim()
+        val valid = trimmed.startsWith("sl_pk_") || trimmed.startsWith("sl_sk_")
+        DialogCard("Spicy Lyrics key") {
+            DialogField("sl_pk_...", key, secret = true) { key = it }
+            Spacer(Modifier.height(20.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)) {
+                PillButton("Cancel", { Overlays.dismissDialog() })
+                PillButton("Save", {
+                    if (valid) {
+                        LyricsService.setSpicyLyricsKey(trimmed)
+                        Overlays.dismissDialog()
+                        Overlays.toast("Spicy Lyrics key saved. It's asked from the next song.")
+                    } else if (trimmed.isNotEmpty()) {
+                        Overlays.toast("That isn't a Spicy Lyrics key. It starts with sl_pk_.", "error")
+                    }
+                }, filled = valid)
             }
         }
     }

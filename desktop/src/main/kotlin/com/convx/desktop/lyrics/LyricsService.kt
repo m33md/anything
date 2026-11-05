@@ -45,6 +45,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 data class Lyrics(
     val lines: List<LyricLine>,
     val source: String,
+    /** Who has to be named under these lyrics, when their source's terms say so (Spicy Lyrics). */
+    val credit: LyricsCredit? = null,
 ) {
     val synced: Boolean get() = lines.any { it.timeMs > 0 }
     val wordSynced: Boolean get() = lines.any { it.isWordSynced }
@@ -56,6 +58,16 @@ data class Lyrics(
         else -> 0
     }
 }
+
+/**
+ * A credit shown wherever the lyrics are: "Lyrics from [provider]", and for a community sync who
+ * uploaded it and who made it, each linked where the source gives a page.
+ */
+@kotlinx.serialization.Serializable
+data class LyricsCredit(val provider: String, val uploader: CreditLink? = null, val maker: CreditLink? = null)
+
+@kotlinx.serialization.Serializable
+data class CreditLink(val name: String, val url: String? = null)
 
 sealed interface LyricsState {
     data object Loading : LyricsState
@@ -77,12 +89,21 @@ sealed interface LyricsState {
 object LyricsService {
     private const val Tag = "Lyrics"
 
-    private class Source(val id: String, val name: String, val fetch: suspend (Query) -> List<LyricLine>?)
+    private class Source(
+        val id: String,
+        val name: String,
+        val credit: ((Query) -> LyricsCredit?)? = null,
+        val fetch: suspend (Query) -> List<LyricLine>?,
+    )
 
     private class Query(val song: Song, val title: String, val artist: String, val album: String?, val durationMs: Long)
 
     /** Every source the phone has, under the phone's ids, so its saved order means the same here. */
     private val all = listOf(
+        // Desktop only: Spicy Lyrics' official API, with the user's own key.
+        Source("SpicyLyrics", "Spicy Lyrics", credit = { SpicyLyrics.credit(it.song) }) {
+            SpicyLyrics.lyrics(it.song, it.title, it.artist, it.durationMs)
+        },
         Source("LrcRed", "lrc.red") { LrcRed.lyrics(it.title, it.artist, it.durationMs) },
         Source("BiniLyrics", "BiniLyrics") { BiniLyrics.lyrics(it.title, it.artist, it.durationMs, it.album)?.lines },
         Source("BetterLyrics", "Better Lyrics") { BetterLyrics.lyrics(it.title, it.artist, it.durationMs, it.album) },
@@ -106,10 +127,22 @@ object LyricsService {
     class Provider(val id: String, val name: String)
 
     /** Every source in the order Settings has them, switched off ones included, as the phone lists them. */
-    fun providers(order: List<String> = AppSettings.value.lyricsProviders): List<Provider> =
-        LyricsProviderRegistry.completeProviderOrder(order.joinToString(","))
-            .mapNotNull { all[it] }
-            .map { Provider(it.id, it.name) }
+    fun providers(order: List<String> = AppSettings.value.lyricsProviders): List<Provider> {
+        val saved = order.filter { it in all }.distinct()
+        val complete = if (saved.isEmpty()) {
+            DesktopOnly + LyricsProviderRegistry.getDefaultProviderOrder()
+        } else {
+            // A desktop-only source added since the order was saved goes first, as it was asked
+            // for; the phone's own sources fill in at the end, as the phone does.
+            DesktopOnly.filterNot { it in saved } + LyricsProviderRegistry.completeProviderOrder(saved.joinToString(",")).let { phone ->
+                saved + phone.filterNot { it in saved }
+            }
+        }
+        return complete.distinct().mapNotNull { all[it] }.map { Provider(it.id, it.name) }
+    }
+
+    /** Sources the phone doesn't have, by id. */
+    private val DesktopOnly = listOf("SpicyLyrics")
 
     /** The sources to ask, best first: the order from Settings without the ones switched off. */
     private fun sources(): List<Source> {
@@ -130,6 +163,11 @@ object LyricsService {
 
     init {
         Secrets[PaxSenixKey]?.let(PaxSenix::setApiKey)
+    }
+
+    fun setSpicyLyricsKey(key: String?) {
+        SpicyLyrics.setKey(key)
+        forget()
     }
 
     /** Drops what was found, so the next look uses the sources as they are now. */
@@ -184,8 +222,11 @@ object LyricsService {
             entry.state.value = LyricsState.Missing
             return
         }
-        if (kept.lyrics != null) {
-            entry.state.value = LyricsState.Ready(Lyrics(parseLyricsText(kept.lyrics), kept.source ?: "You"), final = true)
+        // Spicy Lyrics' terms allow keeping its lyrics for 30 days; after that they're fetched again.
+        if (kept.lyrics != null && kept.credit != null && System.currentTimeMillis() - kept.keptAt > SpicyLyrics.KeepForMs) {
+            LyricsTweaks.update(song.id) { it.copy(lyrics = null, source = null, credit = null, keptAt = 0L) }
+        } else if (kept.lyrics != null) {
+            entry.state.value = LyricsState.Ready(Lyrics(parseLyricsText(kept.lyrics), kept.source ?: "You", kept.credit), final = true)
             return
         }
         entry.state.value = LyricsState.Loading
@@ -203,7 +244,7 @@ object LyricsService {
 
     /** The phone's Refetch: forgets lyrics kept for [song] and asks every source again. */
     fun refetch(song: Song) {
-        LyricsTweaks.update(song.id) { it.copy(lyrics = null, source = null, wrong = false) }
+        LyricsTweaks.update(song.id) { it.copy(lyrics = null, source = null, credit = null, keptAt = 0L, wrong = false) }
         val entry = entry(song)
         entry.results.value = emptyMap()
         start(song, entry)
@@ -211,7 +252,7 @@ object LyricsService {
 
     /** "Wrong lyrics": these belong to another song, so [song] shows none until you search or refetch. */
     fun markWrong(song: Song) {
-        LyricsTweaks.update(song.id) { it.copy(lyrics = null, source = null, wrong = true) }
+        LyricsTweaks.update(song.id) { it.copy(lyrics = null, source = null, credit = null, keptAt = 0L, wrong = true) }
         val entry = entry(song)
         entry.job?.cancel()
         entry.state.value = LyricsState.Missing
@@ -219,7 +260,15 @@ object LyricsService {
 
     /** Shows [lyrics] for [song] from now on, as the phone keeps an edit or a chosen result. */
     fun use(song: Song, lyrics: Lyrics) {
-        LyricsTweaks.update(song.id) { it.copy(lyrics = lyrics.lines.toLyricsText(), source = lyrics.source, wrong = false) }
+        LyricsTweaks.update(song.id) {
+            it.copy(
+                lyrics = lyrics.lines.toLyricsText(),
+                source = lyrics.source,
+                credit = lyrics.credit,
+                keptAt = System.currentTimeMillis(),
+                wrong = false,
+            )
+        }
         val entry = entry(song)
         entry.job?.cancel()
         entry.state.value = LyricsState.Ready(lyrics, final = true)
@@ -276,7 +325,7 @@ object LyricsService {
             }
         }
         return lines.takeIf { l -> l.any { it.text.isNotBlank() } }
-            ?.let { SourceResult.Found(Lyrics(it.sortedBy { line -> line.timeMs }, source.name)) }
+            ?.let { SourceResult.Found(Lyrics(it.sortedBy { line -> line.timeMs }, source.name, source.credit?.invoke(query))) }
             ?: SourceResult.NotFound
     }
 

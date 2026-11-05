@@ -385,6 +385,7 @@ private val searchEntries: List<SearchEntry> by lazy {
         SearchEntry("AI lyrics translation", "Provider, API key, model and language", h.player, SettingsPage.AiTranslation, "ai translate translation openrouter groq openai claude anthropic gemini mistral deepl grok perplexity api key model language transcription"),
         SearchEntry("Target language", "What lyrics are translated into", h.player, SettingsPage.AiTranslation, "translate language"),
         SearchEntry("PaxSenix API key", "For the PaxSenix Spotify and Musixmatch sources", h.player, SettingsPage.LyricsSources, "paxsenix key api spotify musixmatch"),
+        SearchEntry("Spicy Lyrics key", "Word-synced lyrics from Spicy Lyrics", h.player, SettingsPage.LyricsSources, "spicy lyrics key synced word apple"),
         SearchEntry("Equalizer", "Shape the sound", h.playback, SettingsPage.Equalizer, "eq bass treble mids preset parametric autoeq dolby dirac"),
         SearchEntry("Spatial audio", "Wider stereo for headphones", h.playback, SettingsPage.Equalizer, "3d surround headphones widen"),
         SearchEntry("Audio quality", "High or low", h.playback, SettingsPage.QualitySound, "bitrate stream data"),

@@ -266,6 +266,8 @@ object Downloads {
             LyricsService.state(song).first { it is LyricsState.Missing || (it is LyricsState.Ready && it.final) }
         } ?: LyricsService.state(song).value
         val lyrics = (state as? LyricsState.Ready)?.lyrics ?: return null
+        // Spicy Lyrics' terms forbid handing its lyrics out as files; they only show in the app.
+        if (lyrics.credit != null) return null
         return lyrics.lines.filter { it.text.isNotBlank() }.joinToString("\n") { line ->
             if (lyrics.synced) lrcTime(line.timeMs) + line.text else line.text
         }.ifBlank { null }

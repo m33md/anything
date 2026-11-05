@@ -51,6 +51,9 @@ object SpotifyMatcher {
 
     fun isSpotify(song: Song) = song.id.startsWith(Prefix)
 
+    /** The Spotify track a YouTube Music song was matched from, if it came from a Spotify list. */
+    fun spotifyIdOf(songId: String): String? = matches.value.entries.firstOrNull { it.value.id == songId }?.key
+
     fun flush() = matches.flush()
 
     /** The queue's stand-in for a Spotify track; the matched song when it was matched before. */
