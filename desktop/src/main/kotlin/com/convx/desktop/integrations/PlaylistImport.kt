@@ -196,6 +196,15 @@ object PlaylistImport {
         }
     }
 
+    /**
+     * The id part for an imported playlist's name, so importing it again updates it. A name of
+     * only punctuation or emoji still gets one of its own, from its characters' codes.
+     */
+    private fun slugOf(title: String): String =
+        title.lowercase().replace(Regex("[^\\p{L}\\p{N}]+"), "-").trim('-').take(60).ifEmpty {
+            title.trim().codePoints().toArray().joinToString("") { Integer.toHexString(it) }.take(60).ifEmpty { "playlist" }
+        }
+
     /** Where Exportify's files are imported from, as the progress names it. */
     const val ExportifySource = "Exportify"
 
@@ -212,10 +221,13 @@ object PlaylistImport {
             var matchedTotal = 0
             var skippedTotal = 0
             var lastId: String? = null
+            val slugs = HashSet<String>()
             try {
                 wanted.forEachIndexed { index, parsed ->
                     val (songs, skipped) = matchFile(parsed, source, index + 1, wanted.size)
-                    val slug = parsed.title.lowercase().replace(Regex("[^\\p{L}\\p{N}]+"), "-").trim('-').take(60).ifEmpty { "playlist" }
+                    // Two lists whose names make the same slug ("......." and "!!!", say) each keep their own.
+                    val base = slugOf(parsed.title)
+                    val slug = generateSequence(2) { it + 1 }.map { "$base-$it" }.let { sequenceOf(base) + it }.first { slugs.add(it) }
                     val liked = slug == "liked-songs" || slug == "liked"
                     val id = if (liked) "local-spotify-liked" else "local-import-$slug"
                     Library.upsertPlaylist(id, if (liked) "Spotify Liked Songs" else parsed.title, songs.distinctBy { it.id })

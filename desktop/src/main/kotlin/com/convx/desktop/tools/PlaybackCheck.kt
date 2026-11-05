@@ -796,14 +796,20 @@ private fun playlistFileCheck(): Boolean {
                 zip.write(body.toByteArray())
                 zip.closeEntry()
             }
-            add("late_night_drive.csv", "\"Track URI\",\"Track Name\",\"Artist Name(s)\",\"Duration (ms)\"\n\"spotify:track:4uLU6hMCjMI75M1A2tKUQC\",\"Never Gonna Give You Up\",\"Rick Astley\",\"213573\"\n")
+            add(
+                "late_night_drive.csv",
+                "\"Track URI\",\"Track Name\",\"Artist Name(s)\",\"Duration (ms)\"\n" +
+                    "\"spotify:track:4uLU6hMCjMI75M1A2tKUQC\",\"Never Gonna Give You Up\",\"Rick Astley\",\"213573\"\n" +
+                    "\"spotify:track:0000000000000000000000\",\"Song\",\"Dream, Ivory;Someone\",\"200000\"\n",
+            )
             add("liked_songs.csv", "\"Track URI\",\"Track Name\",\"Artist Name(s)\"\n\"https://open.spotify.com/track/7qiZfU4dY1lWllzX7mPBI3\",\"Shape of You\",\"Ed Sheeran\"\n")
         }
         val lists = files.readPlaylistFiles(listOf(zipFile))
         expect(
             "exportify zip",
-            lists.map { it.title } == listOf("Late night drive", "Liked songs") &&
-                lists[0].tracks.single().spotifyId == "4uLU6hMCjMI75M1A2tKUQC" && lists[0].tracks.single().durationMs == 213_573L &&
+            lists.map { it.title } == listOf("late night drive", "liked songs") &&
+                lists[0].tracks.first().spotifyId == "4uLU6hMCjMI75M1A2tKUQC" && lists[0].tracks.first().durationMs == 213_573L &&
+                lists[0].tracks[1].artists == listOf("Dream, Ivory", "Someone") &&
                 lists[1].tracks.single().spotifyId == "7qiZfU4dY1lWllzX7mPBI3",
             "$lists",
         )

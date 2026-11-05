@@ -193,8 +193,10 @@ object PlaylistFiles {
             fun cell(i: Int) = if (i in row.indices) row[i].trim() else ""
             val id = if (mapping.urlColumn >= 0) youTubeId(cell(mapping.urlColumn)) else null
             val title = cell(mapping.titleColumn)
-            // The phone splits several artists on ";" and ",".
-            val artists = cell(mapping.artistColumn).split(';', ',').map { it.trim() }.filter { it.isNotEmpty() }
+            // The phone splits several artists on ";" and ",". Spotify exports (Exportify) put ";"
+            // between artists and keep the commas inside names such as "Dream, Ivory".
+            val separators = if (mapping.spotifyColumn >= 0) charArrayOf(';') else charArrayOf(';', ',')
+            val artists = cell(mapping.artistColumn).split(*separators).map { it.trim() }.filter { it.isNotEmpty() }
             // The phone also needs an artist; a title alone still finds most songs.
             if (id == null && title.isEmpty()) return@mapNotNull null
             FileTrack(
@@ -248,11 +250,13 @@ object PlaylistFiles {
         return Parsed(titleFromFileName(fileName), parseCsvTracks(text, mapping))
     }
 
-    /** "late_night_drive.csv" → "Late night drive": Exportify names files after their playlists. */
+    /**
+     * "late_night_drive.csv" → "late night drive": Exportify names files after their playlists,
+     * spaces made "_", so the name comes back as you wrote it, lowercase included.
+     */
     fun titleFromFileName(name: String): String =
         name.substringAfterLast('/').substringAfterLast('\\').substringBeforeLast('.')
             .replace('_', ' ').replace(Regex("\\s+"), " ").trim()
-            .replaceFirstChar { it.uppercase() }
             .ifEmpty { "Imported playlist" }
 
     /** "215000" from Exportify is milliseconds; "3:35" and "215" are a clock and seconds. */
