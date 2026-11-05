@@ -27,11 +27,11 @@ $ext = foreach ($name in 'WixToolset.Bal.wixext', 'WixToolset.Util.wixext') {
         Invoke-WebRequest "https://www.nuget.org/api/v2/package/$name/$wixVersion" -OutFile $package
         Expand-Archive $package -DestinationPath $dir -Force
     }
-    # The extension's .dll, wherever the package keeps it (wixext5\ in WiX 5's own cache).
-    $dll = Get-ChildItem $dir -Recurse -Filter "$name.dll" | Sort-Object { $_.FullName -notlike '*wixext5*' } | Select-Object -First 1
+    # The extension is the one .dll under wixext5\ (the Bal one is WixToolset.BootstrapperApplications.wixext.dll).
+    $dll = Get-ChildItem (Join-Path $dir 'wixext5') -Filter '*.wixext.dll' -ErrorAction SilentlyContinue | Select-Object -First 1
     if (-not $dll) {
         Get-ChildItem $dir -Recurse | ForEach-Object { Write-Host $_.FullName }
-        throw "No $name.dll in the $name package"
+        throw "No extension .dll in the $name package"
     }
     Write-Host "Using $($dll.FullName)"
     '-ext'; $dll.FullName
