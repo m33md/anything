@@ -155,6 +155,16 @@ fun LibraryHub() {
         }
     }
     SectionGap()
+    SettingsSection("Playlist covers") {
+        SwitchRow(
+            "CD covers",
+            "Playlists without their own picture get a CD case drawn from their songs. Off shows a grid of their covers.",
+            settings.discCovers,
+            icon = "album",
+            tint = SystemColors.Pink,
+        ) { v -> AppSettings.update { it.copy(discCovers = v) } }
+    }
+    SectionGap()
     val localIndex by com.convx.desktop.player.LocalMusic.index.collectAsState()
     SettingsSection("Local files") {
         LinkRow(

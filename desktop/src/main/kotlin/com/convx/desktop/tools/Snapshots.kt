@@ -420,6 +420,10 @@ fun main(args: Array<String>) {
             artist?.let { Library.toggleArtist(it.toSaved()) }
             playlist?.let { Library.togglePlaylist(it.toSaved()) }
             val mix = Library.createPlaylist("Late night drive", songs.take(8))
+            // A few more for the CD covers Convx draws, whose names pick the print.
+            listOf("Chiptune", "The strokes", "Works for Raining Nights", "Japanese Songs", "MARINO").forEachIndexed { i, name ->
+                Library.createPlaylist(name, songs.drop(i * 2 + 1).take(6))
+            }
             // Three songs downloaded and two waiting, for the Downloaded page and the list buttons.
             songs.take(3).forEach { song ->
                 val file = File(Downloads.dir, "${song.id}.m4a").apply { writeBytes(ByteArray(3_500_000)) }

@@ -127,6 +127,11 @@ object Library {
 
     fun renamePlaylist(id: String, name: String) = updatePlaylist(id) { it.copy(name = name) }
 
+    /** Draws the playlist's CD cover again, differently. Leaves "Recently updated" as it was. */
+    fun newCoverDesign(id: String) = store.update { data ->
+        data.copy(localPlaylists = data.localPlaylists.map { if (it.id == id) it.copy(coverSeed = it.coverSeed + 1) else it })
+    }
+
     fun deletePlaylist(id: String) {
         store.update { data -> data.copy(localPlaylists = data.localPlaylists.filterNot { it.id == id }) }
         PlaylistCovers.prune(value.localPlaylists)

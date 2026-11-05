@@ -813,7 +813,9 @@ private fun EntryArt(entry: LibraryEntry, size: Dp) {
         Kind.LocalPlaylist -> if (entry.thumbnail != null) {
             Artwork(entry.thumbnail, Modifier.size(size), size = 160, shape = shape, iconSize = size * 0.4f)
         } else {
-            MosaicArt(entry.mosaic, size, shape)
+            // Its CD cover, or the mosaic with those off.
+            val playlist = Library.playlist(entry.id)
+            if (playlist != null) com.convx.desktop.ui.components.PlaylistCoverArt(playlist, size, shape) else MosaicArt(entry.mosaic, size, shape)
         }
         // Spotify's own Liked Songs tile.
         Kind.SpotifyLiked -> GradientTile("favorite", size, listOf(Color(0xFF450AF5), Color(0xFF8E8EE5)), shape)
@@ -892,6 +894,12 @@ private fun EntryMenu(entry: LibraryEntry, pinned: Boolean, dismiss: () -> Unit)
                 MenuItem("Remove picture", "hide_image") {
                     dismiss()
                     Library.setPlaylistCover(entry.id, null)
+                }
+            }
+            if (!hasCover && AppSettings.value.discCovers) {
+                MenuItem("New cover design", "shuffle") {
+                    dismiss()
+                    Library.newCoverDesign(entry.id)
                 }
             }
             MenuItem("Delete", "delete", destructive = true) {

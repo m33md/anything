@@ -598,6 +598,12 @@ fun LocalPlaylistScreen(id: String) {
                             Library.setPlaylistCover(id, null)
                         }
                     }
+                    if (playlist.cover == null && AppSettings.value.discCovers) {
+                        MenuItem("New cover design", "shuffle") {
+                            dismiss()
+                            Library.newCoverDesign(id)
+                        }
+                    }
                     MenuItem("Add to queue", "queue_music", enabled = songs.isNotEmpty()) {
                         PlayerController.addToQueue(songs)
                         Overlays.toast("Added to queue")

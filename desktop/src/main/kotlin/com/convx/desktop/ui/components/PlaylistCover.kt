@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -113,12 +114,26 @@ fun EditableCover(size: Dp, shape: Shape, onChoose: () -> Unit, art: @Composable
     }
 }
 
-/** A local playlist's own picture, or the mosaic of its first covers when it has none. */
+/**
+ * A local playlist's own picture. Without one, the CD cover Convx draws from its songs (or, with
+ * that off in Settings, the mosaic of its first covers, which also stands in while the CD is drawn).
+ */
 @Composable
 fun PlaylistCoverArt(playlist: LocalPlaylist, size: Dp, shape: Shape) {
     val cover = PlaylistCovers.url(playlist.cover)
+    val discs = AppSettings.state.collectAsState().value.discCovers
     if (cover != null) {
         Artwork(cover, Modifier.size(size), size = 600, shape = shape)
+        return
+    }
+    val disc = if (discs) {
+        val key = remember(playlist.name, playlist.coverSeed, playlist.songs) { DiscCovers.key(playlist) }
+        produceState(DiscCovers.peek(playlist, key), key) { value = DiscCovers.cover(playlist) }.value
+    } else {
+        null
+    }
+    if (disc != null) {
+        Artwork(disc, Modifier.size(size), size = 600, shape = shape)
     } else {
         val thumbs = remember(playlist.songs) { playlist.songs.mapNotNull { it.thumbnail }.distinct().take(4) }
         MosaicArt(thumbs, size, shape)

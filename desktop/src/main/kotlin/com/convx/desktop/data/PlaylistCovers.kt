@@ -81,10 +81,21 @@ object PlaylistCovers {
         }
     }
 
-    /** Deletes picture files no playlist (nor Liked Songs) uses any more. */
+    /** Where the CD covers Convx draws are kept (ui.components.DiscCovers), one "<playlist>-<key>.jpg" each. */
+    val discDir: File by lazy { File(dir, "disc").apply { mkdirs() } }
+
+    /** A playlist's id as it starts its CD cover's file name. */
+    fun discName(playlistId: String): String = playlistId.replace(Regex("[^A-Za-z0-9_-]"), "_").take(60)
+
+    /** The playlist a CD cover file belongs to (its name without "-<key>.jpg"). */
+    fun discOwner(file: File): String = file.name.substringBeforeLast('.').substringBeforeLast('-')
+
+    /** Deletes picture files no playlist (nor Liked Songs) uses any more, and CD covers of playlists that are gone. */
     fun prune(playlists: List<LocalPlaylist>) {
         val used = playlists.mapNotNullTo(HashSet()) { p -> p.cover?.takeIf(::isOwn)?.removePrefix(Prefix) }
         AppSettings.value.likedSongsCover?.takeIf(::isOwn)?.let { used += it.removePrefix(Prefix) }
         dir.listFiles()?.filter { it.isFile && it.name !in used }?.forEach { runCatching { it.delete() } }
+        val owners = playlists.mapTo(HashSet()) { discName(it.id) }
+        discDir.listFiles()?.filter { it.isFile && discOwner(it) !in owners }?.forEach { runCatching { it.delete() } }
     }
 }

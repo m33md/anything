@@ -75,8 +75,10 @@ data class LocalPlaylist(
     val songs: List<Song> = emptyList(),
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
-    /** Its own picture: one chosen on this PC (PlaylistCovers) or a Spotify import's cover. Null shows the mosaic. */
+    /** Its own picture: one chosen on this PC (PlaylistCovers) or a Spotify import's cover. Null shows the CD cover Convx draws (DiscCovers). */
     val cover: String? = null,
+    /** Raised by "New cover design", so the drawn CD cover comes out differently. */
+    val coverSeed: Int = 0,
 )
 
 @Serializable
@@ -361,6 +363,8 @@ data class Settings(
     val showCachedPlaylist: Boolean = false,
     /** Liked Songs' own picture, chosen on this PC (a [PlaylistCovers] name), instead of the red heart tile. */
     val likedSongsCover: String? = null,
+    /** Playlists without their own picture get a CD case Convx draws from their songs, instead of a grid of their covers. */
+    val discCovers: Boolean = true,
     val showUploadedPlaylist: Boolean = true,
     val topSize: Int = 50,
     // The phone's Controls & layout page, with its defaults where the PC has the same thing.
