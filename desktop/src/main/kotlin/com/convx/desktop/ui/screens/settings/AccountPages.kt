@@ -161,6 +161,8 @@ fun SpotifySettings() {
         SpotifyImportSection()
     }
     SectionGap()
+    ExportifyImportSection()
+    SectionGap()
     SpotifyOwnAppSection()
     SectionGap()
     InfoNote(

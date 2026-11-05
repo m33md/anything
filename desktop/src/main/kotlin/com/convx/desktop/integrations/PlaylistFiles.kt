@@ -23,6 +23,8 @@ object PlaylistFiles {
         /** 0 when the file doesn't say. */
         val durationMs: Long = 0,
         val videoId: String? = null,
+        /** The Spotify track it is, from Exportify's "Track URI", so a match is shared with Spotify imports. */
+        val spotifyId: String? = null,
     )
 
     data class Parsed(val title: String, val tracks: List<FileTrack>)
@@ -37,6 +39,7 @@ object PlaylistFiles {
         /** -1 for none. */
         val urlColumn: Int,
         val durationColumn: Int,
+        val spotifyColumn: Int = -1,
     )
 
     data class CsvMapping(
@@ -45,6 +48,7 @@ object PlaylistFiles {
         val titleColumn: Int,
         val urlColumn: Int = -1,
         val durationColumn: Int = -1,
+        val spotifyColumn: Int = -1,
     )
 
     /** Playlist files are small; a bigger one is not a playlist. */
@@ -52,7 +56,10 @@ object PlaylistFiles {
 
     fun read(file: File): String {
         require(file.length() <= MaxBytes) { "This file is too large for a playlist" }
-        val bytes = file.readBytes()
+        return decode(file.readBytes())
+    }
+
+    private fun decode(bytes: ByteArray): String {
         // UTF-8 is what .m3u8 promises and most tools write. iTunes and Music on Windows export
         // UTF-16, and older .m3u files are often Windows-1252. A byte order mark is dropped.
         val charset = when {
@@ -164,6 +171,7 @@ object PlaylistFiles {
         val title = find("track name", "song name", "title", "track", "song", "name", "titel")
         val url = find("youtube url", "url", "link", "video id", "videoid")
         val duration = find("duration (ms)", "duration_ms", "duration", "length", "time")
+        val spotify = find("track uri", "spotify uri", "spotify track uri", "uri", "spotify id")
         // The phone always assumes a header. Here it's only assumed when a column is named, so a
         // file without one doesn't lose its first song; the dialog shows the first row either way.
         val hasHeader = artist >= 0 || title >= 0 || url >= 0 || duration >= 0
@@ -175,6 +183,7 @@ object PlaylistFiles {
             titleColumn = title.takeIf { it >= 0 && it != artist } ?: if (columns > 1) 1 else 0,
             urlColumn = url.takeIf { it != artist && it != title } ?: -1,
             durationColumn = duration.takeIf { it != artist && it != title && it != url } ?: -1,
+            spotifyColumn = spotify.takeIf { it >= 0 && it != artist && it != title && it != url && it != duration } ?: -1,
         )
     }
 
@@ -188,9 +197,63 @@ object PlaylistFiles {
             val artists = cell(mapping.artistColumn).split(';', ',').map { it.trim() }.filter { it.isNotEmpty() }
             // The phone also needs an artist; a title alone still finds most songs.
             if (id == null && title.isEmpty()) return@mapNotNull null
-            FileTrack(title, artists, durationMs = if (mapping.durationColumn >= 0) durationMs(cell(mapping.durationColumn)) else 0, videoId = id)
+            FileTrack(
+                title,
+                artists,
+                durationMs = if (mapping.durationColumn >= 0) durationMs(cell(mapping.durationColumn)) else 0,
+                videoId = id,
+                spotifyId = if (mapping.spotifyColumn >= 0) spotifyTrackId(cell(mapping.spotifyColumn)) else null,
+            )
         }
     }
+
+    private val SpotifyTrackLink = Regex("(?:spotify:track:|open\\.spotify\\.com/(?:intl-[a-z-]+/)?track/)([A-Za-z0-9]{22})")
+    private val SpotifyBareId = Regex("^[A-Za-z0-9]{22}$")
+
+    /** "spotify:track:…", an open.spotify.com track link, or the bare 22-character id. */
+    fun spotifyTrackId(text: String): String? =
+        SpotifyTrackLink.find(text)?.groupValues?.get(1) ?: text.trim().takeIf { SpotifyBareId.matches(it) }
+
+    // ---- Several files at once (Exportify's "Export All") -------------------------------------
+
+    /**
+     * Every playlist in [files]: each CSV file, and each CSV inside a zip such as Exportify's
+     * "Export All" download, named after its file. Columns are taken from the header, as the
+     * mapping dialog would guess them.
+     */
+    fun readPlaylistFiles(files: List<File>): List<Parsed> = files.flatMap { file ->
+        if (file.extension.equals("zip", ignoreCase = true)) {
+            java.util.zip.ZipFile(file).use { zip ->
+                zip.entries().asSequence()
+                    .filter { !it.isDirectory && it.name.endsWith(".csv", ignoreCase = true) && it.size in 0..MaxBytes }
+                    .take(500)
+                    .map { entry -> parseCsvPlaylist(entry.name, decode(zip.getInputStream(entry).use { it.readBytes() })) }
+                    .toList()
+            }
+        } else {
+            listOf(parseCsvPlaylist(file.name, read(file)))
+        }
+    }
+
+    private fun parseCsvPlaylist(fileName: String, text: String): Parsed {
+        val preview = previewCsv(text)
+        val mapping = CsvMapping(
+            hasHeader = preview.hasHeader,
+            artistColumn = preview.artistColumn,
+            titleColumn = preview.titleColumn,
+            urlColumn = preview.urlColumn,
+            durationColumn = if (preview.hasHeader) preview.durationColumn else -1,
+            spotifyColumn = if (preview.hasHeader) preview.spotifyColumn else -1,
+        )
+        return Parsed(titleFromFileName(fileName), parseCsvTracks(text, mapping))
+    }
+
+    /** "late_night_drive.csv" → "Late night drive": Exportify names files after their playlists. */
+    fun titleFromFileName(name: String): String =
+        name.substringAfterLast('/').substringAfterLast('\\').substringBeforeLast('.')
+            .replace('_', ' ').replace(Regex("\\s+"), " ").trim()
+            .replaceFirstChar { it.uppercase() }
+            .ifEmpty { "Imported playlist" }
 
     /** "215000" from Exportify is milliseconds; "3:35" and "215" are a clock and seconds. */
     private fun durationMs(text: String): Long {

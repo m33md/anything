@@ -81,6 +81,14 @@ fun BackupSettings() {
             onClick = { importCsvFile() },
         )
         RowDivider()
+        SettingsRow(
+            "Import Exportify playlists",
+            "Exportify's Export All zip, or several CSV files at once",
+            icon = "playlist_add",
+            tint = SystemColors.Green,
+            onClick = { importExportifyFiles() },
+        )
+        RowDivider()
         LinkRow("Import from Spotify", icon = "spotify", tint = SystemColors.Green) { SettingsNav.push(SettingsPage.Spotify) }
         RowDivider()
         LinkRow("Import from Apple Music", icon = "playlist_add", tint = SystemColors.Red) { appleMusicImportDialog() }

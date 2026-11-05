@@ -216,7 +216,12 @@ private fun ImportStages(state: PlaylistImport.State, source: String, idle: @Com
     when (state) {
         is PlaylistImport.State.Loading, is PlaylistImport.State.Matching -> {
             Text(
-                if (state is PlaylistImport.State.Matching) "Matching tracks: ${state.done} of ${state.total}" else "Loading playlist…",
+                when {
+                    state is PlaylistImport.State.Matching && state.lists > 1 ->
+                        "Matching ${state.title} (${state.list} of ${state.lists}): ${state.done} of ${state.total} songs"
+                    state is PlaylistImport.State.Matching -> "Matching tracks: ${state.done} of ${state.total}"
+                    else -> "Loading playlist…"
+                },
                 style = ConvxType.Body,
                 color = ConvxColors.Label,
             )
@@ -314,6 +319,62 @@ internal fun importM3uFile() {
     }
 }
 
+/**
+ * Exportify's "Export All" zip, or any number of its CSV files: every playlist in them becomes a
+ * Convx playlist in one go, with no column mapping, since Exportify's headers name the columns.
+ */
+internal fun importExportifyFiles() {
+    val files = pickFiles("Choose Exportify's zip or CSV files", listOf("zip", "csv"))
+    if (files.isEmpty()) return
+    val lists = runCatching { PlaylistFiles.readPlaylistFiles(files) }.getOrElse {
+        Overlays.toast("Couldn't read those files: ${it.message ?: "unknown error"}", "error")
+        return
+    }.filter { it.tracks.isNotEmpty() }
+    if (lists.isEmpty()) {
+        Overlays.toast("No songs found in those files", "error")
+        return
+    }
+    if (PlaylistImport.busy) {
+        Overlays.toast("Another import is running; wait for it to finish.", "error")
+        return
+    }
+    PlaylistImport.dismiss()
+    PlaylistImport.importFiles(lists)
+    Overlays.showDialog {
+        val state by PlaylistImport.state.collectAsState()
+        DialogCard("Import from Exportify") {
+            ImportStages(state, PlaylistImport.ExportifySource) { FileImportIdle(state) }
+        }
+    }
+}
+
+/** Exportify on the Spotify page: the way in without Premium or the shared connection. */
+@Composable
+internal fun ExportifyImportSection() {
+    val state by PlaylistImport.state.collectAsState()
+    SettingsSection(
+        "Import with Exportify",
+        footer = "Works without Premium and without the Spotify connection above. On exportify.net, sign in with Spotify " +
+            "and press Export All, then choose the zip it downloads here. Every playlist, Liked Songs included, becomes a " +
+            "Convx playlist; importing again updates them.",
+    ) {
+        SettingsRow(
+            "Import Exportify files",
+            importStatus(state, PlaylistImport.ExportifySource) ?: "The Export All zip, or one or more CSV files",
+            icon = "playlist_add",
+            tint = SystemColors.Green,
+            enabled = !PlaylistImport.busy,
+            onClick = { importExportifyFiles() },
+        ) { Chevron() }
+        RowDivider()
+        LinkRow("Open exportify.net", icon = "link", tint = SystemColors.Gray) { openUrl("https://exportify.net") }
+        if ((state as? PlaylistImport.State.Matching)?.source == PlaylistImport.ExportifySource) {
+            RowDivider()
+            ButtonRow("Stop importing", color = SystemColors.Red) { PlaylistImport.cancel() }
+        }
+    }
+}
+
 /** The phone's "Import a csv playlist", with its column mapping first. */
 internal fun importCsvFile() {
     pickFile("Import a CSV playlist", listOf("csv", "tsv", "txt"))?.let(::csvImportDialog)
@@ -403,8 +464,9 @@ private fun CsvColumns(preview: PlaylistFiles.CsvPreview, onContinue: (PlaylistF
                     artistColumn = artist,
                     titleColumn = title,
                     urlColumn = link,
-                    // Lengths are only found by a header's name, so they need one.
+                    // Lengths and Spotify ids are only found by a header's name, so they need one.
                     durationColumn = if (hasHeader) preview.durationColumn else -1,
+                    spotifyColumn = if (hasHeader) preview.spotifyColumn else -1,
                 ),
             )
         }, filled = true)
@@ -437,6 +499,17 @@ private fun ColumnChoice(
 @Composable
 private fun DialogButtons(content: @Composable () -> Unit) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)) { content() }
+}
+
+/** Windows' own open dialog for several files at once, filtered to [extensions]. */
+internal fun pickFiles(title: String, extensions: List<String>): List<File> {
+    val picker = FileDialog(null as Frame?, title, FileDialog.LOAD).apply {
+        isMultipleMode = true
+        setFilenameFilter { _, name -> extensions.any { name.endsWith(".$it", ignoreCase = true) } }
+        file = extensions.joinToString(";") { "*.$it" }
+        isVisible = true
+    }
+    return picker.files.orEmpty().toList()
 }
 
 /** Windows' own open dialog, filtered to [extensions]. */

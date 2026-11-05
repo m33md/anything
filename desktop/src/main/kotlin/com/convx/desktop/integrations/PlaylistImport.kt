@@ -15,6 +15,7 @@ import com.convx.desktop.data.toSong
 import com.convx.desktop.integrations.spotify.SpotifyApi
 import com.convx.desktop.integrations.spotify.SpotifyMatcher
 import com.convx.desktop.integrations.spotify.SpotifyPlaylist
+import com.convx.desktop.integrations.spotify.SpotifyTrack
 import com.convx.music.canvas.AppleMusicCatalog
 import com.convx.music.canvas.AppleMusicPlaylist
 import com.convx.music.canvas.ApplePlaylist
@@ -27,6 +28,7 @@ import com.music.innertube.models.SongItem
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -184,30 +186,7 @@ object PlaylistImport {
         _state.value = State.Loading(FileSource)
         job = AppScope.launch(Dispatchers.IO) {
             try {
-                val tracks = parsed.tracks
-                // Lines that already name a YouTube song are looked up together, not searched.
-                val linked = tracks.mapNotNull { it.videoId }.distinct().chunked(50).flatMap { ids ->
-                    ensureActive()
-                    YouTube.queue(ids, null).onFailure { Log.w(Tag, "Couldn't look up ${ids.size} linked songs", it) }.getOrNull().orEmpty()
-                }.associateBy { it.id }
-                val matched = mutableListOf<Song>()
-                var skipped = 0
-                tracks.forEachIndexed { index, track ->
-                    ensureActive()
-                    _state.value = State.Matching(FileSource, parsed.title, index, tracks.size)
-                    val id = track.videoId
-                    val song = when {
-                        id != null -> linked[id]?.toSong() ?: Song(
-                            id = id,
-                            title = track.title.ifBlank { id },
-                            artists = track.artists.map { ArtistRef(null, it) },
-                            duration = (track.durationMs / 1000).toInt().takeIf { it > 0 },
-                            thumbnail = "https://i.ytimg.com/vi/$id/hqdefault.jpg",
-                        )
-                        else -> SpotifyMatcher.bestMatch(track.title, track.artists, track.durationMs)?.toSong().also { delay(150) }
-                    }
-                    if (song != null) matched += song else skipped++
-                }
+                val (matched, skipped) = matchFile(parsed, FileSource, 1, 1)
                 _state.value = State.Ready(parsed.title, matched.distinctBy { it.id }, skipped)
             } catch (error: Throwable) {
                 if (error is CancellationException) throw error
@@ -215,6 +194,89 @@ object PlaylistImport {
                 _state.value = State.Failed("Couldn't import this file: ${error.message ?: "check your connection"}")
             }
         }
+    }
+
+    /** Where Exportify's files are imported from, as the progress names it. */
+    const val ExportifySource = "Exportify"
+
+    /**
+     * Several playlist files at once, such as Exportify's "Export All": each becomes its own Convx
+     * playlist, and importing the same playlist again updates it rather than making another.
+     * Exportify's Liked Songs lands in the same playlist a Spotify import of them does.
+     */
+    fun importFiles(lists: List<PlaylistFiles.Parsed>, source: String = ExportifySource) {
+        val wanted = lists.filter { it.tracks.isNotEmpty() }
+        if (busy || wanted.isEmpty()) return
+        _state.value = State.Loading(source)
+        job = AppScope.launch(Dispatchers.IO) {
+            var matchedTotal = 0
+            var skippedTotal = 0
+            var lastId: String? = null
+            try {
+                wanted.forEachIndexed { index, parsed ->
+                    val (songs, skipped) = matchFile(parsed, source, index + 1, wanted.size)
+                    val slug = parsed.title.lowercase().replace(Regex("[^\\p{L}\\p{N}]+"), "-").trim('-').take(60).ifEmpty { "playlist" }
+                    val liked = slug == "liked-songs" || slug == "liked"
+                    val id = if (liked) "local-spotify-liked" else "local-import-$slug"
+                    Library.upsertPlaylist(id, if (liked) "Spotify Liked Songs" else parsed.title, songs.distinctBy { it.id })
+                    matchedTotal += songs.size
+                    skippedTotal += skipped
+                    lastId = id
+                }
+                _state.value = State.Done(
+                    "Imported ${wanted.size} ${if (wanted.size == 1) "playlist" else "playlists"}: $matchedTotal songs matched, $skippedTotal skipped.",
+                    lastId.takeIf { wanted.size == 1 },
+                )
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                Log.w(Tag, "Playlist files import failed", error)
+                _state.value = State.Failed("Couldn't import these files: ${error.message ?: "check your connection"}")
+            }
+        }
+    }
+
+    /**
+     * One file's songs on YouTube Music, and how many had no match. The phone takes YouTube's first
+     * search result for each line; here each is scored on title, artist and length, and a poor match
+     * is skipped. A line with a Spotify id goes through the Spotify matcher, so it shares its matches.
+     */
+    private suspend fun matchFile(parsed: PlaylistFiles.Parsed, source: String, list: Int, lists: Int): Pair<List<Song>, Int> = coroutineScope {
+        val tracks = parsed.tracks
+        // Lines that already name a YouTube song are looked up together, not searched.
+        val linked = tracks.mapNotNull { it.videoId }.distinct().chunked(50).flatMap { ids ->
+            ensureActive()
+            YouTube.queue(ids, null).onFailure { Log.w(Tag, "Couldn't look up ${ids.size} linked songs", it) }.getOrNull().orEmpty()
+        }.associateBy { it.id }
+        val matched = mutableListOf<Song>()
+        var skipped = 0
+        tracks.forEachIndexed { index, track ->
+            ensureActive()
+            _state.value = State.Matching(source, parsed.title, index, tracks.size, list, lists)
+            val id = track.videoId
+            val spotifyId = track.spotifyId
+            val song = when {
+                id != null -> linked[id]?.toSong() ?: Song(
+                    id = id,
+                    title = track.title.ifBlank { id },
+                    artists = track.artists.map { ArtistRef(null, it) },
+                    duration = (track.durationMs / 1000).toInt().takeIf { it > 0 },
+                    thumbnail = "https://i.ytimg.com/vi/$id/hqdefault.jpg",
+                )
+                spotifyId != null -> {
+                    val standIn = SpotifyMatcher.toSong(
+                        SpotifyTrack(spotifyId, track.title, track.artists, null, null, track.durationMs, false),
+                    )
+                    if (SpotifyMatcher.isSpotify(standIn)) {
+                        SpotifyMatcher.resolve(standIn).also { delay(150) }?.takeIf { !SpotifyMatcher.isSpotify(it) }
+                    } else {
+                        standIn
+                    }
+                }
+                else -> SpotifyMatcher.bestMatch(track.title, track.artists, track.durationMs)?.toSong().also { delay(150) }
+            }
+            if (song != null) matched += song else skipped++
+        }
+        matched to skipped
     }
 
     /** Puts a matched Apple playlist or playlist file into a new Convx playlist, or adds it to [playlistId]. */

@@ -787,6 +787,29 @@ private fun playlistFileCheck(): Boolean {
             csv[1].artists == listOf("Daft Punk", "Pharrell Williams") && csv[2].artists == listOf("Someone", "Other") && csv[0].durationMs == 354_320L,
         "${csv}",
     )
+    // Exportify's "Export All": a zip of CSVs named after their playlists, with Spotify track URIs.
+    val zipFile = java.io.File.createTempFile("convx-exportify", ".zip")
+    try {
+        java.util.zip.ZipOutputStream(zipFile.outputStream()).use { zip ->
+            fun add(name: String, body: String) {
+                zip.putNextEntry(java.util.zip.ZipEntry(name))
+                zip.write(body.toByteArray())
+                zip.closeEntry()
+            }
+            add("late_night_drive.csv", "\"Track URI\",\"Track Name\",\"Artist Name(s)\",\"Duration (ms)\"\n\"spotify:track:4uLU6hMCjMI75M1A2tKUQC\",\"Never Gonna Give You Up\",\"Rick Astley\",\"213573\"\n")
+            add("liked_songs.csv", "\"Track URI\",\"Track Name\",\"Artist Name(s)\"\n\"https://open.spotify.com/track/7qiZfU4dY1lWllzX7mPBI3\",\"Shape of You\",\"Ed Sheeran\"\n")
+        }
+        val lists = files.readPlaylistFiles(listOf(zipFile))
+        expect(
+            "exportify zip",
+            lists.map { it.title } == listOf("Late night drive", "Liked songs") &&
+                lists[0].tracks.single().spotifyId == "4uLU6hMCjMI75M1A2tKUQC" && lists[0].tracks.single().durationMs == 213_573L &&
+                lists[1].tracks.single().spotifyId == "7qiZfU4dY1lWllzX7mPBI3",
+            "$lists",
+        )
+    } finally {
+        zipFile.delete()
+    }
     val plain = files.previewCsv("Queen;Bohemian Rhapsody\nAdele;Hello\n")
     val plainTracks = files.parseCsvTracks("Queen;Bohemian Rhapsody\nAdele;Hello\n", com.convx.desktop.integrations.PlaylistFiles.CsvMapping(plain.hasHeader, plain.artistColumn, plain.titleColumn))
     expect("csv without header", !plain.hasHeader && plainTracks.map { it.title } == listOf("Bohemian Rhapsody", "Hello"), "${plainTracks}")
