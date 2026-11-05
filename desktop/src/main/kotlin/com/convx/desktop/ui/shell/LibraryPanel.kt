@@ -804,7 +804,7 @@ private fun EntryArt(entry: LibraryEntry, size: Dp) {
         return
     }
     when (entry.kind) {
-        Kind.Liked -> GradientTile("favorite", size, listOf(Color(0xFFFA2D48), Color(0xFF8E2DE2)), shape)
+        Kind.Liked -> com.convx.desktop.ui.components.LikedSongsArt(size, shape)
         Kind.LocalFiles -> GradientTile("storage", size, LocalFilesGradient, shape)
         Kind.Downloads -> GradientTile("download", size, DownloadsGradient, shape)
         Kind.Top -> GradientTile("trending_up", size, com.convx.desktop.ui.screens.TopGradient, shape)
@@ -914,7 +914,20 @@ private fun EntryMenu(entry: LibraryEntry, pinned: Boolean, dismiss: () -> Unit)
             dismiss()
             Library.state.value.artists.firstOrNull { it.id == entry.id }?.let { Library.toggleArtist(it) }
         }
-        Kind.Liked, Kind.LocalFiles, Kind.Downloads, Kind.Top, Kind.Cached, Kind.Uploaded, Kind.SpotifyLiked, Kind.SpotifyPlaylist, Kind.LocalSong -> Unit
+        Kind.Liked -> {
+            val hasCover = AppSettings.value.likedSongsCover != null
+            MenuItem(if (hasCover) "Change picture" else "Choose picture", "image") {
+                dismiss()
+                com.convx.desktop.ui.components.chooseLikedSongsCover()
+            }
+            if (hasCover) {
+                MenuItem("Remove picture", "hide_image") {
+                    dismiss()
+                    com.convx.desktop.ui.components.setLikedSongsCover(null)
+                }
+            }
+        }
+        Kind.LocalFiles, Kind.Downloads, Kind.Top, Kind.Cached, Kind.Uploaded, Kind.SpotifyLiked, Kind.SpotifyPlaylist, Kind.LocalSong -> Unit
     }
 }
 

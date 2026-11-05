@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -32,6 +33,7 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.convx.desktop.core.AppScope
+import com.convx.desktop.data.AppSettings
 import com.convx.desktop.data.Library
 import com.convx.desktop.data.LocalPlaylist
 import com.convx.desktop.data.PlaylistCovers
@@ -48,6 +50,65 @@ fun choosePlaylistCover(playlistId: String) {
         when (val result = PlaylistCovers.import(playlistId, file)) {
             is PlaylistCovers.Result.Done -> Library.setPlaylistCover(playlistId, result.cover)
             is PlaylistCovers.Result.Failed -> withContext(Dispatchers.Main) { Overlays.toast(result.reason, "error") }
+        }
+    }
+}
+
+/** The phone's Liked Songs colours: Convx red into violet. */
+val LikedGradient = listOf(Color(0xFFFA2D48), Color(0xFF8E2DE2))
+
+/** Opens Windows' picker and makes the picture Liked Songs' cover. */
+fun chooseLikedSongsCover() {
+    val file = pickFile("Choose a picture for Liked Songs", PlaylistCovers.Extensions) ?: return
+    AppScope.launch(Dispatchers.IO) {
+        when (val result = PlaylistCovers.import("liked-songs", file)) {
+            is PlaylistCovers.Result.Done -> setLikedSongsCover(result.cover)
+            is PlaylistCovers.Result.Failed -> withContext(Dispatchers.Main) { Overlays.toast(result.reason, "error") }
+        }
+    }
+}
+
+/** Sets (or, with null, clears) Liked Songs' picture and drops the old file. */
+fun setLikedSongsCover(cover: String?) {
+    AppSettings.update { it.copy(likedSongsCover = cover) }
+    PlaylistCovers.prune(Library.state.value.localPlaylists)
+}
+
+/** Liked Songs' picture: the one you chose, or the phone's heart tile. */
+@Composable
+fun LikedSongsArt(size: Dp, shape: Shape) {
+    val chosen = AppSettings.state.collectAsState().value.likedSongsCover
+    val cover = PlaylistCovers.url(chosen)
+    if (cover != null) {
+        Artwork(cover, Modifier.size(size), size = 600, shape = shape)
+    } else {
+        GradientTile("favorite", size, LikedGradient, shape)
+    }
+}
+
+/** A cover that shows a pencil and "Choose photo" under the pointer and opens the picker on click, as Spotify's does. */
+@Composable
+fun EditableCover(size: Dp, shape: Shape, onChoose: () -> Unit, art: @Composable () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    Box(
+        Modifier
+            .size(size)
+            .clip(shape)
+            .hoverable(interaction)
+            .pointerHoverIcon(PointerIcon.Hand)
+            .clickable(interactionSource = interaction, indication = null, onClick = onChoose),
+    ) {
+        art()
+        AnimatedVisibility(hovered, enter = fadeIn(), exit = fadeOut()) {
+            Column(
+                Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)),
+                verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                ConvxIcon("edit", tint = Color.White, size = size * 0.22f)
+                Text("Choose photo", style = ConvxType.SubheadStrong, color = Color.White)
+            }
         }
     }
 }
@@ -70,26 +131,5 @@ fun PlaylistCoverArt(playlist: LocalPlaylist, size: Dp, shape: Shape) {
  */
 @Composable
 fun EditablePlaylistCover(playlist: LocalPlaylist, size: Dp, shape: Shape) {
-    val interaction = remember { MutableInteractionSource() }
-    val hovered by interaction.collectIsHoveredAsState()
-    Box(
-        Modifier
-            .size(size)
-            .clip(shape)
-            .hoverable(interaction)
-            .pointerHoverIcon(PointerIcon.Hand)
-            .clickable(interactionSource = interaction, indication = null) { choosePlaylistCover(playlist.id) },
-    ) {
-        PlaylistCoverArt(playlist, size, shape)
-        AnimatedVisibility(hovered, enter = fadeIn(), exit = fadeOut()) {
-            Column(
-                Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)),
-                verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                ConvxIcon("edit", tint = Color.White, size = size * 0.22f)
-                Text("Choose photo", style = ConvxType.SubheadStrong, color = Color.White)
-            }
-        }
-    }
+    EditableCover(size, shape, onChoose = { choosePlaylistCover(playlist.id) }) { PlaylistCoverArt(playlist, size, shape) }
 }

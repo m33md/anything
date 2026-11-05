@@ -125,7 +125,10 @@ fun NowPlayingPill(modifier: Modifier = Modifier) {
             ) { PlayerController.toggleShuffle() }
             GlassGlyph("apple_skip_previous", "Previous", controlSize, iconSize, TransportTint) { PlayerController.previous() }
             PlayPauseGlyph(state, controlSize, playIconSize)
-            GlassGlyph("apple_skip_next", "Next", controlSize, playIconSize, TransportTint, enabled = state.hasNext) { PlayerController.next() }
+            // With autoplay on, Next at the end of the queue fetches more songs, so it stays live
+            // while a radio's songs are still arriving.
+            val autoRadio = AppSettings.state.collectAsState().value.autoRadio
+            GlassGlyph("apple_skip_next", "Next", controlSize, playIconSize, TransportTint, enabled = state.hasNext || autoRadio) { PlayerController.next() }
             GlassGlyph(
                 if (state.repeat == RepeatMode.ONE) "repeat_one" else "repeat",
                 when (state.repeat) {

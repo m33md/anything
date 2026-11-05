@@ -144,6 +144,13 @@ fun LyricsMenuContent(song: Song, dismiss: () -> Unit) {
                 ConvxIcon("chevron_right_px", tint = ConvxColors.SecondaryLabel, size = 12.dp)
             }
         }
+        if (lyrics != null) {
+            MenuRow("Wrong lyrics", "close", subtitle = "These are another song's. Hide them; Search finds the right ones") {
+                dismiss()
+                LyricsService.markWrong(song)
+                Overlays.toast("Lyrics hidden for this song. Search or Refetch brings lyrics back.", "lyrics")
+            }
+        }
         // The phone saves the reduction when the slider is let go, and it stays on for every song.
         var reduction by remember { mutableFloatStateOf(settings.vocalReduction) }
         LaunchedEffect(settings.vocalReduction) { reduction = settings.vocalReduction }

@@ -30,6 +30,8 @@ data class SongLyricsTweaks(
     /** Where [lyrics] came from, as the menu names it. */
     val source: String? = null,
     val translation: SavedTranslation? = null,
+    /** You said the lyrics found were another song's: show none until Refetch or a pick. */
+    val wrong: Boolean = false,
 )
 
 /** One song's translation, line for line with its non-empty lines, and what it was made for. */

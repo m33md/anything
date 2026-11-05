@@ -62,6 +62,7 @@ import com.convx.desktop.ui.shell.LocalNavigator
 import com.convx.desktop.ui.shell.Screen
 import com.convx.desktop.ui.theme.ConvxColors
 import com.convx.desktop.ui.theme.ConvxType
+import com.convx.desktop.ui.screens.settings.SystemColors
 import com.music.innertube.models.ArtistItem
 
 /** Who the profile is: your Spotify account when one is linked, else YouTube Music's, else just you. */
@@ -101,6 +102,10 @@ fun ProfileScreen() {
     }
     val minutes = remember(month) { month.songs.sumOf { it.playedMs } / 60_000 }
     val spotifySignedIn = spotify is SpotifyAccount.State.SignedIn
+    // Opening the profile asks Spotify again for a name and picture it hasn't given yet.
+    LaunchedEffect(Unit) {
+        if ((SpotifyAccount.state.value as? SpotifyAccount.State.SignedIn)?.profile == null && spotifySignedIn) SpotifyAccount.refreshProfile()
+    }
     var spotifyLists by remember { mutableStateOf<List<SpotifyPlaylist>?>(null) }
     var spotifyProblem by remember { mutableStateOf<String?>(null) }
     var reloads by remember { mutableStateOf(0) }
@@ -126,6 +131,18 @@ fun ProfileScreen() {
                         minutes.takeIf { it > 0 }?.let { "${pluralize(it.toInt(), "minute")} this month" },
                     ).joinToString(" • "),
                 )
+            }
+            // Linked, but Spotify won't hand over the profile: say so instead of a silent "You".
+            (spotify as? SpotifyAccount.State.SignedIn)?.takeIf { it.profile == null }?.let { linked ->
+                item(key = "spotify-unanswered") {
+                    Text(
+                        linked.problem?.let { "Your Spotify account is linked, but Spotify won't answer Convx ($it). Settings > Spotify shows more and how to fix it." }
+                            ?: "Loading your Spotify profile…",
+                        style = ConvxType.Subhead,
+                        color = if (linked.problem != null) SystemColors.Red else ConvxColors.SecondaryLabel,
+                        modifier = Modifier.padding(start = Gutter, end = Gutter, top = 12.dp),
+                    )
+                }
             }
             item(key = "actions") {
                 Row(

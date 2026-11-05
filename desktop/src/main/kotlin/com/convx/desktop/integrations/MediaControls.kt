@@ -18,13 +18,13 @@ import com.sun.jna.Native
 import com.sun.jna.Pointer
 import com.sun.jna.Structure
 import com.sun.jna.WString
-import com.sun.jna.platform.win32.GDI32
+import com.sun.jna.platform.win32.Advapi32Util
 import com.sun.jna.platform.win32.Guid
 import com.sun.jna.platform.win32.Kernel32
 import com.sun.jna.platform.win32.Ole32
 import com.sun.jna.platform.win32.User32
 import com.sun.jna.platform.win32.WinDef
-import com.sun.jna.platform.win32.WinGDI
+import com.sun.jna.platform.win32.WinReg
 import com.sun.jna.platform.win32.WinUser
 import com.sun.jna.ptr.IntByReference
 import com.sun.jna.ptr.LongByReference
@@ -610,9 +610,8 @@ private object WindowHook {
 // ---- The taskbar preview's buttons, and the hotkey fallback ---------------------------------------
 
 internal interface IconApi : StdCallLibrary {
-    fun CreateIconIndirect(info: WinGDI.ICONINFO): WinDef.HICON?
+    fun CreateIconFromResourceEx(bits: ByteArray, size: Int, icon: Boolean, version: Int, cx: Int, cy: Int, flags: Int): WinDef.HICON?
     fun DestroyIcon(icon: WinDef.HICON?): Boolean
-    fun CreateBitmap(width: Int, height: Int, planes: Int, bitsPerPixel: Int, bits: Pointer?): WinDef.HBITMAP?
 }
 
 /** Windows' THUMBBUTTON, field by field. */
@@ -724,7 +723,25 @@ private object Taskbar {
         }
     }
 
+    /** Whether the taskbar is light; its previews follow it, and white glyphs vanish on a light one. */
+    private var lightTaskbar: Boolean? = null
+
+    private fun taskbarIsLight(): Boolean = runCatching {
+        Advapi32Util.registryGetIntValue(
+            WinReg.HKEY_CURRENT_USER,
+            "Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+            "SystemUsesLightTheme",
+        ) == 1
+    }.getOrDefault(false)
+
     private fun buttons(): Array<ThumbButton> {
+        val light = taskbarIsLight()
+        if (light != lightTaskbar) {
+            // The theme changed (or this is the first time): draw the glyphs again in the right colour.
+            glyphs.values.forEach { icons.DestroyIcon(it) }
+            glyphs.clear()
+            lightTaskbar = light
+        }
         val snap = last
         val enabled = snap?.hasQueue == true
         @Suppress("UNCHECKED_CAST")
@@ -750,6 +767,10 @@ private object Taskbar {
         val hr = tb.vcall(ThumbBarAddButtons, window.pointer, 3, array[0].pointer)
         added = hr.ok()
         status = if (added) "on" else "waiting for the taskbar (${hr.hex()})"
+        if (added) {
+            val drawn = array.count { it.hIcon != null }
+            Log.i(Tag, "Taskbar buttons on, $drawn of 3 pictures, ${if (lightTaskbar == true) "dark glyphs for a light" else "white glyphs for a dark"} taskbar")
+        }
     }
 
     private fun updateButtons() {
@@ -759,14 +780,17 @@ private object Taskbar {
         tb.vcall(ThumbBarUpdateButtons, window.pointer, 3, array[0].pointer)
     }
 
-    /** White glyphs like the app's own, drawn at the size Windows uses for small icons on this screen. */
+    /**
+     * Glyphs like the app's own, drawn at the size Windows uses for small icons on this screen:
+     * white on a dark taskbar, near black on a light one.
+     */
     private fun icon(name: String): WinDef.HICON? = glyphs[name] ?: runCatching {
         val size = User32.INSTANCE.GetSystemMetrics(49 /* SM_CXSMICON */).takeIf { it in 12..96 } ?: 16
         val image = BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB)
         val g = image.createGraphics()
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
         g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE)
-        g.color = java.awt.Color.WHITE
+        g.color = if (lightTaskbar == true) java.awt.Color(0x1C, 0x1C, 0x1E) else java.awt.Color.WHITE
         val s = size.toDouble()
         fun triangle(x0: Double, x1: Double, pointsRight: Boolean) = Path2D.Double().apply {
             val top = s * 0.2
@@ -792,28 +816,37 @@ private object Taskbar {
         toIcon(image)?.also { glyphs[name] = it }
     }.onFailure { Log.w(Tag, "Couldn't draw the $name button", it) }.getOrNull()
 
+    /**
+     * An icon made the way Windows reads one from an .ico file: a 32-bit image with its alpha, and a
+     * real transparency mask under it. Built by hand with CreateIconIndirect, the mask was left
+     * undefined, and the taskbar showed the buttons without their pictures.
+     */
     private fun toIcon(image: BufferedImage): WinDef.HICON? {
         val w = image.width
         val h = image.height
-        val info = WinGDI.BITMAPINFO()
-        info.bmiHeader.biWidth = w
-        info.bmiHeader.biHeight = -h // top-down rows
-        info.bmiHeader.biPlanes = 1
-        info.bmiHeader.biBitCount = 32
-        info.bmiHeader.biCompression = WinGDI.BI_RGB
-        val bits = PointerByReference()
-        val color = GDI32.INSTANCE.CreateDIBSection(null, info, WinGDI.DIB_RGB_COLORS, bits, null, 0) ?: return null
-        // A 32-bit DIB is BGRA in memory, which is exactly an int in ARGB order on a little-endian PC.
-        bits.value.write(0, image.getRGB(0, 0, w, h, null, 0, w), 0, w * h)
-        val mask = icons.CreateBitmap(w, h, 1, 1, null)
-        val iconInfo = WinGDI.ICONINFO().apply {
-            fIcon = true
-            hbmMask = mask
-            hbmColor = color
+        val argb = image.getRGB(0, 0, w, h, null, 0, w)
+        val maskStride = ((w + 31) / 32) * 4
+        val colorBytes = w * h * 4
+        val maskBytes = maskStride * h
+        val buffer = java.nio.ByteBuffer.allocate(40 + colorBytes + maskBytes).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        // BITMAPINFOHEADER: the height counts the image and the mask together, as in an .ico.
+        buffer.putInt(40).putInt(w).putInt(h * 2).putShort(1).putShort(32).putInt(0)
+            .putInt(colorBytes + maskBytes).putInt(0).putInt(0).putInt(0).putInt(0)
+        // Rows go bottom up; each pixel is blue, green, red, alpha.
+        for (y in h - 1 downTo 0) for (x in 0 until w) {
+            val p = argb[y * w + x]
+            buffer.put((p and 0xFF).toByte()).put((p shr 8 and 0xFF).toByte())
+                .put((p shr 16 and 0xFF).toByte()).put((p ushr 24).toByte())
         }
-        val icon = icons.CreateIconIndirect(iconInfo)
-        GDI32.INSTANCE.DeleteObject(color)
-        mask?.let { GDI32.INSTANCE.DeleteObject(it) }
+        // The mask: a set bit is see-through.
+        for (y in h - 1 downTo 0) {
+            val row = ByteArray(maskStride)
+            for (x in 0 until w) if (argb[y * w + x] ushr 24 == 0) row[x / 8] = (row[x / 8].toInt() or (0x80 ushr (x % 8))).toByte()
+            buffer.put(row)
+        }
+        val bytes = buffer.array()
+        val icon = icons.CreateIconFromResourceEx(bytes, bytes.size, true, 0x00030000, w, h, 0)
+        if (icon == null) Log.w(Tag, "Windows refused a ${w}px taskbar button picture (${Kernel32.INSTANCE.GetLastError()})")
         return icon
     }
 

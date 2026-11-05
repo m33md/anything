@@ -40,17 +40,19 @@ import java.util.concurrent.atomic.AtomicInteger
  * Google sign-in for YouTube Music, done in a real browser window.
  *
  * The phone signs in inside Android's WebView and reads the cookies and `ytcfg` values from it.
- * A PC has no WebView, and Google turns away sign-ins from embedded browsers such as CEF, so
- * Convx opens Chrome, Edge or Brave with a fresh, empty profile of its own and watches it over
- * the browser's local debugging port. It only looks at the window's address until you reach
- * music.youtube.com signed in; then it reads that site's cookies and the page's visitor data
- * and channel id, exactly what the phone keeps, closes the window and deletes the profile.
+ * A PC has no WebView, and Google turns away sign-ins from embedded browsers such as CEF, and
+ * from a browser something is driving over its debugging port. So it happens in two steps.
+ * First Convx opens Chrome, Edge or Brave with a fresh, empty profile of its own and nothing
+ * else: an ordinary window, which Google accepts. You sign in, and close the window once YouTube
+ * Music shows your account (or press Done in Convx, which closes it for you). Then Convx opens
+ * that profile once more, out of sight, reads music.youtube.com's cookies and the page's visitor
+ * data and channel id (exactly what the phone keeps), closes it and deletes the profile.
  */
 object BrowserSignIn {
     private const val Tag = "BrowserSignIn"
     private const val StartUrl = "https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fmusic.youtube.com"
     private const val MusicHost = "music.youtube.com"
-    private const val TimeoutMs = 10 * 60_000L
+    private const val TimeoutMs = 15 * 60_000L
 
     /** Cookies that only exist once a Google account is signed in; guest pages set the others. */
     private val AccountCookies = setOf(
@@ -61,7 +63,10 @@ object BrowserSignIn {
     data class Session(val cookie: String, val visitorData: String?, val dataSyncId: String?)
 
     class NoBrowserException : Exception("Convx needs Chrome, Edge or Brave to sign in to Google")
-    class ClosedException : Exception("The sign-in window was closed before you finished")
+    class ClosedException : Exception("The sign-in window was closed before you signed in")
+
+    /** The sign-in window while it's open, for [finish]. */
+    @Volatile private var window: Process? = null
 
     /** The browsers Google is happy to sign in on, in the order Convx prefers them. */
     fun findBrowser(): File? {
@@ -74,29 +79,116 @@ object BrowserSignIn {
         return relative.firstNotNullOfOrNull { path -> programFiles.map { File(it, path) }.firstOrNull { it.isFile } }
     }
 
-    /** Opens the window and waits until you've signed in, closed it, or ten minutes have passed. */
+    /**
+     * Opens the window, waits for you to sign in and close it (up to fifteen minutes), then reads
+     * the account from the profile it leaves.
+     */
     suspend fun run(): Session = withContext(Dispatchers.IO) {
         val browser = findBrowser() ?: throw NoBrowserException()
         val profile = File(AppDirs.cache, "sign-in-browser")
         profile.deleteRecursively()
         profile.mkdirs()
-        Log.i(Tag, "Opening ${browser.name} for Google sign-in")
-        val process = ProcessBuilder(
-            browser.path,
-            "--user-data-dir=${profile.path}",
-            "--remote-debugging-port=0",
-            "--no-first-run",
-            "--no-default-browser-check",
-            "--disable-sync",
-            "--window-size=520,780",
-            "--new-window",
-            StartUrl,
+        try {
+            Log.i(Tag, "Opening ${browser.name} for Google sign-in")
+            val shown = openBrowser(browser, profile, "--window-size=520,780", "--new-window", StartUrl)
+            window = shown
+            try {
+                awaitClosed(shown)
+            } finally {
+                window = null
+                stop(shown)
+            }
+            readAccount(browser, profile)
+        } finally {
+            withContext(NonCancellable) {
+                // Chrome's helpers can hold files for a moment after the browser exits.
+                repeat(10) {
+                    if (profile.deleteRecursively()) return@withContext
+                    delay(500)
+                }
+                Log.w(Tag, "Couldn't delete the sign-in profile at ${profile.path}")
+            }
+        }
+    }
+
+    /**
+     * Closes the sign-in window the way its close button does, so the browser saves its cookies
+     * on the way out; [run] then reads them.
+     */
+    fun finish() {
+        window?.let { closeWindows(it.pid()) }
+    }
+
+    /** Asks every window of the browser process [pid] to close, as its close button does. */
+    private fun closeWindows(pid: Long) {
+        runCatching {
+            val user32 = com.sun.jna.platform.win32.User32.INSTANCE
+            user32.EnumWindows({ hwnd, _ ->
+                val owner = com.sun.jna.ptr.IntByReference()
+                user32.GetWindowThreadProcessId(hwnd, owner)
+                if (owner.value.toLong() == pid && user32.IsWindowVisible(hwnd)) {
+                    user32.PostMessage(hwnd, com.sun.jna.platform.win32.WinUser.WM_CLOSE, null, null)
+                }
+                true
+            }, null)
+        }.onFailure { Log.w(Tag, "Couldn't close the sign-in window: ${it.message}") }
+    }
+
+    private fun openBrowser(browser: File, profile: File, vararg extra: String): Process =
+        ProcessBuilder(
+            listOf(
+                browser.path,
+                "--user-data-dir=${profile.path}",
+                "--no-first-run",
+                "--no-default-browser-check",
+                "--disable-sync",
+            ) + extra,
         ).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start()
+
+    /** Waits for the window to close; nothing looks inside it meanwhile. */
+    private suspend fun awaitClosed(process: Process) {
+        val deadline = System.currentTimeMillis() + TimeoutMs
+        while (process.isAlive) {
+            if (System.currentTimeMillis() > deadline) throw IOException("Sign-in timed out after fifteen minutes. Try again.")
+            delay(400)
+        }
+    }
+
+    private fun stop(process: Process) {
+        if (!process.isAlive) return
+        closeWindows(process.pid())
+        if (!process.waitFor(8, TimeUnit.SECONDS)) {
+            process.descendants().forEach { it.destroy() }
+            process.destroyForcibly()
+            process.waitFor(5, TimeUnit.SECONDS)
+        }
+    }
+
+    /**
+     * The profile again, headless, now that sign-in is over: YouTube Music's page for its
+     * `ytcfg` values, and the cookies the browser kept for it.
+     */
+    private suspend fun readAccount(browser: File, profile: File): Session {
+        File(profile, "DevToolsActivePort").delete()
+        val process = openBrowser(browser, profile, "--headless=new", "--remote-debugging-port=0", "--mute-audio", "about:blank")
         var devTools: DevTools? = null
         try {
             val cdp = DevTools(awaitEndpoint(profile, process))
             devTools = cdp
-            watch(cdp, process)
+            // Headless says so in its user agent; YouTube Music gets the browser's ordinary one.
+            val agent = cdp.send("Browser.getVersion")["userAgent"]?.jsonPrimitive?.contentOrNull?.replace("HeadlessChrome", "Chrome")
+            val targetId = cdp.send("Target.createTarget", buildJsonObject { put("url", "about:blank") })["targetId"]
+                ?.jsonPrimitive?.contentOrNull ?: throw IOException("The browser didn't open YouTube Music")
+            val session = cdp.send("Target.attachToTarget", buildJsonObject { put("targetId", targetId); put("flatten", true) })["sessionId"]
+                ?.jsonPrimitive?.contentOrNull ?: throw IOException("The browser didn't open YouTube Music")
+            if (agent != null) cdp.send("Emulation.setUserAgentOverride", buildJsonObject { put("userAgent", agent) }, session)
+            cdp.send("Page.navigate", buildJsonObject { put("url", "https://$MusicHost/") }, session)
+            val config = readConfig(cdp, session)
+            val cookies = cdp.send("Storage.getCookies")["cookies"].asObjects().filter(::sentToMusic)
+            if (cookies.none { it.text("name") in AccountCookies }) throw ClosedException()
+            val cookie = cookies.joinToString("; ") { "${it.text("name")}=${it.text("value")}" }
+            Log.i(Tag, "Signed in; ${cookies.size} cookies, visitor data ${if (config != null) "found" else "missing"}, data sync id ${if (config?.second != null) "found" else "missing"}")
+            return Session(cookie, config?.first, config?.second)
         } finally {
             withContext(NonCancellable) {
                 devTools?.let { cdp ->
@@ -108,12 +200,6 @@ object BrowserSignIn {
                     process.destroyForcibly()
                     process.waitFor(5, TimeUnit.SECONDS)
                 }
-                // Chrome's helpers can hold files for a moment after the browser exits.
-                repeat(10) {
-                    if (profile.deleteRecursively()) return@withContext
-                    delay(500)
-                }
-                Log.w(Tag, "Couldn't delete the sign-in profile at ${profile.path}")
             }
         }
     }
@@ -123,49 +209,21 @@ object BrowserSignIn {
         val file = File(profile, "DevToolsActivePort")
         val deadline = System.currentTimeMillis() + 20_000
         while (System.currentTimeMillis() < deadline) {
-            if (!process.isAlive) throw ClosedException()
+            if (!process.isAlive) throw IOException("The browser closed before Convx could read your sign-in")
             val lines = runCatching { file.readLines() }.getOrNull()
             if (lines != null && lines.size >= 2 && lines[0].toIntOrNull() != null) {
                 return "ws://127.0.0.1:${lines[0].trim()}${lines[1].trim()}"
             }
             delay(200)
         }
-        throw IOException("The browser didn't open its sign-in window")
-    }
-
-    private suspend fun watch(cdp: DevTools, process: Process): Session {
-        val deadline = System.currentTimeMillis() + TimeoutMs
-        var attached: Pair<String, String>? = null // target id to DevTools session
-        while (System.currentTimeMillis() < deadline) {
-            delay(1_000)
-            if (!process.isAlive) throw ClosedException()
-            val targets = cdp.send("Target.getTargets")["targetInfos"].asObjects()
-            val page = targets.firstOrNull { it.text("type") == "page" && it.text("url")?.startsWith("https://$MusicHost") == true }
-                ?: continue
-            val cookies = cdp.send("Storage.getCookies")["cookies"].asObjects().filter(::sentToMusic)
-            if (cookies.none { it.text("name") in AccountCookies }) continue
-            val cookie = cookies.joinToString("; ") { "${it.text("name")}=${it.text("value")}" }
-
-            // Only now, on YouTube Music and signed in, does Convx look inside the page.
-            val targetId = page.text("targetId") ?: continue
-            var session = attached?.takeIf { it.first == targetId }?.second
-            if (session == null) {
-                val params = buildJsonObject { put("targetId", targetId); put("flatten", true) }
-                session = cdp.send("Target.attachToTarget", params)["sessionId"]?.jsonPrimitive?.contentOrNull ?: continue
-                attached = targetId to session
-            }
-            val config = readConfig(cdp, session) ?: continue
-            Log.i(Tag, "Signed in; ${cookies.size} cookies, data sync id ${if (config.second != null) "found" else "missing"}")
-            return Session(cookie, config.first, config.second)
-        }
-        throw IOException("Sign-in timed out after ten minutes. Try again.")
+        throw IOException("The browser didn't start for Convx to read your sign-in")
     }
 
     /** The page's `ytcfg` VISITOR_DATA and DATASYNC_ID, as the phone's JavaScript bridge reads them. */
     private suspend fun readConfig(cdp: DevTools, session: String): Pair<String, String?>? {
         val expression = "JSON.stringify((window.yt && window.yt.config_) ? " +
             "[window.yt.config_.VISITOR_DATA || null, window.yt.config_.DATASYNC_ID || null] : [null, null])"
-        repeat(10) {
+        repeat(40) {
             val result = runCatching {
                 cdp.send(
                     "Runtime.evaluate",

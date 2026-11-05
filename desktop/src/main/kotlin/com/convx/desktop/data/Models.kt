@@ -336,6 +336,8 @@ data class Settings(
     val discordButton2Text: String = "",
     /** A Discord application of your own to show the status under; blank uses the phone's ("Metrolist"). */
     val discordApplicationId: String = "",
+    /** A Spotify app of your own (developer.spotify.com) to link with, instead of Spotify's shared desktop client. */
+    val spotifyClientId: String = "",
     val glass: GlassSettings = GlassSettings(),
     // The phone's Layout & home page and its Arrange home feed, with its defaults.
     /** home, search or library: where Convx opens. */
@@ -357,6 +359,8 @@ data class Settings(
     // Off on the desktop, where it puzzled people in Your Library; a new key, so the old saved "on" doesn't bring it back.
     @kotlinx.serialization.SerialName("showCachedInLibrary")
     val showCachedPlaylist: Boolean = false,
+    /** Liked Songs' own picture, chosen on this PC (a [PlaylistCovers] name), instead of the red heart tile. */
+    val likedSongsCover: String? = null,
     val showUploadedPlaylist: Boolean = true,
     val topSize: Int = 50,
     // The phone's Controls & layout page, with its defaults where the PC has the same thing.

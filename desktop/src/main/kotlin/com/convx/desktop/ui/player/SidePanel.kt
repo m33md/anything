@@ -96,7 +96,7 @@ import com.convx.desktop.ui.shell.FullPlayerMode
 val NowPlayingPanelWidth: Dp = 340.dp
 
 /** The live lyrics card's window onto the song. */
-private val LyricsCardHeight = 300.dp
+private val LyricsCardHeight = 330.dp
 
 /**
  * Spotify's Now Playing view, built from the phone's pieces: the same glass as Your Library, on
@@ -291,8 +291,9 @@ private fun LyricsCard(song: Song) {
                 LyricsView(
                     song,
                     Modifier.fillMaxSize(),
-                    style = ConvxType.LyricsCompact.copy(fontSize = 19.sp, lineHeight = 25.sp),
-                    horizontalPadding = 14.dp,
+                    // Big enough to fill the card, as Spotify's card does: about 18 letters a line.
+                    style = ConvxType.LyricsCompact.copy(fontSize = 24.sp, lineHeight = 30.sp),
+                    horizontalPadding = 10.dp,
                 )
             }
         }

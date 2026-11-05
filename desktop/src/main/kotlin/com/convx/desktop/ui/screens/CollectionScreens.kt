@@ -668,7 +668,13 @@ fun LikedScreen() {
         PageList(state = rememberLazyListState(), tint = tint, topPadding = 0.dp) {
             collectionHeader(
                 title = "Liked Songs",
-                art = { size -> GradientTile("favorite", size, listOf(Color(0xFFFA2D48), Color(0xFF8E2DE2)), RoundedCornerShape(12.dp)) },
+                // Click (or hover) the cover to give Liked Songs your own picture, as with a playlist.
+                art = { size ->
+                    val shape = RoundedCornerShape(12.dp)
+                    com.convx.desktop.ui.components.EditableCover(size, shape, onChoose = { com.convx.desktop.ui.components.chooseLikedSongsCover() }) {
+                        com.convx.desktop.ui.components.LikedSongsArt(size, shape)
+                    }
+                },
                 metadata = songs.totalLine().joinToString(" · "),
                 playing = isThisPlaying,
                 enabled = songs.isNotEmpty(),

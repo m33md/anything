@@ -106,6 +106,15 @@ jobs:
           fi
           CONVX_JBR= ./gradlew --no-daemon packageMsi packageExe createDistributable
 
+      # Convx's pictures in the installer's pages, and "Updating Convx" over an older install.
+      # The script keeps the MSI as jpackage made it if anything looks off.
+      - name: Brand the installer
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem build/compose/binaries/main/msi/*.msi | Select-Object -First 1
+          ./packaging/windows/brand-msi.ps1 -Msi $msi.FullName -Banner packaging/windows/banner.bmp -Dialog packaging/windows/dialog.bmp
+
       - name: Zip portable build
         shell: pwsh
         run: Compress-Archive -Path build/compose/binaries/main/app/Convx -DestinationPath build/Convx-portable-windows.zip

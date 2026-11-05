@@ -81,9 +81,10 @@ object PlaylistCovers {
         }
     }
 
-    /** Deletes picture files no playlist uses any more. */
+    /** Deletes picture files no playlist (nor Liked Songs) uses any more. */
     fun prune(playlists: List<LocalPlaylist>) {
         val used = playlists.mapNotNullTo(HashSet()) { p -> p.cover?.takeIf(::isOwn)?.removePrefix(Prefix) }
+        AppSettings.value.likedSongsCover?.takeIf(::isOwn)?.let { used += it.removePrefix(Prefix) }
         dir.listFiles()?.filter { it.isFile && it.name !in used }?.forEach { runCatching { it.delete() } }
     }
 }

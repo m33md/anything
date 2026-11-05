@@ -180,6 +180,10 @@ object LyricsService {
     private fun start(song: Song, entry: Entry) {
         entry.job?.cancel()
         val kept = LyricsTweaks.of(song.id)
+        if (kept.wrong && kept.lyrics == null) {
+            entry.state.value = LyricsState.Missing
+            return
+        }
         if (kept.lyrics != null) {
             entry.state.value = LyricsState.Ready(Lyrics(parseLyricsText(kept.lyrics), kept.source ?: "You"), final = true)
             return
@@ -199,15 +203,23 @@ object LyricsService {
 
     /** The phone's Refetch: forgets lyrics kept for [song] and asks every source again. */
     fun refetch(song: Song) {
-        LyricsTweaks.update(song.id) { it.copy(lyrics = null, source = null) }
+        LyricsTweaks.update(song.id) { it.copy(lyrics = null, source = null, wrong = false) }
         val entry = entry(song)
         entry.results.value = emptyMap()
         start(song, entry)
     }
 
+    /** "Wrong lyrics": these belong to another song, so [song] shows none until you search or refetch. */
+    fun markWrong(song: Song) {
+        LyricsTweaks.update(song.id) { it.copy(lyrics = null, source = null, wrong = true) }
+        val entry = entry(song)
+        entry.job?.cancel()
+        entry.state.value = LyricsState.Missing
+    }
+
     /** Shows [lyrics] for [song] from now on, as the phone keeps an edit or a chosen result. */
     fun use(song: Song, lyrics: Lyrics) {
-        LyricsTweaks.update(song.id) { it.copy(lyrics = lyrics.lines.toLyricsText(), source = lyrics.source) }
+        LyricsTweaks.update(song.id) { it.copy(lyrics = lyrics.lines.toLyricsText(), source = lyrics.source, wrong = false) }
         val entry = entry(song)
         entry.job?.cancel()
         entry.state.value = LyricsState.Ready(lyrics, final = true)
@@ -249,6 +261,19 @@ object LyricsService {
             throw e
         } catch (e: Exception) {
             return SourceResult.Failed
+        }
+        // "纯音乐，请欣赏" ("instrumental, please enjoy") and the like: KuGou's and others' way of
+        // saying they have no words. That's no lyrics, so the next source gets a turn.
+        val words = lines.filter { it.text.isNotBlank() }
+        if (words.isNotEmpty() && words.size <= 3 && words.all { isPlaceholder(it.text) }) return SourceResult.NotFound
+        // Timed lines that run well past the end of the song are another song's: a source's
+        // search matched loosely. Plain lyrics carry no times to check.
+        if (query.durationMs > 0) {
+            val lastLine = lines.filter { it.text.isNotBlank() }.maxOfOrNull { it.timeMs } ?: 0L
+            if (lastLine > query.durationMs + 15_000) {
+                Log.i(Tag, "${source.name}: lines run to ${lastLine / 1000}s in a ${query.durationMs / 1000}s song; another song's, skipped")
+                return SourceResult.NotFound
+            }
         }
         return lines.takeIf { l -> l.any { it.text.isNotBlank() } }
             ?.let { SourceResult.Found(Lyrics(it.sortedBy { line -> line.timeMs }, source.name)) }
@@ -295,6 +320,16 @@ object LyricsService {
             // Sources cut short never answered; the menu offers to ask them.
             entry.results.update { results -> results.filterValues { it != SourceResult.Asking } }
         }
+    }
+
+    private val PlaceholderMarks = listOf("纯音乐", "暂无歌词", "没有填词", "未找到歌词", "无歌词", "歌词加载失败", "此歌曲为没有填词")
+
+    /** A line that stands for "no lyrics here" rather than being a lyric. */
+    private fun isPlaceholder(text: String): Boolean {
+        val t = text.trim()
+        if (PlaceholderMarks.any { it in t }) return true
+        val plain = t.lowercase().filter { it.isLetter() || it == ' ' }.trim()
+        return plain == "instrumental" || plain == "no lyrics" || plain == "lyrics not available"
     }
 
     /** The video's captions, line timed, as the phone's YouTube Subtitle source reads them. */

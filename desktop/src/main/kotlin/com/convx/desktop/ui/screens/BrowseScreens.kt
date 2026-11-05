@@ -188,7 +188,7 @@ fun LibraryScreen() {
                         SavedCard(
                             "Liked Songs",
                             pluralize(liked.size, "song"),
-                            art = { size -> GradientTile("favorite", size, listOf(Color(0xFFFA2D48), Color(0xFF8E2DE2)), RoundedCornerShape(8.dp)) },
+                            art = { size -> com.convx.desktop.ui.components.LikedSongsArt(size, RoundedCornerShape(8.dp)) },
                             onClick = { navigator.navigate(Screen.Liked) },
                             onPlay = if (liked.isEmpty()) null else ({ PlayerController.playSongs(liked, 0, "Liked Songs") }),
                         )

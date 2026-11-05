@@ -95,12 +95,16 @@ fun SpotifySettings() {
         avatar = { AccountAvatar(profile?.image, "spotify", Color.Black, 64.dp) },
         title = profile?.name ?: "Spotify",
         status = when (val s = state) {
-            is SpotifyAccount.State.SignedIn -> if (s.profile?.premium == true) "Connected · Premium" else "Connected"
+            is SpotifyAccount.State.SignedIn -> when {
+                s.profile == null && s.problem != null -> "Linked, but Spotify won't answer Convx: ${s.problem}"
+                s.profile?.premium == true -> "Connected · Premium"
+                else -> "Connected"
+            }
             SpotifyAccount.State.SigningIn -> "Finish signing in to Spotify in your browser, then come back here."
             is SpotifyAccount.State.Failed -> s.message
             SpotifyAccount.State.SignedOut -> "Not connected. You sign in on Spotify's own page in your browser; Convx never sees your password."
         },
-        statusIsError = state is SpotifyAccount.State.Failed,
+        statusIsError = state is SpotifyAccount.State.Failed || (state as? SpotifyAccount.State.SignedIn)?.problem != null,
     ) {
         when (state) {
             is SpotifyAccount.State.SignedIn -> PillButton("Disconnect", { SpotifyAccount.signOut() })
@@ -154,10 +158,58 @@ fun SpotifySettings() {
         SpotifyImportSection()
     }
     SectionGap()
+    SpotifyOwnAppSection()
+    SectionGap()
     InfoNote(
         "Spotify doesn't let other apps play its audio, so Convx finds each Spotify song on YouTube Music by its title, " +
             "artist and length, as the phone's Spotify import does, and remembers the match. A song with no close match is skipped.",
     )
+}
+
+/**
+ * Linking through a Spotify app of your own. Spotify's desktop client, which Convx uses by
+ * default, is shared by every tool that borrows it, and Spotify can stop answering it when they
+ * all ask too much. An app of your own has its own allowance.
+ */
+@Composable
+private fun SpotifyOwnAppSection() {
+    val settings by AppSettings.state.collectAsState()
+    val own = SpotifyAccount.usesOwnApp
+    SettingsSection(
+        "Your own Spotify app",
+        footer = "If Spotify won't answer Convx, link through an app of your own. Open developer.spotify.com/dashboard, sign in, " +
+            "click Create app, give it any name, and under Redirect URIs add ${SpotifyAccount.OwnAppRedirect} exactly. Tick Web API, " +
+            "save, then copy the Client ID from the app's Settings here and press Connect again. Spotify only lets an app's owner " +
+            "use it if they have Premium, and it reads the songs only of playlists you made or collaborate on.",
+    ) {
+        SettingsRow(
+            "Client ID",
+            if (own) settings.spotifyClientId.trim() else "Spotify's shared desktop client",
+            icon = "spotify",
+            tint = SpotifyGreen,
+            onClick = {
+                Overlays.prompt("Spotify Client ID", settings.spotifyClientId, confirm = "Use it") { text ->
+                    val id = text.trim().lowercase().filter { it.isLetterOrDigit() }
+                    if (id.length == 32 && id.all { it in '0'..'9' || it in 'a'..'f' }) {
+                        AppSettings.update { it.copy(spotifyClientId = id) }
+                        SpotifyAccount.signOut()
+                        Overlays.toast("Saved. Press Connect to link through your app.", "spotify")
+                    } else {
+                        Overlays.toast("That isn't a Client ID. It's 32 letters and numbers on your app's Settings page.", "error")
+                    }
+                }
+            },
+        ) {
+            if (own) PillButton("Use the shared one", {
+                AppSettings.update { it.copy(spotifyClientId = "") }
+                SpotifyAccount.signOut()
+            })
+        }
+        RowDivider()
+        LinkRow("Open the Spotify Developer Dashboard", icon = "link", tint = SystemColors.Gray) {
+            openUrl("https://developer.spotify.com/dashboard")
+        }
+    }
 }
 
 @Composable

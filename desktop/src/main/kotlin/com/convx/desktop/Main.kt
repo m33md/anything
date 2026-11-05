@@ -151,6 +151,15 @@ fun main() {
             LaunchedEffect(Unit) {
                 window.minimumSize = Dimension(940, 600)
                 window.background = java.awt.Color.BLACK
+                // Every size of the icon, so the title bar and taskbar get a sharp one (the small
+                // ones drop the sound bars, which blur away) instead of the big one shrunk.
+                runCatching {
+                    val loader = Thread.currentThread().contextClassLoader
+                    val sizes = listOf(16, 20, 24, 32, 40, 48, 64, 256).mapNotNull { size ->
+                        loader.getResourceAsStream("app-icon/$size.png")?.use { javax.imageio.ImageIO.read(it) }
+                    }
+                    if (sizes.isNotEmpty()) window.iconImages = sizes
+                }
                 WindowsChrome.darken(window)
                 // Spotify's window: the top bar is the title bar. Falls back to the dark Windows one.
                 WindowTitleBar.install(window, TopBarHeight)

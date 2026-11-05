@@ -54,7 +54,8 @@ fun YouTubeAccountSettings() {
             YouTubeAccount.State.SignedOut ->
                 if (!hasBrowser) "Not logged in. Install Chrome or Edge to log in, or use a token from the phone."
                 else "Not logged in. You sign in on Google's own page; Convx never sees your password."
-            YouTubeAccount.State.WaitingForBrowser -> "Log in to Google in the window that opened. When YouTube Music loads, Convx closes it."
+            YouTubeAccount.State.WaitingForBrowser ->
+                "Log in to Google in the window that opened. When YouTube Music shows your account, close that window (or press Done) and Convx finishes logging in."
             YouTubeAccount.State.Checking -> "Checking your account with YouTube Music…"
             is YouTubeAccount.State.ChoosingChannel -> "Choose which channel Convx uses."
             is YouTubeAccount.State.SignedIn -> listOfNotNull(s.profile.email, s.profile.handle).joinToString(" · ").ifEmpty { "Logged in" }
@@ -64,8 +65,13 @@ fun YouTubeAccountSettings() {
     ) {
         when (state) {
             is YouTubeAccount.State.SignedIn -> PillButton("Log out", { confirmLogout() })
-            YouTubeAccount.State.WaitingForBrowser, is YouTubeAccount.State.ChoosingChannel ->
+            YouTubeAccount.State.WaitingForBrowser -> androidx.compose.foundation.layout.Row(
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+            ) {
                 PillButton("Cancel", { YouTubeAccount.cancelSignIn() })
+                PillButton("Done", { com.convx.desktop.integrations.youtube.BrowserSignIn.finish() }, filled = true, accent = YouTubeRed)
+            }
+            is YouTubeAccount.State.ChoosingChannel -> PillButton("Cancel", { YouTubeAccount.cancelSignIn() })
             YouTubeAccount.State.Checking -> Unit
             else -> PillButton("Log in", { YouTubeAccount.signIn() }, accent = YouTubeRed)
         }

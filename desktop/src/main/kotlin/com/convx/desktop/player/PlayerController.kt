@@ -345,11 +345,25 @@ object PlayerController : AudioEngine.Listener {
                 listenCounted = true
                 listenAt = Library.recordPlay(song, listenMs) ?: 0L
                 listenSavedMs = listenMs
+                if (listenAt != 0L) reportToYouTube(song, s.stream)
             }
         } else {
             saveListen()
         }
         listenTick = now
+    }
+
+    /**
+     * Tells YouTube the song was played, as the phone does once a play counts, so a signed-in
+     * account's history, Listen again and Home recommendations follow what's played here.
+     */
+    private fun reportToYouTube(song: Song, stream: ResolvedStream?) {
+        if (YouTube.cookie == null) return
+        val url = stream?.takeIf { it.videoId == song.id }?.playbackTracking ?: return
+        scope.launch(Dispatchers.IO) {
+            YouTube.registerPlayback(null, url)
+                .onFailure { Log.w(Tag, "Couldn't add ${song.id} to your YouTube history: ${it.message}") }
+        }
     }
 
     /**

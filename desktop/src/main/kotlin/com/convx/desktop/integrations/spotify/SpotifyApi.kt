@@ -63,13 +63,26 @@ object SpotifyApi {
     @Volatile private var playlists: List<SpotifyPlaylist>? = null
     @Volatile private var liked: List<SpotifyTrack>? = null
 
+    /**
+     * [runCatching] for these calls, except that a cancelled caller stays cancelled: a page that
+     * closes mid-request mustn't come back with "the coroutine scope left the composition" as if
+     * Spotify had said it.
+     */
+    private inline fun <T> attempt(block: () -> T): Result<T> = try {
+        Result.success(block())
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Throwable) {
+        Result.failure(e)
+    }
+
     fun clearCache() {
         playlistTracks.clear()
         playlists = null
         liked = null
     }
 
-    suspend fun me(): Result<SpotifyProfile> = runCatching {
+    suspend fun me(): Result<SpotifyProfile> = attempt {
         val obj = get("$Base/me")
         SpotifyProfile(
             id = obj.str("id").orEmpty(),
@@ -79,8 +92,8 @@ object SpotifyApi {
         )
     }
 
-    suspend fun playlists(refresh: Boolean = false): Result<List<SpotifyPlaylist>> = runCatching {
-        if (!refresh) playlists?.let { return@runCatching it }
+    suspend fun playlists(refresh: Boolean = false): Result<List<SpotifyPlaylist>> = attempt {
+        if (!refresh) playlists?.let { return@attempt it }
         val items = pages("$Base/me/playlists?limit=50").mapNotNull { element ->
             val obj = element as? JsonObject ?: return@mapNotNull null
             val id = obj.str("id") ?: return@mapNotNull null
@@ -99,8 +112,8 @@ object SpotifyApi {
         items
     }
 
-    suspend fun playlistTracks(id: String, refresh: Boolean = false): Result<List<SpotifyTrack>> = runCatching {
-        if (!refresh) playlistTracks[id]?.let { return@runCatching it }
+    suspend fun playlistTracks(id: String, refresh: Boolean = false): Result<List<SpotifyTrack>> = attempt {
+        if (!refresh) playlistTracks[id]?.let { return@attempt it }
         val fields = "limit=100&additional_types=track&market=from_token"
         val rows = try {
             pages("$Base/playlists/$id/items?$fields")
@@ -114,20 +127,20 @@ object SpotifyApi {
     }
 
     /** Spotify's tracks for a search, best first by Spotify's own ranking; a handful is plenty for one song. */
-    suspend fun searchTracks(query: String, limit: Int = 5): Result<List<SpotifyTrack>> = runCatching {
+    suspend fun searchTracks(query: String, limit: Int = 5): Result<List<SpotifyTrack>> = attempt {
         val q = java.net.URLEncoder.encode(query, Charsets.UTF_8)
         get("$Base/search?type=track&limit=${limit.coerceIn(1, 10)}&q=$q").obj("tracks")?.arr("items").orEmpty()
             .mapNotNull { track(it as? JsonObject) }
     }
 
     /** How many Liked Songs there are, in one request rather than reading them all. */
-    suspend fun likedCount(): Result<Int> = runCatching {
-        liked?.let { return@runCatching it.size }
+    suspend fun likedCount(): Result<Int> = attempt {
+        liked?.let { return@attempt it.size }
         get("$Base/me/tracks?limit=1").int("total") ?: 0
     }
 
-    suspend fun likedSongs(refresh: Boolean = false): Result<List<SpotifyTrack>> = runCatching {
-        if (!refresh) liked?.let { return@runCatching it }
+    suspend fun likedSongs(refresh: Boolean = false): Result<List<SpotifyTrack>> = attempt {
+        if (!refresh) liked?.let { return@attempt it }
         val tracks = pages("$Base/me/tracks?limit=50&market=from_token").mapNotNull { row ->
             track((row as? JsonObject)?.let { it.obj("track") ?: it.obj("item") })
         }
@@ -187,6 +200,15 @@ object SpotifyApi {
         when {
             code in 200..299 -> json.parseToJsonElement(body.ifBlank { "{}" }).jsonObject
             code == 401 && attempt == 0 -> get(url, attempt + 1)
+            // A long wait is Spotify rationing the shared desktop client; say so rather than hang.
+            code == 429 && (retryAfter ?: 0L) > 30L -> {
+                Log.w(Tag, "${url.substringBefore('?').removePrefix(Base)} answered 429 (retry after ${retryAfter}s)")
+                throw SpotifyException(
+                    429,
+                    "Spotify is limiting Convx's shared Spotify access and says to wait ${waitText(retryAfter!!)}. " +
+                        "Linking through your own Spotify app (Settings > Spotify) avoids the wait",
+                )
+            }
             code == 429 && attempt < 3 -> {
                 val wait = (retryAfter ?: 2L).coerceIn(1L, 30L)
                 Log.w(Tag, "Spotify asked to slow down; waiting ${wait}s")
@@ -202,6 +224,13 @@ object SpotifyApi {
                 throw SpotifyException(code, message?.let { "Spotify: $it" } ?: "Spotify answered $code")
             }
         }
+    }
+
+    private fun waitText(seconds: Long): String = when {
+        seconds >= 7200 -> "about ${seconds / 3600} hours"
+        seconds >= 3600 -> "about an hour"
+        seconds >= 120 -> "about ${seconds / 60} minutes"
+        else -> "$seconds seconds"
     }
 
     private fun JsonObject.obj(key: String): JsonObject? = (this[key] as? JsonObject)

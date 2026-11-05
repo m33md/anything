@@ -7,6 +7,7 @@ package com.convx.desktop.integrations.spotify
 
 import com.convx.desktop.core.AppDirs
 import com.convx.desktop.core.AppScope
+import com.convx.desktop.data.AppSettings
 import com.convx.desktop.core.Http
 import com.convx.desktop.core.Log
 import com.sun.jna.platform.win32.Crypt32Util
@@ -71,12 +72,22 @@ object SpotifyAccount {
     sealed interface State {
         data object SignedOut : State
         data object SigningIn : State
-        data class SignedIn(val profile: SpotifyProfile?) : State
+        /** [problem] is what Spotify said while it won't hand over the profile. */
+        data class SignedIn(val profile: SpotifyProfile?, val problem: String? = null) : State
         data class Failed(val message: String) : State
     }
 
     @Serializable
-    private data class Tokens(val access: String, val refresh: String?, val expiresAt: Long)
+    private data class Tokens(val access: String, val refresh: String?, val expiresAt: Long, val clientId: String? = null)
+
+    /** Your own Spotify app's ID when one is set in Settings, else Spotify's desktop client. */
+    private fun chosenClientId(): String = AppSettings.value.spotifyClientId.trim().takeIf { it.length == 32 } ?: ClientId
+
+    /** Whether linking uses your own Spotify app. */
+    val usesOwnApp: Boolean get() = chosenClientId() != ClientId
+
+    /** The address your own Spotify app must list under Redirect URIs. */
+    const val OwnAppRedirect = "http://127.0.0.1:8898/login"
 
     private val _state = MutableStateFlow<State>(State.SignedOut)
     val state: StateFlow<State> = _state.asStateFlow()
@@ -151,10 +162,10 @@ object SpotifyAccount {
                 FormBody.Builder()
                     .add("grant_type", "refresh_token")
                     .add("refresh_token", refresh)
-                    .add("client_id", ClientId)
+                    .add("client_id", current.clientId ?: ClientId)
                     .build(),
             )
-        }.let { it.copy(refresh = it.refresh ?: refresh) }
+        }.let { it.copy(refresh = it.refresh ?: refresh, clientId = current.clientId) }
         tokens = updated
         save(updated)
         updated.access
@@ -166,14 +177,32 @@ object SpotifyAccount {
         _state.value = State.Failed("Your Spotify sign-in ran out. Connect again.")
     }
 
-    private fun refreshProfile() {
-        AppScope.launch(Dispatchers.IO) {
-            SpotifyApi.me()
-                .onSuccess { if (_state.value is State.SignedIn) _state.value = State.SignedIn(it) }
-                .onFailure {
-                    Log.w(Tag, "Couldn't load the Spotify profile", it)
-                    if (it is SpotifyException && it.status == 401) expire()
+    private var profileJob: kotlinx.coroutines.Job? = null
+
+    /**
+     * Reads your name and picture; while Spotify won't answer, tries again a little later (four
+     * times), and keeps what it said so the profile and Settings can show it.
+     */
+    fun refreshProfile() {
+        profileJob?.cancel()
+        profileJob = AppScope.launch(Dispatchers.IO) {
+            for (wait in listOf(0L, 20_000L, 90_000L, 300_000L)) {
+                kotlinx.coroutines.delay(wait)
+                if (_state.value !is State.SignedIn) return@launch
+                val result = SpotifyApi.me()
+                result.onSuccess {
+                    if (_state.value is State.SignedIn) _state.value = State.SignedIn(it)
+                    return@launch
                 }
+                val error = result.exceptionOrNull()
+                Log.w(Tag, "Couldn't load the Spotify profile", error)
+                if (error is SpotifyException && error.status == 401) {
+                    expire()
+                    return@launch
+                }
+                val current = _state.value as? State.SignedIn ?: return@launch
+                _state.value = current.copy(problem = error?.message ?: "Spotify didn't answer")
+            }
         }
     }
 
@@ -183,7 +212,10 @@ object SpotifyAccount {
         val challenge = base64Url(MessageDigest.getInstance("SHA-256").digest(verifier.toByteArray(Charsets.US_ASCII)))
         val state = base64Url(ByteArray(24).also(random::nextBytes))
 
-        val (server, port) = Ports.firstNotNullOfOrNull { port ->
+        val clientId = chosenClientId()
+        // Your own app lists one address; Spotify's desktop client takes any of these.
+        val ports = if (clientId == ClientId) Ports else Ports.take(1)
+        val (server, port) = ports.firstNotNullOfOrNull { port ->
             runCatching { HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), port), 0) to port }.getOrNull()
         } ?: throw IOException("Every port Spotify can send you back to is busy. Close other Spotify tools and try again.")
         val redirect = "http://127.0.0.1:$port/login"
@@ -208,7 +240,7 @@ object SpotifyAccount {
         try {
             val url = "https://accounts.spotify.com/authorize" +
                 "?response_type=code" +
-                "&client_id=$ClientId" +
+                "&client_id=$clientId" +
                 "&redirect_uri=${encode(redirect)}" +
                 "&code_challenge_method=S256" +
                 "&code_challenge=$challenge" +
@@ -222,10 +254,10 @@ object SpotifyAccount {
                     .add("grant_type", "authorization_code")
                     .add("code", code)
                     .add("redirect_uri", redirect)
-                    .add("client_id", ClientId)
+                    .add("client_id", clientId)
                     .add("code_verifier", verifier)
                     .build(),
-            )
+            ).copy(clientId = clientId.takeIf { it != ClientId })
         } finally {
             pending = null
             server.stop(1)
