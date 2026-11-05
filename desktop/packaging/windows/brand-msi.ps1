@@ -9,14 +9,25 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $flags = [Reflection.BindingFlags]
+# PowerShell wraps pipeline values in PSObject, which COM can't take ("Type mismatch"), so every
+# argument goes over as the plain value underneath.
+function Plain([object[]] $arguments) {
+    if ($null -eq $arguments -or $arguments.Count -eq 0) { return $null }
+    $plain = [object[]]::new($arguments.Count)
+    for ($i = 0; $i -lt $arguments.Count; $i++) {
+        $value = $arguments[$i]
+        $plain[$i] = if ($null -eq $value) { $null } else { $value.PSObject.BaseObject }
+    }
+    return , $plain
+}
 function Call($obj, [string] $name, [object[]] $arguments = @()) {
-    $obj.GetType().InvokeMember($name, $flags::InvokeMethod, $null, $obj, $arguments)
+    $obj.GetType().InvokeMember($name, $flags::InvokeMethod, $null, $obj, (Plain $arguments))
 }
 function Prop($obj, [string] $name, [object[]] $arguments = @()) {
-    $obj.GetType().InvokeMember($name, $flags::GetProperty, $null, $obj, $arguments)
+    $obj.GetType().InvokeMember($name, $flags::GetProperty, $null, $obj, (Plain $arguments))
 }
 function SetProp($obj, [string] $name, [object[]] $arguments) {
-    [void] $obj.GetType().InvokeMember($name, $flags::SetProperty, $null, $obj, $arguments)
+    [void] $obj.GetType().InvokeMember($name, $flags::SetProperty, $null, $obj, (Plain $arguments))
 }
 
 $installer = New-Object -ComObject WindowsInstaller.Installer
@@ -28,7 +39,9 @@ function Rows($db, [string] $sql, [int] $columns) {
     while ($true) {
         $record = Call $view 'Fetch'
         if ($null -eq $record) { break }
-        $rows += , @(1..$columns | ForEach-Object { Prop $record 'StringData' @($_) })
+        $row = [object[]]::new($columns)
+        for ($c = 1; $c -le $columns; $c++) { $row[$c - 1] = Prop $record 'StringData' @([int] $c) }
+        $rows += , $row
     }
     [void] (Call $view 'Close')
     return , $rows
@@ -42,9 +55,10 @@ function Run($db, [string] $sql, [object[]] $values = @()) {
         $record = Call $installer 'CreateRecord' @($values.Count)
         for ($i = 0; $i -lt $values.Count; $i++) {
             $value = $values[$i]
-            if ($value -is [hashtable]) { [void] (Call $record 'SetStream' @(($i + 1), $value.File)) }
-            elseif ($value -is [int]) { SetProp $record 'IntegerData' @(($i + 1), $value) }
-            else { SetProp $record 'StringData' @(($i + 1), [string] $value) }
+            $field = [int] ($i + 1)
+            if ($value -is [hashtable]) { [void] (Call $record 'SetStream' @($field, [string] $value.File)) }
+            elseif ($value -is [int]) { SetProp $record 'IntegerData' @($field, [int] $value) }
+            else { SetProp $record 'StringData' @($field, [string] $value) }
         }
         [void] (Call $view 'Execute' @($record))
     } else {
@@ -120,6 +134,7 @@ try {
     Move-Item -LiteralPath $work -Destination $Msi -Force
     Write-Host "Branded $Msi"
 } catch {
+    Write-Host "Failed at: $($_.InvocationInfo.PositionMessage)"
     Write-Host "::warning::Couldn't brand the installer ($($_.Exception.Message)); shipping it as jpackage made it"
     $db = $null; $check = $null
     [GC]::Collect(); [GC]::WaitForPendingFinalizers()
