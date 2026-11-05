@@ -135,8 +135,10 @@ fun ProfileScreen() {
             // Linked, but Spotify won't hand over the profile: say so instead of a silent "You".
             (spotify as? SpotifyAccount.State.SignedIn)?.takeIf { it.profile == null }?.let { linked ->
                 item(key = "spotify-unanswered") {
+                    val waiting by SpotifyApi.waiting.collectAsState()
                     Text(
                         linked.problem?.let { "Your Spotify account is linked, but Spotify won't answer Convx ($it). Settings > Spotify shows more and how to fix it." }
+                            ?: waiting
                             ?: "Loading your Spotify profile…",
                         style = ConvxType.Subhead,
                         color = if (linked.problem != null) SystemColors.Red else ConvxColors.SecondaryLabel,

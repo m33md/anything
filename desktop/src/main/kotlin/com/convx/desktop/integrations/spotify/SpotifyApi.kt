@@ -218,46 +218,62 @@ object SpotifyApi {
         return all
     }
 
-    private suspend fun get(url: String, attempt: Int = 0): JsonObject = withContext(Dispatchers.IO) {
-        val token = SpotifyAccount.accessToken(forceRefresh = attempt > 0)
-        val request = Request.Builder()
-            .url(url)
-            .header("Authorization", "Bearer $token")
-            .header("Accept", "application/json")
-            .header("User-Agent", Http.USER_AGENT)
-            .build()
-        val (code, body, retryAfter) = Http.client.newCall(request).execute().use { response ->
-            Triple(response.code, response.body?.string().orEmpty(), response.header("Retry-After")?.toLongOrNull())
-        }
-        when {
-            code in 200..299 -> json.parseToJsonElement(body.ifBlank { "{}" }).jsonObject
-            code == 401 && attempt == 0 -> get(url, attempt + 1)
-            // A long wait is Spotify rationing the shared desktop client; say so rather than hang.
-            code == 429 && (retryAfter ?: 0L) > 30L -> {
-                Log.w(Tag, "${url.substringBefore('?').removePrefix(Base)} answered 429 (retry after ${retryAfter}s)")
-                throw SpotifyException(
-                    429,
-                    "Spotify is limiting Convx's shared Spotify access and says to wait ${waitText(retryAfter!!)}. " +
-                        "Linking through your own Spotify app (Settings > Spotify) avoids the wait",
-                )
-            }
-            code == 429 && attempt < 3 -> {
-                val wait = (retryAfter ?: 2L).coerceIn(1L, 30L)
-                Log.w(Tag, "Spotify asked to slow down; waiting ${wait}s")
-                _waiting.value = "Spotify asked Convx to slow down, so it's waiting $wait s (try ${attempt + 1} of 3)…"
+    /** Spotify's "wait" is for the whole app, so every request honours it, and they go one at a time. */
+    private val requestLock = Mutex()
+    @Volatile private var quietUntil = 0L
+
+    /** Longest wait Convx sits out by itself; past this the page says so and the own-app route avoids it. */
+    private const val MaxPatientWait = 120L
+
+    private suspend fun get(url: String, attempt: Int = 0, newToken: Boolean = false): JsonObject {
+        val path = url.substringBefore('?').removePrefix(Base)
+        val (code, body, retryAfter) = requestLock.withLock {
+            val pause = quietUntil - System.currentTimeMillis()
+            if (pause > 0) {
+                _waiting.value = "Spotify asked Convx to wait, so it's waiting ${waitText((pause + 999) / 1000)}…"
                 try {
-                    delay(wait * 1000)
+                    delay(pause)
                 } finally {
                     _waiting.value = null
                 }
-                get(url, attempt + 1)
             }
+            withContext(Dispatchers.IO) {
+                val token = SpotifyAccount.accessToken(forceRefresh = newToken)
+                val request = Request.Builder()
+                    .url(url)
+                    .header("Authorization", "Bearer $token")
+                    .header("Accept", "application/json")
+                    .header("User-Agent", Http.USER_AGENT)
+                    .build()
+                Http.client.newCall(request).execute().use { response ->
+                    Triple(response.code, response.body?.string().orEmpty(), response.header("Retry-After")?.toLongOrNull())
+                }
+            }
+        }
+        if (code == 429) {
+            val wait = (retryAfter ?: 2L).coerceAtLeast(1L)
+            quietUntil = System.currentTimeMillis() + wait * 1000
+            Log.w(Tag, "$path answered 429 (retry after ${retryAfter}s, try ${attempt + 1})")
+            // A long wait is Spotify rationing the shared desktop client; say so rather than hang.
+            if (wait > MaxPatientWait || attempt >= 3) {
+                throw SpotifyException(
+                    429,
+                    "Spotify is limiting Convx's shared Spotify access and says to wait ${waitText(wait)}. " +
+                        "Linking through your own Spotify app (Settings > Spotify) avoids the wait",
+                )
+            }
+            return get(url, attempt + 1)
+        }
+        quietUntil = 0L
+        return when {
+            code in 200..299 -> json.parseToJsonElement(body.ifBlank { "{}" }).jsonObject
+            code == 401 && !newToken -> get(url, attempt + 1, newToken = true)
             else -> {
                 val message = runCatching {
                     json.parseToJsonElement(body).jsonObject.obj("error")?.str("message")
                 }.getOrNull()
                 // What Spotify said, so "Copy recent log" shows why a list didn't load.
-                Log.w(Tag, "${url.substringBefore('?').removePrefix(Base)} answered $code${retryAfter?.let { " (retry after ${it}s)" }.orEmpty()}: ${message ?: body.take(200)}")
+                Log.w(Tag, "$path answered $code${retryAfter?.let { " (retry after ${it}s)" }.orEmpty()}: ${message ?: body.take(200)}")
                 throw SpotifyException(code, message?.let { "Spotify: $it" } ?: "Spotify answered $code")
             }
         }
