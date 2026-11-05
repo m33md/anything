@@ -21,15 +21,20 @@ if (-not (Get-Command wix -ErrorAction SilentlyContinue)) {
 $extensions = Join-Path ([IO.Path]::GetTempPath()) "wix-extensions-$wixVersion"
 $ext = foreach ($name in 'WixToolset.Bal.wixext', 'WixToolset.Util.wixext') {
     $dir = Join-Path $extensions $name
-    $dll = Join-Path $dir "wixext5\$name.dll"
-    if (-not (Test-Path $dll)) {
+    if (-not (Test-Path $dir)) {
         $package = Join-Path $extensions "$name.zip"
         New-Item -ItemType Directory -Force $extensions | Out-Null
         Invoke-WebRequest "https://www.nuget.org/api/v2/package/$name/$wixVersion" -OutFile $package
         Expand-Archive $package -DestinationPath $dir -Force
     }
-    if (-not (Test-Path $dll)) { throw "No $dll in the $name package" }
-    '-ext'; $dll
+    # The extension's .dll, wherever the package keeps it (wixext5\ in WiX 5's own cache).
+    $dll = Get-ChildItem $dir -Recurse -Filter "$name.dll" | Sort-Object { $_.FullName -notlike '*wixext5*' } | Select-Object -First 1
+    if (-not $dll) {
+        Get-ChildItem $dir -Recurse | ForEach-Object { Write-Host $_.FullName }
+        throw "No $name.dll in the $name package"
+    }
+    Write-Host "Using $($dll.FullName)"
+    '-ext'; $dll.FullName
 }
 
 $msiPath = (Resolve-Path $Msi).Path
