@@ -129,7 +129,8 @@ fun YouTubeAccountSettings() {
                     is YouTubeSync.Status.Running -> "Syncing ${s.step.lowercase()}…"
                     is YouTubeSync.Status.Done ->
                         "${s.liked} liked songs, ${s.albums} albums, ${s.artists} artists and ${s.playlists} playlists, synced at " +
-                            java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(s.at))
+                            java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(s.at)) +
+                            if (s.skipped.isEmpty()) "" else ". Couldn't read your ${s.skipped.joinToString(" or ")} this time, so those stayed as they were"
                     is YouTubeSync.Status.Failed -> "Last sync failed: ${s.message}"
                 },
                 enabled = sync !is YouTubeSync.Status.Running,

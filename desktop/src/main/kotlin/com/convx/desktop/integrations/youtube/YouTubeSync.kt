@@ -50,7 +50,11 @@ object YouTubeSync {
     sealed interface Status {
         data object Idle : Status
         data class Running(val step: String) : Status
-        data class Done(val at: Long, val liked: Int, val albums: Int, val artists: Int, val playlists: Int) : Status
+        data class Done(
+            val at: Long, val liked: Int, val albums: Int, val artists: Int, val playlists: Int,
+            /** Parts that couldn't be read this time and were left as they were. */
+            val skipped: List<String> = emptyList(),
+        ) : Status
         data class Failed(val message: String) : Status
     }
 
@@ -129,16 +133,34 @@ object YouTubeSync {
     private suspend fun run() {
         val started = System.currentTimeMillis()
         try {
-            _status.value = Status.Running("Liked songs")
-            val liked = YouTube.playlist("LM").completed().getOrThrow().songs.map { it.toSong() }
-            _status.value = Status.Running("Albums")
-            val albums = YouTube.library("FEmusic_liked_albums").completed().getOrThrow().items.filterIsInstance<AlbumItem>().map { it.toSaved() }
-            _status.value = Status.Running("Artists")
-            val artists = YouTube.library("FEmusic_library_corpus_artists").completed().getOrThrow().items.filterIsInstance<ArtistItem>().map { it.toSaved() }
-            _status.value = Status.Running("Playlists")
-            val playlists = YouTube.library("FEmusic_liked_playlists").completed().getOrThrow().items.filterIsInstance<PlaylistItem>()
-                .filterNot { it.id == "LM" || it.id == "SE" }
-                .map { it.toSaved() }
+            val skipped = mutableListOf<String>()
+            // Each part is read on its own, as the phone does, so one that can't be read doesn't stop
+            // the rest. YouTube Music answers an empty part (no saved albums, say) with no shelf at
+            // all, which reads as "No content found": that's an empty list, not a failure.
+            suspend fun <T> part(name: String, read: suspend () -> List<T>): List<T>? {
+                _status.value = Status.Running(name)
+                return try {
+                    read()
+                } catch (error: Throwable) {
+                    if (error is CancellationException) throw error
+                    if (error.message?.startsWith("No content found") == true) return emptyList()
+                    Log.w(Tag, "Couldn't sync ${name.lowercase()}", error)
+                    skipped += name.lowercase()
+                    null
+                }
+            }
+            val liked = part("Liked songs") { YouTube.playlist("LM").completed().getOrThrow().songs.map { it.toSong() } }
+            val albums = part("Albums") { YouTube.library("FEmusic_liked_albums").completed().getOrThrow().items.filterIsInstance<AlbumItem>().map { it.toSaved() } }
+            val artists = part("Artists") { YouTube.library("FEmusic_library_corpus_artists").completed().getOrThrow().items.filterIsInstance<ArtistItem>().map { it.toSaved() } }
+            val playlists = part("Playlists") {
+                YouTube.library("FEmusic_liked_playlists").completed().getOrThrow().items.filterIsInstance<PlaylistItem>()
+                    .filterNot { it.id == "LM" || it.id == "SE" }
+                    .map { it.toSaved() }
+            }
+            if (liked == null && albums == null && artists == null && playlists == null) {
+                _status.value = Status.Failed("Couldn't reach YouTube Music")
+                return
+            }
             // Uploads sit in the library's second tab. An account without any may have no such tab,
             // which isn't a failed sync, so what was there stays.
             _status.value = Status.Running("Uploads")
@@ -148,27 +170,35 @@ object YouTubeSync {
             val known = store.value
             val now = System.currentTimeMillis()
             fun mine(id: String) = (touched[id] ?: 0L) >= started
+            // A part that couldn't be read keeps what Convx has, and what sync knew about it.
             Library.applySync { data ->
                 data.copy(
-                    liked = merge(data.liked, liked, known.liked, { it.song.id }, { it.id }, ::mine) { song, i -> LikedSong(song, now - i * 1000L) }
-                        .sortedByDescending { it.likedAt },
-                    albums = merge(data.albums, albums, known.albums, { it.browseId }, { it.browseId }, ::mine) { a, i -> a.copy(savedAt = now - i * 1000L) },
-                    artists = merge(data.artists, artists, known.artists, { it.id }, { it.id }, ::mine) { a, i -> a.copy(savedAt = now - i * 1000L) },
-                    playlists = merge(data.playlists, playlists, known.playlists, { it.id }, { it.id }, ::mine) { p, i -> p.copy(savedAt = now - i * 1000L) },
+                    liked = liked?.let { remote ->
+                        merge(data.liked, remote, known.liked, { it.song.id }, { it.id }, ::mine) { song, i -> LikedSong(song, now - i * 1000L) }
+                            .sortedByDescending { it.likedAt }
+                    } ?: data.liked,
+                    albums = albums?.let { merge(data.albums, it, known.albums, { a -> a.browseId }, { a -> a.browseId }, ::mine) { a, i -> a.copy(savedAt = now - i * 1000L) } } ?: data.albums,
+                    artists = artists?.let { merge(data.artists, it, known.artists, { a -> a.id }, { a -> a.id }, ::mine) { a, i -> a.copy(savedAt = now - i * 1000L) } } ?: data.artists,
+                    playlists = playlists?.let { merge(data.playlists, it, known.playlists, { p -> p.id }, { p -> p.id }, ::mine) { p, i -> p.copy(savedAt = now - i * 1000L) } } ?: data.playlists,
                     // Uploads can't be changed from Convx, so the account's list is the list.
                     uploaded = uploaded ?: data.uploaded,
                 )
             }
-            store.update {
+            store.update { old ->
                 Known(
-                    liked = liked.mapTo(HashSet()) { it.id },
-                    albums = albums.mapTo(HashSet()) { it.browseId },
-                    artists = artists.mapTo(HashSet()) { it.id },
-                    playlists = playlists.mapTo(HashSet()) { it.id },
+                    liked = liked?.mapTo(HashSet()) { it.id } ?: old.liked,
+                    albums = albums?.mapTo(HashSet()) { it.browseId } ?: old.albums,
+                    artists = artists?.mapTo(HashSet()) { it.id } ?: old.artists,
+                    playlists = playlists?.mapTo(HashSet()) { it.id } ?: old.playlists,
                 )
             }
-            _status.value = Status.Done(System.currentTimeMillis(), liked.size, albums.size, artists.size, playlists.size)
-            Log.i(Tag, "Synced ${liked.size} liked songs, ${albums.size} albums, ${artists.size} artists, ${playlists.size} playlists")
+            _status.value = Status.Done(
+                System.currentTimeMillis(),
+                liked?.size ?: 0, albums?.size ?: 0, artists?.size ?: 0, playlists?.size ?: 0,
+                skipped = skipped,
+            )
+            Log.i(Tag, "Synced ${liked?.size} liked songs, ${albums?.size} albums, ${artists?.size} artists, ${playlists?.size} playlists" +
+                if (skipped.isEmpty()) "" else "; couldn't read ${skipped.joinToString()}")
         } catch (error: Throwable) {
             if (error is CancellationException) throw error
             Log.w(Tag, "Sync failed", error)

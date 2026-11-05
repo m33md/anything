@@ -222,13 +222,25 @@ object SpotifyApi {
     private val requestLock = Mutex()
     @Volatile private var quietUntil = 0L
 
-    /** Longest wait Convx sits out by itself; past this the page says so and the own-app route avoids it. */
-    private const val MaxPatientWait = 120L
+    /**
+     * Longest wait Convx sits out by itself. Spotify hands the shared desktop client a fresh
+     * one-minute wait each time it asks again, so waiting longer only kept the countdown going:
+     * past this, Convx stops asking until the wait is over and says so.
+     */
+    private const val MaxPatientWait = 10L
+
+    private fun limited(wait: Long) = SpotifyException(
+        429,
+        "Spotify is turning away Convx's shared Spotify access right now (it says to wait ${waitText(wait)}). " +
+            "Import with Exportify in Settings > Spotify brings your playlists in without it",
+    )
 
     private suspend fun get(url: String, attempt: Int = 0, newToken: Boolean = false): JsonObject {
         val path = url.substringBefore('?').removePrefix(Base)
         val (code, body, retryAfter) = requestLock.withLock {
             val pause = quietUntil - System.currentTimeMillis()
+            // Asking again inside a long wait only earns another one, so don't.
+            if (pause > MaxPatientWait * 1000) throw limited((pause + 999) / 1000)
             if (pause > 0) {
                 _waiting.value = "Spotify asked Convx to wait, so it's waiting ${waitText((pause + 999) / 1000)}…"
                 try {
@@ -255,13 +267,7 @@ object SpotifyApi {
             quietUntil = System.currentTimeMillis() + wait * 1000
             Log.w(Tag, "$path answered 429 (retry after ${retryAfter}s, try ${attempt + 1})")
             // A long wait is Spotify rationing the shared desktop client; say so rather than hang.
-            if (wait > MaxPatientWait || attempt >= 3) {
-                throw SpotifyException(
-                    429,
-                    "Spotify is limiting Convx's shared Spotify access and says to wait ${waitText(wait)}. " +
-                        "Linking through your own Spotify app (Settings > Spotify) avoids the wait",
-                )
-            }
+            if (wait > MaxPatientWait || attempt >= 2) throw limited(wait)
             return get(url, attempt + 1)
         }
         quietUntil = 0L
