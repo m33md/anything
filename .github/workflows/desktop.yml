@@ -3,6 +3,7 @@ name: Desktop build
 on:
   push:
     paths:
+      - "installer/**"
       - "desktop/**"
       - "innertube/**"
       - "lyrics/**"
@@ -11,6 +12,7 @@ on:
       - ".github/workflows/desktop.yml"
   pull_request:
     paths:
+      - "installer/**"
       - "desktop/**"
       - "innertube/**"
       - "lyrics/**"
@@ -82,18 +84,6 @@ jobs:
           cp "$(cygpath -u "$LOCALAPPDATA")"/Convx/logs/*.log build/snapshots/ || true
           exit $status
 
-      - name: Publish screenshots
-        if: github.event_name == 'push' && hashFiles('desktop/build/snapshots/**') != ''
-        continue-on-error: true
-        working-directory: desktop/build/snapshots
-        run: |
-          git init -q -b snapshots
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -qm "Screenshots for ${GITHUB_SHA::7}"
-          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" snapshots:convx-desktop-snapshots
-
       - name: Package installers
         env:
           CONVX_JBR: ${{ steps.jbr.outputs.path }}
@@ -124,6 +114,39 @@ jobs:
           $msi = Get-ChildItem build/compose/binaries/main/msi/*.msi | Select-Object -First 1
           ./packaging/windows/brand-exe.ps1 -Exe $exe.FullName -Msi $msi.FullName -Icon src/main/resources/convx.ico
 
+      # Convx's own setup window (installer/windows), around the branded MSI. It's tried on this
+      # runner like a person would (update, uninstall, a failure, the updater's /passive run) and only
+      # published if every step works; otherwise the release keeps the MSI and jpackage's .exe.
+      - name: Build the setup
+        id: setup
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem build/compose/binaries/main/msi/*.msi | Select-Object -First 1
+          ../installer/windows/build-bundle.ps1 -Msi $msi.FullName -Version $env:CONVX_VERSION -Icon src/main/resources/convx.ico -Out build/setup/Convx-Setup.exe
+
+      - name: Try the setup
+        id: trysetup
+        if: steps.setup.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 15
+        shell: powershell
+        run: |
+          $msi = Get-ChildItem build/compose/binaries/main/msi/*.msi | Select-Object -First 1
+          ../installer/windows/preview.ps1 -Setup build/setup/Convx-Setup.exe -Msi $msi.FullName -OutDir build/snapshots/setup
+
+      - name: Publish screenshots
+        if: github.event_name == 'push' && hashFiles('desktop/build/snapshots/**') != ''
+        continue-on-error: true
+        working-directory: desktop/build/snapshots
+        run: |
+          git init -q -b snapshots
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -qm "Screenshots for ${GITHUB_SHA::7}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" snapshots:convx-desktop-snapshots
+
       - name: Zip portable build
         shell: pwsh
         run: Compress-Archive -Path build/compose/binaries/main/app/Convx -DestinationPath build/Convx-portable-windows.zip
@@ -134,6 +157,7 @@ jobs:
           path: |
             desktop/build/compose/binaries/main/msi/*.msi
             desktop/build/compose/binaries/main/exe/*.exe
+            desktop/build/setup/*.exe
           if-no-files-found: error
 
       - uses: actions/upload-artifact@v4
@@ -148,8 +172,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          SETUP_EXE: ${{ steps.trysetup.outcome == 'success' && 'build/setup/Convx-Setup.exe' || '' }}
         run: |
           bash ../.github/scripts/publish-desktop-release.sh "$GITHUB_SHA" "$CONVX_VERSION" \
             build/compose/binaries/main/msi/*.msi \
             build/compose/binaries/main/exe/*.exe \
-            build/Convx-portable-windows.zip
+            build/Convx-portable-windows.zip \
+            ${SETUP_EXE:+"$SETUP_EXE"}

@@ -16,10 +16,13 @@
             AboutUrl="https://github.com/m33md/anything/tree/convx-desktop"
             DisableModify="button">
         <BootstrapperApplication>
-            <bal:WixStandardBootstrapperApplication Theme="none" SuppressOptionsUI="yes" SuppressRepair="yes"
+            <!-- The hyperlink theme's payload group carries the information WixStdBA needs to start;
+                 its thm.xml and thm.wxl are swapped for Convx's, which have no licence link. -->
+            <bal:WixStandardBootstrapperApplication Theme="hyperlinkLicense" LicenseUrl=""
+                                                    ThemeFile="$(sys.SOURCEFILEDIR)theme.xml"
+                                                    LocalizationFile="$(sys.SOURCEFILEDIR)theme.wxl"
+                                                    SuppressOptionsUI="yes" SuppressRepair="yes"
                                                     LaunchTarget="[InstallFolder]\Convx.exe" />
-            <Payload Name="thm.xml" SourceFile="$(sys.SOURCEFILEDIR)theme.xml" />
-            <Payload Name="thm.wxl" SourceFile="$(sys.SOURCEFILEDIR)theme.wxl" />
             <Payload Name="background.png" SourceFile="$(sys.SOURCEFILEDIR)theme\background.png" />
             <Payload Name="close-hover.png" SourceFile="$(sys.SOURCEFILEDIR)theme\close-hover.png" />
             <Payload Name="close-hover@2x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\close-hover@2x.png" />

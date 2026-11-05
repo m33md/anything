@@ -30,7 +30,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p build
-          gh release download desktop-latest --repo "$GITHUB_REPOSITORY" --pattern 'Convx-1.0.0.msi' --dir build
+          gh release download desktop-latest --repo "$GITHUB_REPOSITORY" --pattern 'Convx-*.msi' --dir build
+          mv build/Convx-*.msi build/Convx.msi
           gh release view desktop-latest --repo "$GITHUB_REPOSITORY" --json body --jq .body \
             | grep -oE 'Version [0-9]+(\.[0-9]+)+' | head -1 | cut -d' ' -f2 > build/version.txt
           echo "MSI version $(cat build/version.txt)"
@@ -38,13 +39,13 @@ jobs:
       - name: Build the setup
         shell: pwsh
         run: |
-          ./installer/windows/build-bundle.ps1 -Msi build/Convx-1.0.0.msi -Version (Get-Content build/version.txt).Trim() `
+          ./installer/windows/build-bundle.ps1 -Msi build/Convx.msi -Version (Get-Content build/version.txt).Trim() `
             -Icon desktop/src/main/resources/convx.ico -Out build/Convx-Setup.exe
 
       - name: Try it and take screenshots
         shell: powershell
         timeout-minutes: 15
-        run: ./installer/windows/preview.ps1 -Setup build/Convx-Setup.exe -Msi build/Convx-1.0.0.msi -OutDir build/preview
+        run: ./installer/windows/preview.ps1 -Setup build/Convx-Setup.exe -Msi build/Convx.msi -OutDir build/preview
 
       - name: Publish screenshots
         if: always() && hashFiles('build/preview/**') != ''

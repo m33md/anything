@@ -31,7 +31,10 @@ object Updater {
     private const val Repo = "m33md/anything"
     private const val ReleaseTag = "desktop-latest"
 
-    class Release(val version: String, val commit: String, val installerUrl: String, val installerSize: Long, val changes: List<String>)
+    class Release(val version: String, val commit: String, val installerUrl: String, val installerSize: Long, val changes: List<String>) {
+        /** Convx's own setup .exe (newer builds) rather than the bare MSI. */
+        val isSetup: Boolean get() = installerUrl.substringAfterLast('/').startsWith("Convx-Setup-") && installerUrl.endsWith(".exe", ignoreCase = true)
+    }
 
     sealed interface State {
         data object Idle : State
@@ -70,8 +73,11 @@ object Updater {
         val notes = release.string("body")
         val commit = Regex("""/tree/([0-9a-f]{40})""").find(notes)?.groupValues?.get(1) ?: error("the release names no build")
         val version = Regex("""Version (\d+(?:\.\d+)+)""").find(notes)?.groupValues?.get(1) ?: commit.take(7)
-        val installer = release["assets"]?.jsonArray?.map { it.jsonObject }
-            ?.firstOrNull { it.string("name").endsWith(".msi", ignoreCase = true) }
+        // Convx's setup .exe when the release has one (it shows its own progress window and keeps
+        // Windows' Installed apps entry right), else the MSI older releases carried.
+        val assets = release["assets"]?.jsonArray?.map { it.jsonObject }.orEmpty()
+        val installer = assets.firstOrNull { it.string("name").let { n -> n.startsWith("Convx-Setup-") && n.endsWith(".exe", ignoreCase = true) } }
+            ?: assets.firstOrNull { it.string("name").endsWith(".msi", ignoreCase = true) }
             ?: error("the release has no installer")
         if (commit == AppInfo.COMMIT) return State.UpToDate
         // What the newer build adds over this one; a build GitHub can't place (made elsewhere) shows none.
@@ -93,7 +99,7 @@ object Updater {
         val release = (_state.value as? State.Available)?.release ?: return@withContext
         val dir = File(AppDirs.data, "updates").apply { mkdirs() }
         dir.listFiles()?.forEach { it.delete() }
-        val file = File(dir, "Convx-${release.version}.msi")
+        val file = File(dir, if (release.isSetup) "Convx-Setup-${release.version}.exe" else "Convx-${release.version}.msi")
         _state.value = State.Downloading(release, 0f)
         val ok = runCatching {
             val request = Request.Builder().url(release.installerUrl).header("User-Agent", "ConvxDesktop/${AppInfo.VERSION}").build()
@@ -139,8 +145,14 @@ object Updater {
                 appendLine("echo Updating Convx to ${release.version}. It opens again by itself when it's done.")
                 // A moment for Convx to close, so the installer can replace its files.
                 appendLine("ping -n 4 127.0.0.1 >nul")
-                append("start \"\" /wait msiexec /i \"${file.absolutePath}\" /passive /norestart")
-                if (exe != null) append(" INSTALLDIR=\"${exe.parentFile.absolutePath}\"")
+                if (release.isSetup) {
+                    // The setup window shows only its progress; InstallFolder keeps Convx where it is.
+                    append("start \"\" /wait \"${file.absolutePath}\" /passive /norestart")
+                    if (exe != null) append(" InstallFolder=\"${exe.parentFile.absolutePath}\"")
+                } else {
+                    append("start \"\" /wait msiexec /i \"${file.absolutePath}\" /passive /norestart")
+                    if (exe != null) append(" INSTALLDIR=\"${exe.parentFile.absolutePath}\"")
+                }
                 appendLine()
                 if (exe != null) appendLine("start \"\" \"${exe.absolutePath}\"")
             },
