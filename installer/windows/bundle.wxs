@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Convx's setup .exe: a WiX 5 bundle around the MSI jpackage makes, with its own window (theme.xml).
+  Built by build-bundle.ps1 with -d Version, -d Msi and -d Icon.
+
+  The bundle is what Windows lists under Installed apps, so uninstalling goes through this window too.
+  The MSI inside is hidden there, and is still the one jpackage made: it upgrades any Convx installed
+  from an older .msi, and the in-app updater can still pass InstallFolder to keep Convx where it is.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+    <Bundle Name="Convx" Version="$(var.Version)" Manufacturer="Convx"
+            UpgradeCode="{92884143-65B7-467F-83F5-5D79C7BA988D}"
+            IconSourceFile="$(var.Icon)"
+            AboutUrl="https://github.com/m33md/anything/tree/convx-desktop"
+            DisableModify="button">
+        <BootstrapperApplication>
+            <bal:WixStandardBootstrapperApplication Theme="none" SuppressOptionsUI="yes" SuppressRepair="yes"
+                                                    LaunchTarget="[InstallFolder]\Convx.exe" />
+            <Payload Name="thm.xml" SourceFile="$(sys.SOURCEFILEDIR)theme.xml" />
+            <Payload Name="thm.wxl" SourceFile="$(sys.SOURCEFILEDIR)theme.wxl" />
+            <Payload Name="background.png" SourceFile="$(sys.SOURCEFILEDIR)theme\background.png" />
+            <Payload Name="close-hover.png" SourceFile="$(sys.SOURCEFILEDIR)theme\close-hover.png" />
+            <Payload Name="close-hover@2x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\close-hover@2x.png" />
+            <Payload Name="close-hover@3x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\close-hover@3x.png" />
+            <Payload Name="close-pressed.png" SourceFile="$(sys.SOURCEFILEDIR)theme\close-pressed.png" />
+            <Payload Name="close-pressed@2x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\close-pressed@2x.png" />
+            <Payload Name="close-pressed@3x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\close-pressed@3x.png" />
+            <Payload Name="close.png" SourceFile="$(sys.SOURCEFILEDIR)theme\close.png" />
+            <Payload Name="close@2x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\close@2x.png" />
+            <Payload Name="close@3x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\close@3x.png" />
+            <Payload Name="mark.png" SourceFile="$(sys.SOURCEFILEDIR)theme\mark.png" />
+            <Payload Name="mark@2x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\mark@2x.png" />
+            <Payload Name="mark@3x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\mark@3x.png" />
+            <Payload Name="primary-hover.png" SourceFile="$(sys.SOURCEFILEDIR)theme\primary-hover.png" />
+            <Payload Name="primary-hover@2x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\primary-hover@2x.png" />
+            <Payload Name="primary-hover@3x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\primary-hover@3x.png" />
+            <Payload Name="primary-pressed.png" SourceFile="$(sys.SOURCEFILEDIR)theme\primary-pressed.png" />
+            <Payload Name="primary-pressed@2x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\primary-pressed@2x.png" />
+            <Payload Name="primary-pressed@3x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\primary-pressed@3x.png" />
+            <Payload Name="primary.png" SourceFile="$(sys.SOURCEFILEDIR)theme\primary.png" />
+            <Payload Name="primary@2x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\primary@2x.png" />
+            <Payload Name="primary@3x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\primary@3x.png" />
+            <Payload Name="progress.png" SourceFile="$(sys.SOURCEFILEDIR)theme\progress.png" />
+            <Payload Name="progress@2x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\progress@2x.png" />
+            <Payload Name="progress@3x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\progress@3x.png" />
+            <Payload Name="secondary-hover.png" SourceFile="$(sys.SOURCEFILEDIR)theme\secondary-hover.png" />
+            <Payload Name="secondary-hover@2x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\secondary-hover@2x.png" />
+            <Payload Name="secondary-hover@3x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\secondary-hover@3x.png" />
+            <Payload Name="secondary-pressed.png" SourceFile="$(sys.SOURCEFILEDIR)theme\secondary-pressed.png" />
+            <Payload Name="secondary-pressed@2x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\secondary-pressed@2x.png" />
+            <Payload Name="secondary-pressed@3x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\secondary-pressed@3x.png" />
+            <Payload Name="secondary.png" SourceFile="$(sys.SOURCEFILEDIR)theme\secondary.png" />
+            <Payload Name="secondary@2x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\secondary@2x.png" />
+            <Payload Name="secondary@3x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\secondary@3x.png" />
+            <Payload Name="wordmark.png" SourceFile="$(sys.SOURCEFILEDIR)theme\wordmark.png" />
+            <Payload Name="wordmark@2x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\wordmark@2x.png" />
+            <Payload Name="wordmark@3x.png" SourceFile="$(sys.SOURCEFILEDIR)theme\wordmark@3x.png" />
+        </BootstrapperApplication>
+
+        <!-- Where jpackage's per-user MSI installs by default; the updater passes the current folder. -->
+        <Variable Name="InstallFolder" Type="formatted" Value="[LocalAppDataFolder]Convx" bal:Overridable="yes" />
+
+        <!-- A Convx from any earlier installer, so the window says "Update" rather than "Install". -->
+        <util:ProductSearch UpgradeCode="{6F1D1A6E-6A52-4F6B-9B0E-3C1F2D7A9C41}" Result="version" Variable="ConvxInstalledVersion" />
+
+        <Chain>
+            <MsiPackage Id="ConvxMsi" SourceFile="$(var.Msi)" Visible="no" Compressed="yes">
+                <MsiProperty Name="INSTALLDIR" Value="[InstallFolder]" />
+            </MsiPackage>
+        </Chain>
+    </Bundle>
+</Wix>

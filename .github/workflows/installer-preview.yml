@@ -1,0 +1,59 @@
+name: Installer preview
+
+# Builds Convx's setup .exe around the MSI of the latest published build and runs it on Windows,
+# taking a screenshot of each page. Quicker than a full desktop build while the setup window is
+# being worked on; the full build (desktop.yml) runs the same check before it publishes.
+on:
+  push:
+    paths:
+      - "installer/**"
+      - ".github/workflows/installer-preview.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: installer-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      # Screenshots are pushed to the convx-installer-snapshots branch.
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Get the latest published MSI
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p build
+          gh release download desktop-latest --repo "$GITHUB_REPOSITORY" --pattern 'Convx-1.0.0.msi' --dir build
+          gh release view desktop-latest --repo "$GITHUB_REPOSITORY" --json body --jq .body \
+            | grep -o 'Version [0-9.]*' | head -1 | cut -d' ' -f2 > build/version.txt
+          echo "MSI version $(cat build/version.txt)"
+
+      - name: Build the setup
+        shell: pwsh
+        run: |
+          ./installer/windows/build-bundle.ps1 -Msi build/Convx-1.0.0.msi -Version (Get-Content build/version.txt).Trim() `
+            -Icon desktop/src/main/resources/convx.ico -Out build/Convx-Setup.exe
+
+      - name: Try it and take screenshots
+        shell: powershell
+        timeout-minutes: 15
+        run: ./installer/windows/preview.ps1 -Setup build/Convx-Setup.exe -Msi build/Convx-1.0.0.msi -OutDir build/preview
+
+      - name: Publish screenshots
+        if: always() && hashFiles('build/preview/**') != ''
+        shell: bash
+        working-directory: build/preview
+        run: |
+          git init -q -b snapshots
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -qm "Installer screenshots for ${GITHUB_SHA::7}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" snapshots:convx-installer-snapshots

@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The words in Convx's setup window. [WixBundleVersion] is the version being installed. -->
+<WixLocalization Culture="en-us" Language="1033" xmlns="http://wixtoolset.org/schemas/v4/wxl">
+  <String Id="Caption" Value="Convx Setup" />
+  <String Id="Version" Value="Version [WixBundleVersion]" />
+
+  <String Id="InstallHeader" Value="Install Convx" />
+  <String Id="InstallMessage" Value="Convx's player, lyrics and library, on this PC. It takes about a minute." />
+  <String Id="InstallButton" Value="Install" />
+  <String Id="UpdateHeader" Value="Update Convx" />
+  <String Id="UpdateMessage" Value="Version [ConvxInstalledVersion] is on this PC. Your library, playlists and settings stay as they are." />
+  <String Id="UpdateButton" Value="Update" />
+
+  <String Id="ModifyHeader" Value="Convx is installed" />
+  <String Id="ModifyMessage" Value="Version [WixBundleVersion] is on this PC. Uninstalling keeps your library and settings, in case you come back." />
+  <String Id="UninstallButton" Value="Uninstall" />
+
+  <String Id="ProgressHeader" Value="Installing Convx…" />
+  <String Id="ProgressUpdateHeader" Value="Updating Convx…" />
+  <String Id="ProgressUninstallHeader" Value="Removing Convx…" />
+  <String Id="ProgressMessage" Value="This takes about a minute." />
+
+  <String Id="SuccessHeader" Value="Done" />
+  <String Id="SuccessInstallHeader" Value="Convx is ready" />
+  <String Id="SuccessUninstallHeader" Value="Convx was removed" />
+  <String Id="SuccessMessage" Value="Setup has finished." />
+  <String Id="SuccessInstallMessage" Value="Find it in the Start menu, or open it now." />
+  <String Id="SuccessUninstallMessage" Value="Your library and settings are still on this PC, in case you come back." />
+  <String Id="LaunchButton" Value="Open Convx" />
+  <String Id="RestartText" Value="Restart your PC to finish." />
+  <String Id="RestartButton" Value="Restart" />
+
+  <String Id="FailureHeader" Value="Setup didn't finish" />
+  <String Id="FailureUninstallHeader" Value="Convx couldn't be removed" />
+  <String Id="FailureLogText" Value="Nothing was changed. The &lt;a href=&quot;#&quot;&gt;setup log&lt;/a&gt; says what went wrong." />
+  <String Id="FailureRestartText" Value="Restart your PC to finish undoing the changes." />
+
+  <String Id="CloseButton" Value="Close" />
+  <String Id="CancelButton" Value="Cancel" />
+
+  <String Id="HelpHeader" Value="Setup options" />
+  <String Id="HelpText" Value="/passive shows only progress. /quiet shows nothing. /uninstall removes Convx. /log file.txt writes a log. InstallFolder=&quot;path&quot; picks where Convx goes." />
+
+  <!-- Used by WixStdBA itself. -->
+  <String Id="ConfirmCancelMessage" Value="Stop installing Convx?" />
+  <String Id="ExecuteUpgradeRelatedBundleMessage" Value="Previous version" />
+  <String Id="ExecuteAddonRelatedBundleMessage" Value="Add-on" />
+  <String Id="ExecutePatchRelatedBundleMessage" Value="Patch" />
+  <String Id="PauseAutomaticUpdatesMessage" Value="Pausing Windows automatic updates" />
+  <String Id="SystemRestorePointMessage" Value="Creating a restore point" />
+  <String Id="FilesInUseTitle" Value="Convx is open" />
+  <String Id="FilesInUseLabel" Value="These apps are using files that need to be updated:" />
+  <String Id="FilesInUseNetfxCloseRadioButton" Value="Close the apps." />
+  <String Id="FilesInUseCloseRadioButton" Value="Close the apps and try to restart them." />
+  <String Id="FilesInUseDontCloseRadioButton" Value="Don't close them. A restart will be needed." />
+  <String Id="FilesInUseRetryButton" Value="Retry" />
+  <String Id="FilesInUseIgnoreButton" Value="Ignore" />
+  <String Id="FilesInUseExitButton" Value="Exit" />
+</WixLocalization>
